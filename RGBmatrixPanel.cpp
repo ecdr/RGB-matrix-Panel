@@ -146,6 +146,15 @@ RGBmatrixPanel::RGBmatrixPanel(
   init(8, a, b, c, sclk, latch, oe, dbuf, pwidth);
 }
 
+// Only 1 panel - compatible with old interface
+RGBmatrixPanel::RGBmatrixPanel(
+  uint8_t a, uint8_t b, uint8_t c,
+  uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf) :
+  Adafruit_GFX(BYTES_PER_ROW*pwidth, 16) {
+
+  init(8, a, b, c, sclk, latch, oe, dbuf, 1);
+}
+
 // Constructor for 32x32 panel:
 RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c, uint8_t d,
@@ -153,6 +162,20 @@ RGBmatrixPanel::RGBmatrixPanel(
   Adafruit_GFX(BYTES_PER_ROW*pwidth, 32) {
 
   init(16, a, b, c, sclk, latch, oe, dbuf, pwidth);
+
+  // Init a few extra 32x32-specific elements:
+  _d        = d;
+  addrdport = portOutputRegister(digitalPinToPort(d));
+  addrdpin  = digitalPinToBitMask(d);
+}
+
+// Constructor for 32x32 panel: - only 1 panel
+RGBmatrixPanel::RGBmatrixPanel(
+  uint8_t a, uint8_t b, uint8_t c, uint8_t d,
+  uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf) :
+  Adafruit_GFX(BYTES_PER_ROW*pwidth, 32) {
+
+  init(16, a, b, c, sclk, latch, oe, dbuf, 1);
 
   // Init a few extra 32x32-specific elements:
   _d        = d;
