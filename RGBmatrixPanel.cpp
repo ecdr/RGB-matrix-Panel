@@ -102,7 +102,7 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
 
   // Allocate and initialize matrix buffer:
   int buffsize  = BYTES_PER_ROW * nRows * 3 * nPanels, // x3 = 3 bytes holds 4 planes "packed"
-      allocsize = (dbuf == true) ? (buffsize * 2) : buffsize;
+      allocsize = (dbuf == true) ? (buffsize * nBuf) : buffsize;
   if(NULL == (matrixbuff[0] = (uint8_t *)malloc(allocsize))) return;
   memset(matrixbuff[0], 0, allocsize);
   // If not double-buffered, both buffers then point to the same address:
@@ -162,6 +162,7 @@ void RGBmatrixPanel::begin(void) {
 
   backindex   = 0;                         // Back buffer
   buffptr     = matrixbuff[1 - backindex]; // -> front buffer
+// FIXME: Adapt for nBuf > 2  
   activePanel = this;                      // For interrupt hander
 
   // Enable all comm & address pins as outputs, set default states:
@@ -310,6 +311,7 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
     // Data for the upper half of the display is stored in the lower
     // bits of each byte.
     ptr = &matrixbuff[backindex][y * WIDTH * (nPlanes - 1) + x]; // Base addr
+// FIXME: Adapt for nBuf > 2
     // Plane 0 is a tricky case -- its data is spread about,
     // stored in least two bits not used by the other planes.
     ptr=ptr+BYTES_PER_ROW*2*nPanels;
@@ -334,6 +336,7 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
     // Data for the lower half of the display is stored in the upper
     // bits, except for the plane 0 stuff, using 2 least bits.
     ptr = &matrixbuff[backindex][(y - nRows) * WIDTH * (nPlanes - 1) + x];
+// FIXME: Adapt for nBuf > 2
     *ptr &= ~B00000011;               // Plane 0 G,B mask out in one op
     if(r & 1)  ptr[BYTES_PER_ROW*nPanels] |=  B00000010; // Plane 0 R: 32 bytes ahead, bit 1
     else       ptr[BYTES_PER_ROW*nPanels] &= ~B00000010; // Plane 0 R unset; mask out
@@ -382,6 +385,7 @@ uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
     // Data for the upper half of the display is stored in the lower
     // bits of each byte.
     ptr = &matrixbuff[1-backindex][y * WIDTH * (nPlanes - 1) + x]; // Base addr
+// FIXME: Adapt for nBuf > 2
     // Plane 0 is a tricky case -- its data is spread about,
     // stored in least two bits not used by the other planes.
     if (ptr[BYTES_PER_ROW*2] & B00000001) r |= 1;   // Plane 0 R: 64 bytes ahead, bit 0
@@ -400,6 +404,7 @@ uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
     // Data for the lower half of the display is stored in the upper
     // bits, except for the plane 0 stuff, using 2 least bits.
     ptr = &matrixbuff[1-backindex][(y - nRows) * WIDTH * (nPlanes - 1) + x];
+// FIXME: Adapt for nBuf > 2
     if (ptr[BYTES_PER_ROW] & B00000010) r |= 1;   // Plane 0 R: 32 bytes ahead, bit 1
     if (*ptr    & B00000001) g |= 1;   // Plane 0 G: bit 0
     if (*ptr    & B00000010) b |= 1;   // Plane 0 B: bit 1
@@ -429,6 +434,7 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
 // Return address of front buffer -- can then read display directly
 uint8_t *RGBmatrixPanel::frontBuffer() {
   return matrixbuff[1-backindex];
+// FIXME: Adapt for nBuf > 2
 }
 
 // Return address of back buffer -- can then load/store data directly
@@ -444,6 +450,7 @@ uint8_t *RGBmatrixPanel::backBuffer() {
 // draw over every pixel.  (No effect if double-buffering is not enabled.)
 void RGBmatrixPanel::swapBuffers(boolean copy) {
   if(matrixbuff[0] != matrixbuff[1]) {
+// FIXME: Adapt for nBuf > 2
     // To avoid 'tearing' display, actual swap takes place in the interrupt
     // handler, at the end of a complete screen refresh cycle.
     swapflag = true;                  // Set flag here, then...

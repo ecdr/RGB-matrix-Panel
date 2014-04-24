@@ -6,6 +6,8 @@
 #endif
 #include "Adafruit_GFX.h"
 
+const uint8_t nBuf = 2;
+
 class RGBmatrixPanel : public Adafruit_GFX {
 
  public:
@@ -44,7 +46,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
  private:
 
-  uint8_t         *matrixbuff[2];
+  uint8_t         *matrixbuff[nBuf];
   uint8_t          nRows;
   volatile uint8_t backindex;
   volatile boolean swapflag;
