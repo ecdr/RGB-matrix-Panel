@@ -12,11 +12,17 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
   // Constructor for 16x32 panel:
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c,
-    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf);
+    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth);
+    /* Parameters
+    a, b, c are the pins used for addressing the rows
+    cclk, latch and oe are the pins used for Serial Clock, Latach and Output Enable
+    dbuf enables double buffering. This will use 2x RAM for frame buffer, but will give nice smooth animation
+    pwidth is the number of Panels used together in a multi panel configuration
+    */
 
-  // Constructor for 32x32 panel (adds 'd' pin):
+  // Constructor for 32x32 panel (adds 'd' pin): (THIS HAS NOT BEEN TESTED WITH MULTIPLE PANELS)
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
-    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf);
+    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf,uint8_t pwidth);
 
   void
     begin(void),
@@ -42,10 +48,12 @@ class RGBmatrixPanel : public Adafruit_GFX {
   uint8_t          nRows;
   volatile uint8_t backindex;
   volatile boolean swapflag;
+  uint8_t          nPanels;
+//  const uint8_t    nPlanes = 4;
 
   // Init/alloc code common to both constructors:
   void init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
-    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf);
+    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth);
 
   // PORT register pointers, pin bitmasks, pin numbers:
   volatile uint8_t
