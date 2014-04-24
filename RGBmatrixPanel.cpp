@@ -169,6 +169,7 @@ RGBmatrixPanel::RGBmatrixPanel(
   addrdpin  = digitalPinToBitMask(d);
 }
 
+/*
 // Constructor for 32x32 panel: - only 1 panel
 RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c, uint8_t d,
@@ -182,6 +183,7 @@ RGBmatrixPanel::RGBmatrixPanel(
   addrdport = portOutputRegister(digitalPinToPort(d));
   addrdpin  = digitalPinToBitMask(d);
 }
+*/
 
 void RGBmatrixPanel::begin(void) {
 

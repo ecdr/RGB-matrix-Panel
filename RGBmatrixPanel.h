@@ -36,10 +36,10 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
     // Constructor for 32x32 panel (adds 'd' pin): (THIS HAS NOT BEEN TESTED WITH MULTIPLE PANELS)
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
-    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf,uint8_t pwidth);
+    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth);
 
-  RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
-    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf);
+//  RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
+//    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf);
 
   void
     begin(void),
