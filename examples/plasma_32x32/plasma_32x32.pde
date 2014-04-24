@@ -6,9 +6,13 @@
 // for Adafruit Industries.
 // BSD license, all text above must be included in any redistribution.
 
+#if defined(__AVR__)
+#include <avr/pgmspace.h>
+#else
+#define PROGMEM 
+#endif
 #include <Adafruit_GFX.h>   // Core graphics library
 #include <RGBmatrixPanel.h> // Hardware-specific library
-#include <avr/pgmspace.h> 
 
 // If your 32x32 matrix has the SINGLE HEADER input,
 // use this pinout:

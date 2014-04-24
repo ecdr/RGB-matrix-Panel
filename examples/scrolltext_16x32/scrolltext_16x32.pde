@@ -10,7 +10,13 @@
 #include <RGBmatrixPanel.h> // Hardware-specific library
 
 // Similar to F(), but for PROGMEM string pointers rather than literals
+#if defined(__AVR__)
 #define F2(progmem_ptr) (const __FlashStringHelper *)progmem_ptr
+#else
+#define PROGMEM
+#define F2(progmem_ptr) (const *)progmem_ptr
+#endif
+
 
 #define CLK 8  // MUST be on PORTB! (Use pin 11 on Mega)
 #define LAT A3
