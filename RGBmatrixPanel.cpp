@@ -456,9 +456,22 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
     // To avoid 'tearing' display, actual swap takes place in the interrupt
     // handler, at the end of a complete screen refresh cycle.
     swapflag = true;                  // Set flag here, then...
+// TODO: Try allow swap at end of line rather than waiting for end of frame
+// What kind of tearing are they concerned with?  Suspect a holdover from old code?
+// 
+// Since screen redraw goes one line at a time, as long as you finish this line
+// you should have a smooth transition from one screen to the next
+// (sure, the transition starts in the middle of a frame, but is that a problem?
+//  would one see that temporary top of screen is old display bottom new for that
+//  vs whole display new repaint - given that lasts 1/200 second, and that each one
+//  is a continuation of temporally adjacent patterns (just part is from the old, and part is from the new))
+
     while(swapflag == true) delay(1); // wait for interrupt to clear it
     if(copy == true)
       memcpy(matrixbuff[backindex], matrixbuff[1-backindex], BYTES_PER_ROW * nRows * nPackedPlanes * nPanels);
+// TODO: Reduce busy wait - if copy is false, we could avoid this delay 
+//  However other update functions would need to check to be sure the backbuffer was okay to use
+//  (while swapflag is true, can not modify either buffer).
   }
 }
 
@@ -493,11 +506,15 @@ void RGBmatrixPanel::dumpMatrix(void) {
 }
 
 // -------------------- Interrupt handler stuff --------------------
-
+#if defined(__AVR__)
 ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
   activePanel->updateDisplay();   // Call refresh func for active display
   TIFR1 |= TOV1;                  // Clear Timer1 interrupt flag
 }
+#else
+// FIXME: Write ISR for Tiva
+
+#endif
 
 // Two constants are used in timing each successive BCM interval.
 // These were found empirically, by checking the value of TCNT1 at

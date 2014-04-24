@@ -1,9 +1,18 @@
+
+#ifndef RGBmatrixPanel_h
+#define RGBmatrixPanel_h
+
 #if ARDUINO >= 100
  #include "Arduino.h"
 #else
  #include "WProgram.h"
  #include "pins_arduino.h"
 #endif
+
+// FIXME: Needs #ifdef 
+#include <Energia.h>
+
+
 #include "Adafruit_GFX.h"
 
 const uint8_t nBuf = 2;
@@ -68,3 +77,4 @@ class RGBmatrixPanel : public Adafruit_GFX {
   volatile uint8_t *buffptr;
 };
 
+#endif
