@@ -469,9 +469,14 @@ void RGBmatrixPanel::dumpMatrix(void) {
 
   int i, buffsize = BYTES_PER_ROW * nRows * 3 * nPanels;
 
+#if defined(__AVR__)
   Serial.print("\n\n"
     "#include <avr/pgmspace.h>\n\n"
     "static const uint8_t PROGMEM img[] = {\n  ");
+#else
+  Serial.print("\n\n"
+    "static const uint8_t img[] = {\n  ");
+#endif
 
   for(i=0; i<buffsize; i++) {
     Serial.print("0x");
@@ -613,7 +618,7 @@ void RGBmatrixPanel::updateDisplay(void) {
     // The least 2 bits (used for plane 0 data) are presumed masked out
     // by the port direction bits.
 
-#if defined(__AVR__)    
+#if defined(__AVR__)
     // A tiny bit of inline assembly is used; compiler doesn't pick
     // up on opportunity for post-increment addressing mode.
     // 5 instruction ticks per 'pew' = 160 ticks total
