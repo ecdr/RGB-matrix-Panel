@@ -9,9 +9,9 @@
  #include "pins_arduino.h"
 #endif
 
-// FIXME: Needs #ifdef 
+#ifdef ENERGIA
 #include <Energia.h>
-
+#endif
 
 #include "Adafruit_GFX.h"
 
