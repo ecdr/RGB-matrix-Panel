@@ -13,6 +13,10 @@
 #include <RGBmatrixPanel.h> // Hardware-specific library
 #include "image.h"
 
+#ifndef __AVR__
+#define memcpy_P(dest, src, len) memcpy(dest, src, len)
+#endif
+
 // If your 32x32 matrix has the SINGLE HEADER input,
 // use this pinout:
 #define CLK 8  // MUST be on PORTB! (Use pin 11 on Mega)
