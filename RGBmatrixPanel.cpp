@@ -82,6 +82,8 @@ BSD license, all text above must be included in any redistribution.
 
 const uint8_t    nPlanes = 4;
 const uint8_t BYTES_PER_ROW = 32;
+const uint8_t nPackedPlanes = 3;  // 3 bytes holds 4 planes "packed"
+
 
 // The fact that the display driver interrupt stuff is tied to the
 // singular Timer1 doesn't really take well to object orientation with
@@ -101,7 +103,7 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   nPanels = pwidth;
 
   // Allocate and initialize matrix buffer:
-  int buffsize  = BYTES_PER_ROW * nRows * 3 * nPanels, // x3 = 3 bytes holds 4 planes "packed"
+  int buffsize  = BYTES_PER_ROW * nRows * nPackedPlanes * nPanels, // x3 = 3 bytes holds 4 planes "packed"
       allocsize = (dbuf == true) ? (buffsize * nBuf) : buffsize;
   if(NULL == (matrixbuff[0] = (uint8_t *)malloc(allocsize))) return;
   memset(matrixbuff[0], 0, allocsize);
@@ -424,7 +426,7 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
     // For black or white, all bits in frame buffer will be identically
     // set or unset (regardless of weird bit packing), so it's OK to just
     // quickly memset the whole thing:
-    memset(matrixbuff[backindex], c, BYTES_PER_ROW * nRows * 3 * nPanels);
+    memset(matrixbuff[backindex], c, BYTES_PER_ROW * nRows * nPackedPlanes * nPanels);
   } else {
     // Otherwise, need to handle it the long way:
     Adafruit_GFX::fillScreen(c);
@@ -456,7 +458,7 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
     swapflag = true;                  // Set flag here, then...
     while(swapflag == true) delay(1); // wait for interrupt to clear it
     if(copy == true)
-      memcpy(matrixbuff[backindex], matrixbuff[1-backindex], BYTES_PER_ROW * nRows * 3 * nPanels);
+      memcpy(matrixbuff[backindex], matrixbuff[1-backindex], BYTES_PER_ROW * nRows * nPackedPlanes * nPanels);
   }
 }
 
@@ -467,7 +469,7 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
 // back into the display using a pgm_read_byte() loop.
 void RGBmatrixPanel::dumpMatrix(void) {
 
-  int i, buffsize = BYTES_PER_ROW * nRows * 3 * nPanels;
+  int i, buffsize = BYTES_PER_ROW * nRows * nPackedPlanes * nPanels;
 
 #if defined(__AVR__)
   Serial.print("\n\n"
