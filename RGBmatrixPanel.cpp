@@ -623,18 +623,11 @@ void RGBmatrixPanel::updateDisplay(void) {
     for (panelcount = 0; panelcount < nPanels; panelcount++)
     {
     	// Loop is unrolled for speed:
-        pew pew pew pew pew pew pew pew
-	pew pew pew pew pew pew pew pew
-	pew pew pew pew pew pew pew pew
-	pew pew pew pew pew pew pew pew
+      pew pew pew pew pew pew pew pew
+      pew pew pew pew pew pew pew pew
+      pew pew pew pew pew pew pew pew
+      pew pew pew pew pew pew pew pew
     } 
-    
-    // From the "Unsolved Mysteries" department: "buffptr += 32" doesn't
-    // work here, scrambles the display.  "buffptr = ptr" does, even though
-    // both should produce the same results.  Couldn't tell you why.
-//  Should be     buffpter += (32*nPanels);
-
-    buffptr = ptr;
 #else				// Code for non AVR (i.e. Due and ARM based systems)
     for(i=0; i<(32*nPanels); i++) 
     {
@@ -642,8 +635,8 @@ void RGBmatrixPanel::updateDisplay(void) {
       SCLKPORT = tick; // Clock lo
       SCLKPORT = tock; // Clock hi
     }       
-    buffptr += (32*nPanels);
 #endif    
+    buffptr += (32*nPanels);
 
 
   } else { // 920 ticks from TCNT1=0 (above) to end of function
