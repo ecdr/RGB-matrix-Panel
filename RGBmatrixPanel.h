@@ -49,7 +49,6 @@ class RGBmatrixPanel : public Adafruit_GFX {
   volatile uint8_t backindex;
   volatile boolean swapflag;
   uint8_t          nPanels;
-//  const uint8_t    nPlanes = 4;
 
   // Init/alloc code common to both constructors:
   void init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
