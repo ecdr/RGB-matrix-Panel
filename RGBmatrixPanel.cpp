@@ -33,8 +33,8 @@ Adafruit Industries.
 BSD license, all text above must be included in any redistribution.
 
 Revisions:
-    getPixel, by RobF42
-    daisychain displays, by protonmaster
+    getPixel, by RobF42 - Rob Fugina
+    daisychain displays, by protonmaster - Phillip Burgess
 */
 
 #include "RGBmatrixPanel.h"
