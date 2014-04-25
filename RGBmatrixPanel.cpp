@@ -40,6 +40,14 @@ Revisions:
 #include "RGBmatrixPanel.h"
 #include "gamma.h"
 
+
+// FIXME: Just a temporary patch - until find the proper macro that differentiates Tiva/Stellaris processors
+// from other processors in Energia
+#if defined(ENERGIA)
+#define __TIVA__
+#endif
+
+
 // FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
 #if defined(__TIVA__)
 
@@ -234,7 +242,7 @@ RGBmatrixPanel::RGBmatrixPanel(
   _d        = d;
   addrdpin  = digitalPinToBitMask(d);
 
-  #if defined(__AVR__)
+#if defined(__AVR__)
   addrdport = portOutputRegister(digitalPinToPort(d));
 #elsif defined(__TIVA__)
   addrdport = portMaskedOutputRegister(digitalPinToPort(d), addrdpin);
