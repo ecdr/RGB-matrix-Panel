@@ -9,10 +9,6 @@
  #include "pins_arduino.h"
 #endif
 
-#ifdef ENERGIA
-#include <Energia.h>
-#endif
-
 #include "Adafruit_GFX.h"
 
 const uint8_t nBuf = 2;
