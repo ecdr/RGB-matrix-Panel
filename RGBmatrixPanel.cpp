@@ -40,6 +40,7 @@ Revisions:
 #include "RGBmatrixPanel.h"
 #include "gamma.h"
 
+
 // On AVRs:
 // A full PORT register is required for the data lines, though only the
 // top 6 output bits are used.  For performance reasons, the port # cannot
@@ -100,6 +101,9 @@ const uint8_t nPackedPlanes = 3;  // 3 bytes holds 4 planes "packed"
 // stop() method should perhaps be added...assuming multiple instances
 // are even an actual need.
 static RGBmatrixPanel *activePanel = NULL;
+
+
+// -------------------- Constructors  --------------------
 
 // Code common to both the 16x32 and 32x32 constructors:
 void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
@@ -222,6 +226,10 @@ void RGBmatrixPanel::begin(void) {
   sei();                // Enable global interrupts
 }
 
+
+// -------------------- Color  --------------------
+
+
 // Original RGBmatrixPanel library used 3/3/3 color.  Later version used
 // 4/4/4.  Then Adafruit_GFX (core library used across all Adafruit
 // display devices now) standardized on 5/6/5.  The matrix still operates
@@ -309,6 +317,9 @@ uint16_t RGBmatrixPanel::ColorHSV(
          (g <<  7) | ((g & 0xC) << 3) |
          (b <<  1) | ( b        >> 3);
 }
+
+
+// -------------------- Screen read/write  --------------------
 
 void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
   uint8_t r, g, b, bit, limit, *ptr;
@@ -452,6 +463,7 @@ uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
   return Color444(r, g, b);;
 }
 
+
 void RGBmatrixPanel::fillScreen(uint16_t c) {
   if((c == 0x0000) || (c == 0xffff)) {
     // For black or white, all bits in frame buffer will be identically
@@ -464,16 +476,19 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
   }
 }
 
+
+// -------------------- Buffers --------------------
+
 // Return address of front buffer -- can then read display directly
 uint8_t *RGBmatrixPanel::frontBuffer() {
   return matrixbuff[1-backindex];
-// FIXME: Adapt for nBuf > 2
 }
 
 // Return address of back buffer -- can then load/store data directly
 uint8_t *RGBmatrixPanel::backBuffer() {
   return matrixbuff[backindex];
 }
+
 
 // For smooth animation -- drawing always takes place in the "back" buffer;
 // this method pushes it to the "front" for display.  Passing "true", the
@@ -536,6 +551,7 @@ void RGBmatrixPanel::dumpMatrix(void) {
   Serial.println("\n};");
 }
 
+
 // -------------------- Interrupt handler stuff --------------------
 #if defined(__AVR__)
 ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
@@ -591,6 +607,7 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // while the *current* plane/row is being shown.  As a result, the
 // counter variables change between past/present/future tense in mid-
 // function...hopefully tenses are sufficiently commented.
+
 
 void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, tick, tock, *ptr;
