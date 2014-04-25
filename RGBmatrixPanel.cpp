@@ -988,6 +988,7 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
 }
 
 
+
 // -------------------- Buffers --------------------
 
 // Return address of front buffer -- can then read display directly
