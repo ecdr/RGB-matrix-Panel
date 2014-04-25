@@ -79,6 +79,10 @@ Revisions:
 #define DATAPORT      PK
 #define DATAPORTOUT   portMaskedOutputRegister(DATAPORT, DATAPORTMASK)
 
+// FIXME: Add masking to sclkport?
+//   Either make sclkpin a constant (so can use constant port masked version of SCLKPORT), 
+//   or make sclkport a variable (so can fill in masked version of sclkport)
+//   (Then fix up the tick/tock code appropriately)
 #define SCLKPORT      tobedefined
  
 #endif
@@ -747,7 +751,7 @@ void RGBmatrixPanel::updateDisplay(void) {
     }
 #elsif defined(__TIVA__)
 // TODO: See if code generated is smaller if use 0xFF in place of addrxpin in the conditional expression
-//  Since using pin masking, they have same effect
+//  Since using pin masking, they should have same effect
 //  (Or if using code as above, but simple = addrpin or = ~addrpin, or = 0, or = 0xFF)
 //  could also compare to using bitbanding (then just write a 1 or a 0)
     *addraport = (row & 0x1) ? addrapin : 0;
@@ -778,7 +782,7 @@ void RGBmatrixPanel::updateDisplay(void) {
   *latport = 0;  // Latch down
 #endif 
 
-#if !defined(__TIVA__)
+//#if !defined(__TIVA__)
   // Record current state of SCLKPORT register, as well as a second
   // copy with the clock bit set.  This makes the innnermost data-
   // pushing loops faster, as they can just set the PORT state and
@@ -789,7 +793,7 @@ void RGBmatrixPanel::updateDisplay(void) {
   // (else this would clobber them).
   tock = SCLKPORT;
   tick = tock | sclkpin;
-#endif
+//#endif
 
   if(plane > 0) { // 188 ticks from TCNT1=0 (above) to end of function
 
@@ -824,14 +828,14 @@ void RGBmatrixPanel::updateDisplay(void) {
     for(i=0; i<(BYTES_PER_ROW*nPanels); i++) 
     {
       DATAPORT = ptr[i];
-#if defined(__TIVA__)
-      SCLKPORT = 0;     // Clock lo
-      SCLKPORT = 0xFF;  // Clock hi   // TODO: Could use sclkpin instead if made smaller/faster code
+//#if defined(__TIVA__)
+//      SCLKPORT = 0;     // Clock lo
+//      SCLKPORT = 0xFF;  // Clock hi   // TODO: Could use sclkpin instead if made smaller/faster code
         // TODO: Or could try bitbanding
-#else      
+//#else      
       SCLKPORT = tick; // Clock lo
       SCLKPORT = tock; // Clock hi
-#endif
+//#endif
     }       
 #endif    
     buffptr += (BYTES_PER_ROW*nPanels);
@@ -853,14 +857,14 @@ void RGBmatrixPanel::updateDisplay(void) {
         ( ptr[i]    << 6)                   |
         ((ptr[i+(BYTES_PER_ROW*nPanels)] << 4) & 0x30) |
         ((ptr[i+(BYTES_PER_ROW*2*nPanels)] << 2) & 0x0C);
-#if defined(__TIVA__)
+/* #if defined(__TIVA__)
       SCLKPORT = 0;     // Clock lo
       SCLKPORT = 0xFF;  // Clock hi   // TODO: Could use sclkpin instead if made smaller/faster code
         // TODO: Or could try bitbanding
-#else  
+#else  */
       SCLKPORT = tick; // Clock lo
       SCLKPORT = tock; // Clock hi
-#endif
+//#endif
     } 
   }
 }
