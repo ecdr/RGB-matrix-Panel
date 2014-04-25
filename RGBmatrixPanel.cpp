@@ -40,6 +40,43 @@ Revisions:
 #include "RGBmatrixPanel.h"
 #include "gamma.h"
 
+// FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
+#if defined(__TIVA__)
+
+#include "inc/hw_types.h"
+#include "driverlib/gpio.h"
+
+// portOutputRegister not defined, so make up own version
+// Include port mask so do not have to worry about changing other pins
+
+
+//  void digitalWrite(uint8_t pin, uint8_t val) =
+//  HWREG(portBASERegister(digitalPinToPort(pin)) + (GPIO_O_DATA + (digitalPinToBitMask(pin) << 2))) = val ? 0xFF : 0;
+//  HWREGB should work instead (since all ports are 8 bits max)
+//                                     0  
+//#define HWREG(x)                                                              \
+//        (*((volatile uint32_t *)(x)))
+//#define HWREGB(x)                                                             \
+//        (*((volatile uint8_t *)(x)))
+
+// TODO: Consider bitband version, for 1 bit control lines
+// BITBAND 
+//#define HWREGBITB(x, b)                                                       \
+//        HWREGB(((uint32_t)(x) & 0xF0000000) | 0x02000000 |                    \
+//               (((uint32_t)(x) & 0x000FFFFF) << 5) | ((b) << 2))
+        
+
+#define portMaskedOutputRegister(port, mask) (uint8_t *) (portBASERegister(port) + (GPIO_O_DATA + (mask << 2)))
+
+
+#define DATAPORTMASK  B11111100
+#define DATAPORT      PK
+#define DATAPORTOUT   portMaskedOutputRegister(DATAPORT, DATAPORTMASK)
+
+#define SCLKPORT      tobedefined
+ 
+#endif
+
 
 // On AVRs:
 // A full PORT register is required for the data lines, though only the
@@ -128,6 +165,7 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   _latch = latch;
   _oe    = oe;
 
+#if defined(__AVR__)
   // Look up port registers and pin masks ahead of time,
   // avoids many slow digitalWrite() calls later.
   sclkpin   = digitalPinToBitMask(sclk);
@@ -141,6 +179,25 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   addrbpin  = digitalPinToBitMask(b);
   addrcport = portOutputRegister(digitalPinToPort(c));
   addrcpin  = digitalPinToBitMask(c); 
+#elsif defined(__TIVA__)
+
+  sclkpin   = digitalPinToBitMask(sclk);
+
+  latpin    = digitalPinToBitMask(latch);
+  latport   = portMaskedOutputRegister(digitalPinToPort(latch), latpin);
+
+  oepin     = digitalPinToBitMask(oe);
+  oeport    = portMaskedOutputRegister(digitalPinToPort(oe), oepin);
+
+  addrapin  = digitalPinToBitMask(a);
+  addraport = portMaskedOutputRegister(digitalPinToPort(a), addrapin);
+
+  addrbpin  = digitalPinToBitMask(b);
+  addrbport = portMaskedOutputRegister(digitalPinToPort(b), addrbpin);
+
+  addrcpin  = digitalPinToBitMask(c); 
+  addrcport = portMaskedOutputRegister(digitalPinToPort(c), addrcpin);
+#endif  
   plane     = nPlanes - 1;
   row       = nRows   - 1;
   swapflag  = false;
@@ -175,8 +232,13 @@ RGBmatrixPanel::RGBmatrixPanel(
 
   // Init a few extra 32x32-specific elements:
   _d        = d;
-  addrdport = portOutputRegister(digitalPinToPort(d));
   addrdpin  = digitalPinToBitMask(d);
+
+  #if defined(__AVR__)
+  addrdport = portOutputRegister(digitalPinToPort(d));
+#elsif defined(__TIVA__)
+  addrdport = portMaskedOutputRegister(digitalPinToPort(d), addrdpin);
+#endif
 }
 
 /*
@@ -215,15 +277,28 @@ void RGBmatrixPanel::begin(void) {
 
   // The high six bits of the data port are set as outputs;
   // Might make this configurable in the future, but not yet.
+#if defined(__AVR__)
   DATADIR  = B11111100;
   DATAPORT = 0;
+#elsif defined(__TIVA__)
+  MAP_GPIOPinTypeGPIOOutput( DATAPORT, DATAPORTMASK );
+  MAP_GPIOPinWrite(DATAPORT, DATAPORTMASK, 0);
+#endif  
 
+#if defined(__AVR__)
   // Set up Timer1 for interrupt:
   TCCR1A  = _BV(WGM11); // Mode 14 (fast PWM), OC1A off
   TCCR1B  = _BV(WGM13) | _BV(WGM12) | _BV(CS10); // Mode 14, no prescale
   ICR1    = 100;
   TIMSK1 |= _BV(TOIE1); // Enable Timer1 interrupt
   sei();                // Enable global interrupts
+#else
+// FIXME: Set up timer
+// FIXME: Enable interrupts
+
+// TODO: Figure out which timer to use
+
+#endif
 }
 
 
@@ -614,8 +689,14 @@ void RGBmatrixPanel::updateDisplay(void) {
   uint16_t t, duration;
   uint8_t panelcount;
 
+#if defined(__AVR__)
   *oeport  |= oepin;  // Disable LED output during row/plane switchover
   *latport |= latpin; // Latch data loaded during *prior* interrupt
+#elsif definde(__TIVA__)
+  *oeport  = oepin;  // Disable LED output during row/plane switchover
+  *latport = latpin; // Latch data loaded during *prior* interrupt
+#endif  
+  
 
   // Calculate time to next interrupt BEFORE incrementing plane #.
   // This is because duration is the display time for the data loaded
@@ -647,6 +728,7 @@ void RGBmatrixPanel::updateDisplay(void) {
   } else if(plane == 1) {
     // Plane 0 was loaded on prior interrupt invocation and is about to
     // latch now, so update the row address lines before we do that:
+#if defined(__AVR__)    
     if(row & 0x1)   *addraport |=  addrapin;
     else            *addraport &= ~addrapin;
     if(row & 0x2)   *addrbport |=  addrbpin;
@@ -657,17 +739,40 @@ void RGBmatrixPanel::updateDisplay(void) {
       if(row & 0x8) *addrdport |=  addrdpin;
       else          *addrdport &= ~addrdpin;
     }
+#elsif defined(__TIVA__)
+// TODO: See if code generated is smaller if use 0xFF in place of addrxpin in the conditional expression
+//  Since using pin masking, they have same effect
+//  (Or if using code as above, but simple = addrpin or = ~addrpin, or = 0, or = 0xFF)
+//  could also compare to using bitbanding (then just write a 1 or a 0)
+    *addraport = (row & 0x1) ? addrapin : 0;
+    *addrbport = (row & 0x2) ? addrbpin : 0);
+    *addrcport = (row & 0x4) ? addrcpin : 0);
+    if(nRows > 8)
+      *addrdport = (row & 0x8) ? addrdpin : 0);
+#endif    
   }
 
   // buffptr, being 'volatile' type, doesn't take well to optimization.
   // A local register copy can speed some things up:
   ptr = (uint8_t *)buffptr;
 
+#ifdef AVR
   ICR1      = duration; // Set interval for next interrupt
   TCNT1     = 0;        // Restart interrupt timer
+#else
+// FIXME: Set timer duration for Tiva
+
+#endif
+
+#if defined(__AVR__)
   *oeport  &= ~oepin;   // Re-enable output
   *latport &= ~latpin;  // Latch down
+#elsif definde(__TIVA__)
+  *oeport  = 0;  // Re-enable output
+  *latport = 0;  // Latch down
+#endif 
 
+#if !defined(__TIVA__)
   // Record current state of SCLKPORT register, as well as a second
   // copy with the clock bit set.  This makes the innnermost data-
   // pushing loops faster, as they can just set the PORT state and
@@ -678,6 +783,7 @@ void RGBmatrixPanel::updateDisplay(void) {
   // (else this would clobber them).
   tock = SCLKPORT;
   tick = tock | sclkpin;
+#endif
 
   if(plane > 0) { // 188 ticks from TCNT1=0 (above) to end of function
 
@@ -712,8 +818,14 @@ void RGBmatrixPanel::updateDisplay(void) {
     for(i=0; i<(BYTES_PER_ROW*nPanels); i++) 
     {
       DATAPORT = ptr[i];
+#if defined(__TIVA__)
+      SCLKPORT = 0;     // Clock lo
+      SCLKPORT = 0xFF;  // Clock hi   // TODO: Could use sclkpin instead if made smaller/faster code
+        // TODO: Or could try bitbanding
+#else      
       SCLKPORT = tick; // Clock lo
       SCLKPORT = tock; // Clock hi
+#endif
     }       
 #endif    
     buffptr += (BYTES_PER_ROW*nPanels);
@@ -735,9 +847,14 @@ void RGBmatrixPanel::updateDisplay(void) {
         ( ptr[i]    << 6)                   |
         ((ptr[i+(BYTES_PER_ROW*nPanels)] << 4) & 0x30) |
         ((ptr[i+(BYTES_PER_ROW*2*nPanels)] << 2) & 0x0C);
+#if defined(__TIVA__)
+      SCLKPORT = 0;     // Clock lo
+      SCLKPORT = 0xFF;  // Clock hi   // TODO: Could use sclkpin instead if made smaller/faster code
+        // TODO: Or could try bitbanding
+#else  
       SCLKPORT = tick; // Clock lo
       SCLKPORT = tock; // Clock hi
-
+#endif
     } 
   }
 }
