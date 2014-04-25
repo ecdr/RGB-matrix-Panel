@@ -84,9 +84,8 @@ Revisions:
 //   or make sclkport a variable (so can fill in masked version of sclkport)
 //   (Then fix up the tick/tock code appropriately)
 #define SCLKPORT      tobedefined
- 
-#endif
 
+#else 
 
 // On AVRs:
 // A full PORT register is required for the data lines, though only the
@@ -132,6 +131,9 @@ Revisions:
  #define DATADIR  DDRD
  #define SCLKPORT PORTB
 #endif
+
+#endif
+
 
 const uint8_t nPlanes = 4;
 const uint8_t BYTES_PER_ROW = 32;
@@ -244,10 +246,10 @@ RGBmatrixPanel::RGBmatrixPanel(
   _d        = d;
   addrdpin  = digitalPinToBitMask(d);
 
-#if defined(__AVR__)
-  addrdport = portOutputRegister(digitalPinToPort(d));
-#elsif defined(__TIVA__)
+#if defined(__TIVA__)
   addrdport = portMaskedOutputRegister(digitalPinToPort(d), addrdpin);
+#else
+  addrdport = portOutputRegister(digitalPinToPort(d));
 #endif
 }
 
@@ -699,12 +701,12 @@ void RGBmatrixPanel::updateDisplay(void) {
   uint16_t t, duration;
   uint8_t panelcount;
 
-#if defined(__AVR__)
-  *oeport  |= oepin;  // Disable LED output during row/plane switchover
-  *latport |= latpin; // Latch data loaded during *prior* interrupt
-#elsif definde(__TIVA__)
+#if definde(__TIVA__)
   *oeport  = oepin;  // Disable LED output during row/plane switchover
   *latport = latpin; // Latch data loaded during *prior* interrupt
+#else
+  *oeport  |= oepin;  // Disable LED output during row/plane switchover
+  *latport |= latpin; // Latch data loaded during *prior* interrupt
 #endif  
   
 
@@ -774,12 +776,12 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 #endif
 
-#if defined(__AVR__)
-  *oeport  &= ~oepin;   // Re-enable output
-  *latport &= ~latpin;  // Latch down
-#elsif definde(__TIVA__)
+#if definde(__TIVA__)
   *oeport  = 0;  // Re-enable output
   *latport = 0;  // Latch down
+#else
+  *oeport  &= ~oepin;   // Re-enable output
+  *latport &= ~latpin;  // Latch down
 #endif 
 
 //#if !defined(__TIVA__)
