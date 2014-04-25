@@ -424,7 +424,10 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   plane     = nPlanes - 1;
   row       = nRows   - 1;
   swapflag  = false;
+
   backindex = 0;     // Array index of back buffer
+  frontindex= (dbuf == true) ? 1 : 0;
+  nextindex = backindex;
 
 #if defined(FADE)
   FadeCnt = 0;
@@ -550,7 +553,9 @@ if(nRows > 8) {
 */
 
   backindex   = 0;                         // Back buffer
-  buffptr     = matrixbuff[1 - backindex]; // -> front buffer
+  frontindex  = (dbuf == true) ? 1 : 0;
+  nextindex   = backindex;
+  buffptr     = matrixbuff[frontindex];   // -> front buffer
 // FIXME: Adapt for nBuf > 2  
   activePanel = this;                      // For interrupt hander
 
@@ -921,7 +926,7 @@ uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
   if(y < nRows) {
     // Data for the upper half of the display is stored in the lower
     // bits of each byte.
-    ptr = &matrixbuff[1-backindex][y * WIDTH * (nPlanes - 1) + x]; // Base addr
+    ptr = &matrixbuff[frontindex][y * WIDTH * (nPlanes - 1) + x]; // Base addr
 // FIXME: Adapt for nBuf > 2
     // Plane 0 is a tricky case -- its data is spread about,
     // stored in least two bits not used by the other planes.
@@ -940,7 +945,7 @@ uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
   } else {
     // Data for the lower half of the display is stored in the upper
     // bits, except for the plane 0 stuff, using 2 least bits.
-    ptr = &matrixbuff[1-backindex][(y - nRows) * WIDTH * (nPlanes - 1) + x];
+    ptr = &matrixbuff[frontindex][(y - nRows) * WIDTH * (nPlanes - 1) + x];
 // FIXME: Adapt for nBuf > 2
     if (ptr[BYTES_PER_ROW] & B00000010) r |= 1;   // Plane 0 R: 32 bytes ahead, bit 1
     if (*ptr    & B00000001) g |= 1;   // Plane 0 G: bit 0
@@ -987,7 +992,7 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
 
 // Return address of front buffer -- can then read display directly
 uint8_t *RGBmatrixPanel::frontBuffer() {
-  return matrixbuff[1-backindex];
+  return matrixbuff[frontindex];
 }
 
 // Return address of back buffer -- can then load/store data directly
@@ -1024,7 +1029,9 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
 
     while(swapflag == true) delay(1); // wait for interrupt to clear it
     if(copy == true)
-      memcpy(matrixbuff[backindex], matrixbuff[1-backindex], BYTES_PER_ROW * nRows * nPackedPlanes * nPanels);
+      memcpy(matrixbuff[backindex], matrixbuff[frontindex], BYTES_PER_ROW * nRows * nPackedPlanes * nPanels);
+// TODO: Incorporate nextindex
+
 // TODO: Reduce busy wait - if copy is false, we could avoid this delay 
 //  However other update functions would need to check to be sure the backbuffer was okay to use
 //  (while swapflag is true, can not modify either buffer).
@@ -1431,9 +1438,12 @@ void RGBmatrixPanel::updateDisplay(void) {
     if(++row >= nRows) {        // advance row counter.  Maxed out?
       row     = 0;              // Yes, reset row counter, then...
       if(swapflag == true) {    // Swap front/back buffers if requested
-        backindex = 1 - backindex;
+//        backindex = 1 - backindex;
+        SWAP(frontindex, backindex);
+//        frontindex = nextindex;   // TODO: Incorporate nextindex
+
         swapflag  = false;
-        buffptr = matrixbuff[1-backindex]; // Reset into front buffer
+        buffptr = matrixbuff[frontindex]; // Reset into front buffer
       }
 #if defined(FADE)
       else if(FadeLen) {
@@ -1444,7 +1454,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 //          FadeNNext = 0;
           FadeNAccum = 0;
 // FIXME: Need to get the copy done somehow (or just remove that option)
-          buffptr = matrixbuff[1-backindex]; // Reset into front buffer
+          buffptr = matrixbuff[frontindex]; // Reset into front buffer
         }
         else {  // Calculate which buffer to show this time
 
@@ -1470,13 +1480,13 @@ void RGBmatrixPanel::updateDisplay(void) {
           }
           else {
 //    Show FrontBuffer;
-            buffptr = matrixbuff[1-backindex]; // Reset into front buffer
+            buffptr = matrixbuff[frontindex]; // Reset into front buffer
           }
         }
       }
 #endif // FADE
       else
-        buffptr = matrixbuff[1-backindex]; // Reset into front buffer
+        buffptr = matrixbuff[frontindex]; // Reset into front buffer
     }
   } else if(plane == 1) {
 /*

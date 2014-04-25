@@ -103,7 +103,9 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
   uint8_t         *matrixbuff[nBuf];
   uint8_t          nRows;
-  volatile uint8_t backindex;
+  volatile uint8_t backindex,   // Page drawing on
+    frontindex,                 // Page being displayed
+    nextindex;                  // Next page to display
   volatile boolean swapflag;
   uint8_t          nPanels;
   
