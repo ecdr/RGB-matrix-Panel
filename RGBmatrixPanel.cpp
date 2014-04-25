@@ -31,11 +31,16 @@ lower CPU utilization:
 Written by Limor Fried/Ladyada & Phil Burgess/PaintYourDragon for
 Adafruit Industries.
 BSD license, all text above must be included in any redistribution.
+
+Revisions:
+    getPixel, by RobF42
+    daisychain displays, by protonmaster
 */
 
 #include "RGBmatrixPanel.h"
 #include "gamma.h"
 
+// On AVRs:
 // A full PORT register is required for the data lines, though only the
 // top 6 output bits are used.  For performance reasons, the port # cannot
 // be changed via library calls, only by changing constants in the library.
@@ -80,10 +85,11 @@ BSD license, all text above must be included in any redistribution.
  #define SCLKPORT PORTB
 #endif
 
-const uint8_t    nPlanes = 4;
+const uint8_t nPlanes = 4;
 const uint8_t BYTES_PER_ROW = 32;
 const uint8_t nPackedPlanes = 3;  // 3 bytes holds 4 planes "packed"
 
+// Todo: Allow multiple displays (share data and address, separate OE)
 
 // The fact that the display driver interrupt stuff is tied to the
 // singular Timer1 doesn't really take well to object orientation with
