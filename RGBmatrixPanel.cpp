@@ -1024,6 +1024,8 @@ uint8_t *RGBmatrixPanel::backBuffer() {
   return matrixbuff[backindex];
 }
 
+// swaps front and next
+
 
 // For smooth animation -- drawing always takes place in the "back" buffer;
 // this method pushes it to the "front" for display.  Passing "true", the
@@ -1053,8 +1055,7 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
 
     while(swapflag == true) delay(1); // wait for interrupt to clear it
     if(copy == true)
-      memcpy(matrixbuff[backindex], matrixbuff[frontindex], BYTES_PER_ROW * nRows * nPackedPlanes * nPanels);
-// TODO: Incorporate nextindex
+      memcpy(matrixbuff[nextindex], matrixbuff[frontindex], BYTES_PER_ROW * nRows * nPackedPlanes * nPanels);
 
 // TODO: Reduce busy wait - if copy is false, we could avoid this delay 
 //  However other update functions would need to check to be sure the backbuffer was okay to use
@@ -1405,6 +1406,7 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 // counter variables change between past/present/future tense in mid-
 // function...hopefully tenses are sufficiently commented.
 
+#define SWAP(A, B) {uint8_t swap_tmp; swap_tmp = A; A = B; B = swap_tmp}
 
 void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, *ptr;
@@ -1463,8 +1465,7 @@ void RGBmatrixPanel::updateDisplay(void) {
       row     = 0;              // Yes, reset row counter, then...
       if(swapflag == true) {    // Swap front/back buffers if requested
 //        backindex = 1 - backindex;
-        SWAP(frontindex, backindex);
-//        frontindex = nextindex;   // TODO: Incorporate nextindex
+        SWAP(frontindex, nextindex);
 
         swapflag  = false;
         buffptr = matrixbuff[frontindex]; // Reset into front buffer
