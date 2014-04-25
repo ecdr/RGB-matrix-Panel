@@ -988,6 +988,29 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
 }
 
 
+// -------------------- Buffer --------------------
+
+uint8_t *RGBmatrixPanel::backIndex(uint8_t back) {
+  if (back < nBuf)
+    return backindex = back;
+  else
+    return nBuf;
+}
+
+uint8_t *RGBmatrixPanel::nextIndex(uint8_t next) {
+  if (next < nBuf)
+    return nextindex = next;
+  else
+    return nBuf;
+}
+
+uint8_t *RGBmatrixPanel::getBackIndex(void) {
+  return backindex;
+}
+
+uint8_t *RGBmatrixPanel::getNextIndex(void) {
+  return nextindex;
+}
 
 // -------------------- Buffers --------------------
 
