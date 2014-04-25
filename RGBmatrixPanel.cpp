@@ -41,22 +41,20 @@ Revisions:
 #include "gamma.h"
 
 
-// FIXME: Just a temporary patch - until find the proper macro that differentiates Tiva/Stellaris processors
-// from other processors in Energia
+// FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
+// Just a temporary patch - until find the proper macro 
 #if defined(ENERGIA)
 #define __TIVA__
 #endif
 
 
-// FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
 #if defined(__TIVA__)
 
 #include "inc/hw_types.h"
 #include "driverlib/gpio.h"
 
-// portOutputRegister not defined, so make up own version
-// Include port mask so do not have to worry about changing other pins
-
+// portOutputRegister(port) not defined for Tiva, so make up own version
+// include port mask so do not have to worry about changing other pins
 
 //  void digitalWrite(uint8_t pin, uint8_t val) =
 //  HWREG(portBASERegister(digitalPinToPort(pin)) + (GPIO_O_DATA + (digitalPinToBitMask(pin) << 2))) = val ? 0xFF : 0;
