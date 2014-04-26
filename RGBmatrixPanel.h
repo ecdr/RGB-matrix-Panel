@@ -73,6 +73,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
   uint8_t
     sclkpin, latpin, oepin, addrapin, addrbpin, addrcpin, addrdpin,
     _sclk, _latch, _oe, _a, _b, _c, _d;
+  uint16_t rowtime;
 
   // Counters/pointers for interrupt handler:
   volatile uint8_t row, plane;

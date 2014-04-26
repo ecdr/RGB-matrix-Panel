@@ -48,9 +48,15 @@ Revisions:
 #endif
 
 
+#if !defined(__AVR__)
+#define pgm_read_byte( a ) (*(a))
+#endif
+
+
 #if defined(__TIVA__)
 
 #include "inc/hw_types.h"
+#include "inc/hw_gpio.h"
 #include "driverlib/gpio.h"
 
 // portOutputRegister(port) not defined for Tiva, so make up own version
@@ -138,6 +144,14 @@ Revisions:
 const uint8_t nPlanes = 4;
 const uint8_t BYTES_PER_ROW = 32;
 const uint8_t nPackedPlanes = 3;  // 3 bytes holds 4 planes "packed"
+
+#if defined(__TIVA__)
+const uint16_t refreshfreq = 200; // Cycles per second
+const uint16_t tickspersecond = 1000; // Number of timer ticks in 1 second
+const uint16_t refreshtime = 1 * tickspersecond / refreshfreq;   // Time for 1 display refresh
+
+#endif
+
 
 // Todo: Allow multiple displays (share data and address, separate OE)
 
@@ -229,7 +243,7 @@ RGBmatrixPanel::RGBmatrixPanel(
 RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c,
   uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf) :
-  Adafruit_GFX(BYTES_PER_ROW*pwidth, 16) {
+  Adafruit_GFX(BYTES_PER_ROW*1, 16) {
 
   init(8, a, b, c, sclk, latch, oe, dbuf, 1);
 }
@@ -305,6 +319,8 @@ void RGBmatrixPanel::begin(void) {
   TIMSK1 |= _BV(TOIE1); // Enable Timer1 interrupt
   sei();                // Enable global interrupts
 #else
+  rowtime = refreshtime / (nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
+
 // FIXME: Set up timer
 // FIXME: Enable interrupts
 
@@ -695,19 +711,13 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // counter variables change between past/present/future tense in mid-
 // function...hopefully tenses are sufficiently commented.
 
-#if defined(__TIVA__)
-const uint16_t refreshfreq = 200; // Cycles per second
-const uint16_t tickspersecond = 1000; // Number of timer ticks in 1 second
-const uint16_t refreshtime = 1 * tickspersecond / refreshfreq;   // Time for 1 display refresh
-const uint16_t rowtime = refreshtime / (nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
-#endif
 
 void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, tick, tock, *ptr;
   uint16_t t, duration;
   uint8_t panelcount;
 
-#if definde(__TIVA__)
+#if defined(__TIVA__)
   *oeport  = oepin;  // Disable LED output during row/plane switchover
   *latport = latpin; // Latch data loaded during *prior* interrupt
 #else
@@ -785,7 +795,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 #endif
 
-#if definde(__TIVA__)
+#if defined(__TIVA__)
   *oeport  = 0;  // Re-enable output
   *latport = 0;  // Latch down
 #else
