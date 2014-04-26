@@ -351,9 +351,9 @@ uint16_t RGBmatrixPanel::Color888(uint8_t r, uint8_t g, uint8_t b) {
 uint16_t RGBmatrixPanel::Color888(
   uint8_t r, uint8_t g, uint8_t b, boolean gflag) {
   if(gflag) { // Gamma-corrected color?
-    r = pgm_read_byte(&gamma[r]); // Gamma correction table maps
-    g = pgm_read_byte(&gamma[g]); // 8-bit input to 4-bit output
-    b = pgm_read_byte(&gamma[b]);
+    r = pgm_read_byte(&gamma_table[r]); // Gamma correction table maps
+    g = pgm_read_byte(&gamma_table[g]); // 8-bit input to 4-bit output
+    b = pgm_read_byte(&gamma_table[b]);
     return (r << 12) | ((r & 0x8) << 8) | // 4/4/4 -> 5/6/5
            (g <<  7) | ((g & 0xC) << 3) |
            (b <<  1) | ( b        >> 3);
@@ -392,9 +392,9 @@ uint16_t RGBmatrixPanel::ColorHSV(
   // to allow shifts, and upgrade to int makes other conversions implicit.
   v1 = val + 1;
   if(gflag) { // Gamma-corrected color?
-    r = pgm_read_byte(&gamma[(r * v1) >> 8]); // Gamma correction table maps
-    g = pgm_read_byte(&gamma[(g * v1) >> 8]); // 8-bit input to 4-bit output
-    b = pgm_read_byte(&gamma[(b * v1) >> 8]);
+    r = pgm_read_byte(&gamma_table[(r * v1) >> 8]); // Gamma correction table maps
+    g = pgm_read_byte(&gamma_table[(g * v1) >> 8]); // 8-bit input to 4-bit output
+    b = pgm_read_byte(&gamma_table[(b * v1) >> 8]);
   } else { // linear (uncorrected) color
     r = (r * v1) >> 12; // 4-bit results
     g = (g * v1) >> 12;
