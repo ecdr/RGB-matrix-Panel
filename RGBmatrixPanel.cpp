@@ -695,6 +695,12 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // counter variables change between past/present/future tense in mid-
 // function...hopefully tenses are sufficiently commented.
 
+#if defined(__TIVA__)
+const uint16_t refreshfreq = 200; // Cycles per second
+const uint16_t tickspersecond = 1000; // Number of timer ticks in 1 second
+const uint16_t refreshtime = 1 * tickspersecond / refreshfreq;   // Time for 1 display refresh
+const uint16_t rowtime = refreshtime / (nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
+#endif
 
 void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, tick, tock, *ptr;
@@ -709,7 +715,9 @@ void RGBmatrixPanel::updateDisplay(void) {
   *latport |= latpin; // Latch data loaded during *prior* interrupt
 #endif  
   
-
+#if defined(__TIVA__)
+  duration = rowtime << plane;
+#else
   // Calculate time to next interrupt BEFORE incrementing plane #.
   // This is because duration is the display time for the data loaded
   // on the PRIOR interrupt.  CALLOVERHEAD is subtracted from the
@@ -718,6 +726,7 @@ void RGBmatrixPanel::updateDisplay(void) {
   // of this method.
   t = (nRows > 8) ? LOOPTIME : (LOOPTIME * 2);
   duration = ((t + CALLOVERHEAD * 2) << plane) - CALLOVERHEAD;
+#endif
 
   // Borrowing a technique here from Ray's Logic:
   // www.rayslogic.com/propeller/Programming/AdafruitRGB/AdafruitRGB.htm
