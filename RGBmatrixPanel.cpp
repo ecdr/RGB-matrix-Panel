@@ -82,14 +82,13 @@ Revisions:
 
 
 #define DATAPORTMASK  B11111100
-#define DATAPORT      PK
-#define DATAPORTOUT   portMaskedOutputRegister(DATAPORT, DATAPORTMASK)
+#define DATAPORT      *portMaskedOutputRegister(PK, DATAPORTMASK)
 
 // FIXME: Add masking to sclkport?
 //   Either make sclkpin a constant (so can use constant port masked version of SCLKPORT), 
 //   or make sclkport a variable (so can fill in masked version of sclkport)
 //   (Then fix up the tick/tock code appropriately)
-#define SCLKPORT      tobedefined
+#define SCLKPORT      *portDATARegister(PL)
 
 #else 
 
@@ -324,9 +323,15 @@ void RGBmatrixPanel::begin(void) {
 // FIXME: Set up timer
 // FIXME: Enable interrupts
 
+//	ROM_TimerEnable(timerBase, );
+//  attachInterrupt ( , &TmrHandler(), );
 // TODO: Figure out which timer to use
 
 #endif
+}
+
+extern "C" {
+void enableTimerPeriph(uint32_t offset);
 }
 
 
@@ -663,6 +668,11 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 }
 #else
 // FIXME: Write ISR for Tiva
+void TmrHandler()
+{
+  activePanel->updateDisplay();
+  
+}
 
 #endif
 
