@@ -755,6 +755,11 @@ uint8_t RGBmatrixPanel::setRefresh(uint8_t freq){
 // should different compilers produce slightly different results.
 #define CALLOVERHEAD 60   // Actual value measured = 56
 #define LOOPTIME     350  // Actual value measured = 188
+// measured value is probably for single panel
+// FIXME: should adjust for the number of panels
+// LOOPTIME was 200 for single panel,
+// was increased to 350 for multi-panel (2x measured value would be 376)
+
 // The "on" time for bitplane 0 (with the shortest BCM interval) can
 // then be estimated as LOOPTIME + CALLOVERHEAD * 2.  Each successive
 // bitplane then doubles the prior amount of time.  We can then
@@ -798,7 +803,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 #else
   *oeport  |= oepin;  // Disable LED output during row/plane switchover
   *latport |= latpin; // Latch data loaded during *prior* interrupt
-#endif  
+#endif
   
 #if defined(__TIVA__)
   duration = rowtime << plane;
@@ -810,6 +815,8 @@ void RGBmatrixPanel::updateDisplay(void) {
   // (interrupt triggered) and the initial LEDs-off line at the start
   // of this method.
   t = (nRows > 8) ? LOOPTIME : (LOOPTIME * 2);
+  // FIXME: adjust for number of panels (maybe * nPanels )
+  // TODO: Why is t longer for 32x32 than for 32x16?
   duration = ((t + CALLOVERHEAD * 2) << plane) - CALLOVERHEAD;
 #endif
 
