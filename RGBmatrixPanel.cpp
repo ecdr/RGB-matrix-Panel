@@ -46,19 +46,13 @@ Revisions:
 // Just a temporary patch - until find the proper macro 
 #if defined(ENERGIA)
 
-#if defined(__TM4C129XNCZAD__)
-#define __TIVA__
-
-#elif defined(__TM4C1294NCPDT__)
-// Tiva Connected Launchpad
-#define __TIVA__
-
-#elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
-// Stellaris Launchpad or Tiva Launchpad
+#if defined(__TM4C129XNCZAD__) || defined(__TM4C1294NCPDT__) || defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
 #define __TIVA__
 
 #else
+
 #error "**** Unrecognized processor ****"
+
 #endif
 
 #endif
@@ -95,6 +89,23 @@ Revisions:
         
 
 #define portMaskedOutputRegister(port, mask) (uint8_t *) (portBASERegister(port) + (GPIO_O_DATA + (mask << 2)))
+
+// Port/pin definitions for various launchpads
+#if defined(__TM4C129XNCZAD__)
+
+#elif defined(__TM4C1294NCPDT__)
+// Tiva Connected Launchpad
+
+// Candidates for data port: PortE (BP1), PortK (BP2), or PortL (BP1) (pins 0-5)
+
+#elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
+// Stellaris Launchpad or Tiva Launchpad
+
+// Data port should be on PA or PB, 
+// PA 0,1 are console Uart
+// PB: use caution in other pin assignments, since PB6 and PB7 are connected to PD0 and PD1
+
+#endif
 
 
 #define DATAPORTMASK  B11111100
