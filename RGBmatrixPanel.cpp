@@ -267,7 +267,8 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
 
 #if defined(FADE)
   FadeCnt = 0;
-  FadeNNext = 0;
+  FadeNAccum = 0;
+//  FadeNNext = 0;
   FadeLen = 0;
   copyflag = false;
 #endif // FADE
@@ -679,7 +680,8 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
 // If copy is true, then at end copy next to front at end of fade
 
 // Fade is done by PWM between front and next buffers
-uint8_t RGBmatrixPanel::swapFade(uint16_t nrefresh, boolean copy) {
+uint8_t RGBmatrixPanel::swapFade(uint16_t tfade, boolean copy) {
+// TODO: change to use fade time, rather than number of refresh cycles
   if (0 != FadeLen)
     return 1;
   else if(matrixbuff[0] == matrixbuff[1]) 
@@ -687,7 +689,8 @@ uint8_t RGBmatrixPanel::swapFade(uint16_t nrefresh, boolean copy) {
     return 2;
   else {
     FadeCnt = 0;        // How many cycles have occured in this fade
-    FadeNNext = 0;      // How many times has the next frame been shown
+//    FadeNNext = 0;      // How many times has the next frame been shown
+    FadeNAccum = 0;
     copyflag = copy;    // reminder to do copy at end
     // Start the fade
     FadeLen = nrefresh; // FadeLen != 0 indicates fade in progress
@@ -872,27 +875,35 @@ void RGBmatrixPanel::updateDisplay(void) {
           backindex = 1 - backindex;
           FadeLen = 0;
           FadeCnt = 0;
-          FadeNNext = 0;
+//          FadeNNext = 0;
+          FadeNAccum = 0;
 // FIXME: Need to get the copy done somehow (or just remove that option)
         }
         else {
 // TODO: Calculate which buffer to show now, and update FadeNNext accordingly
 
 // Need to test following expression 
-//  (derived from calculating error differences and a bunch of algebra, so probably wrong)
+//  (derived from calculating error differences and a bunch of algebra, checked in a spreadsheet so think okay)
+
 //
-// if (FadeLen * (2 * FadeNNext + 1) < 2 * (FadeCnt ^ 2))
-//    Show NextBuffer; FadeNNext++
-// else
-//    Show FrontBuffer;
+// if (abs(FadeCnt ^ 2 - 2 * FadeLen * FadeNNext) > abs(FadeCnt ^ 2 - 2 * FadeLen * (FadeNNext + 1)))
 //
 // If it works, see how to optimize calculation - 
-//   left hand side can be calculated cumulatively 
-//     (Keep running total of lhs, when increment FadeNNext, then add 2 * FadeLen to total)
-//
+//   2*FadeLen*FadeNNext can be calculated cumulatively 
+//     (Keep running total, when increment FadeNNext, then FadeNAccum += 2 * FadeLen)
+//   FadeCnt^2 used on both sides (calculate once)
+//   Could cache 2*FadeLen - but just a bit shift, so may not be worth it
 
+          int16_t FadeCntSq = FadeCnt * FadeCnt;
+
+          if (abs(FadeCntSq - FadeNAccum ) > abs(FadeCntSq - FadeNAccum - (2 * FadeLen) )){
+//    Show NextBuffer; 
+            FadeNAccum += 2 * FadeLen; // Update accumulated showing next // FadeNNext++
+          }
+          else {
+//    Show FrontBuffer;
+          }
 #warning Need to finish fade code
-
         }
       }
 #endif // FADE

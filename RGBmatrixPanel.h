@@ -83,7 +83,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
   uint8_t
 #if defined(FADE)
-    swapFade(uint16_t nrefresh, boolean),
+    swapFade(uint16_t tfade, boolean),
 #endif
     setRefresh(uint8_t freq);
 
@@ -107,7 +107,8 @@ class RGBmatrixPanel : public Adafruit_GFX {
     _sclk, _latch, _oe, _a, _b, _c, _d;
 
 #if defined(FADE)
-  volatile uint16_t FadeCnt, FadeNNext, FadeLen;
+  volatile uint16_t FadeCnt, FadeLen; 
+  volatile int16_t FadeNAccum; // replaces FadeNNext, 
   boolean copyflag;
 #endif
 
