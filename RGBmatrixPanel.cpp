@@ -133,6 +133,8 @@ Revisions:
 // be changed via library calls, only by changing constants in the library.
 // For similar reasons, the clock pin is only semi-configurable...it can
 // be specified as any pin within a specific PORT register stated below.
+#define DATAPORTMASK B11111100
+
 
 #if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
  // Arduino Mega is now tested and confirmed, with the following caveats:
@@ -354,7 +356,7 @@ void RGBmatrixPanel::begin(void) {
   MAP_GPIOPinTypeGPIOOutput( DATAPORT, DATAPORTMASK );
   MAP_GPIOPinWrite(DATAPORT, DATAPORTMASK, 0);
 #else
-  DATADIR  = B11111100;
+  DATADIR  = DATAPORTMASK;
   DATAPORT = 0;
 #endif  
 
