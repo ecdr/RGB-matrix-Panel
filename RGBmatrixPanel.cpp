@@ -204,7 +204,7 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   addrbpin  = digitalPinToBitMask(b);
   addrcport = portOutputRegister(digitalPinToPort(c));
   addrcpin  = digitalPinToBitMask(c); 
-#elsif defined(__TIVA__)
+#elif defined(__TIVA__)
 
   sclkpin   = digitalPinToBitMask(sclk);
 
@@ -282,6 +282,12 @@ RGBmatrixPanel::RGBmatrixPanel(
 }
 */
 
+extern "C" {
+void enableTimerPeriph(uint32_t offset);
+}
+
+void TmrHandler(void);
+
 void RGBmatrixPanel::begin(void) {
 
   backindex   = 0;                         // Back buffer
@@ -305,7 +311,7 @@ void RGBmatrixPanel::begin(void) {
 #if defined(__AVR__)
   DATADIR  = B11111100;
   DATAPORT = 0;
-#elsif defined(__TIVA__)
+#elif defined(__TIVA__)
   MAP_GPIOPinTypeGPIOOutput( DATAPORT, DATAPORTMASK );
   MAP_GPIOPinWrite(DATAPORT, DATAPORTMASK, 0);
 #endif  
@@ -327,11 +333,9 @@ void RGBmatrixPanel::begin(void) {
 //  attachInterrupt ( , &TmrHandler(), );
 // TODO: Figure out which timer to use
 
+// Temporary - just to get the code in the assembler listing
+//TmrHandler();
 #endif
-}
-
-extern "C" {
-void enableTimerPeriph(uint32_t offset);
 }
 
 
@@ -780,7 +784,7 @@ void RGBmatrixPanel::updateDisplay(void) {
       if(row & 0x8) *addrdport |=  addrdpin;
       else          *addrdport &= ~addrdpin;
     }
-#elsif defined(__TIVA__)
+#elif defined(__TIVA__)
 // TODO: See if code generated is smaller if use 0xFF in place of addrxpin in the conditional expression
 //  Since using pin masking, they should have same effect
 //  (Or if using code as above, but simple = addrpin or = ~addrpin, or = 0, or = 0xFF)
@@ -856,7 +860,7 @@ void RGBmatrixPanel::updateDisplay(void) {
       pew pew pew pew pew pew pew pew
     } 
 #else				// Code for non AVR (i.e. Due and ARM based systems)
-    for(i=0; i<(BYTES_PER_ROW*nPanels); i++) 
+    for(i=0; i<(BYTES_PER_ROW*nPanels); i++)    // TODO: Would it help to cache this calculation in a variable?
     {
       DATAPORT = ptr[i];
 //#if defined(__TIVA__)
