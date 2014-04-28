@@ -264,6 +264,13 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   row       = nRows   - 1;
   swapflag  = false;
   backindex = 0;     // Array index of back buffer
+
+#if defined(FADE)
+  FadeCnt = 0;
+  FadeNNext = 0;
+  FadeLen = 0;
+  copyflag = false;
+#endif // FADE
 }
 
 // Constructor for 16x32 panel:
@@ -666,6 +673,29 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
   }
 }
 
+#if defined(FADE)
+// Fade between front and next buffers
+// Take nrefresh refresh cycles for fade
+// If copy is true, then at end copy next to front at end of fade
+
+// Fade is done by PWM between front and next buffers
+uint8_t RGBmatrixPanel::swapFade(uint16_t nrefresh, boolean copy) {
+  if (0 != FadeLen)
+    return 1;
+  else if(matrixbuff[0] == matrixbuff[1]) 
+// FIXME: Adapt for nBuf > 2
+    return 2;
+  else {
+    FadeCnt = 0;        // How many cycles have occured in this fade
+    FadeNNext = 0;      // How many times has the next frame been shown
+    copyflag = copy;    // reminder to do copy at end
+    // Start the fade
+    FadeLen = nrefresh; // FadeLen != 0 indicates fade in progress
+    return 0;
+  }
+}
+#endif
+
 // Dump display contents to the Serial Monitor, adding some formatting to
 // simplify copy-and-paste of data as a PROGMEM-embedded image for another
 // sketch.  If using multiple dumps this way, you'll need to edit the
@@ -836,6 +866,20 @@ void RGBmatrixPanel::updateDisplay(void) {
         backindex = 1 - backindex;
         swapflag  = false;
       }
+#if defined(FADE)
+      else if(FadeLen) {
+        if (++FadeCnt == FadeLen){  // Fade done, swap the buffers
+          backindex = 1 - backindex;
+          FadeLen = 0;
+          FadeCnt = 0;
+          FadeNNext = 0;
+// FIXME: Need to get the copy done somehow (or just remove that option)
+        }
+        else {
+// TODO: Calculate which buffer to show now, and update FadeNNext accordingly
+        }
+      }
+#endif // FADE
       buffptr = matrixbuff[1-backindex]; // Reset into front buffer
     }
   } else if(plane == 1) {

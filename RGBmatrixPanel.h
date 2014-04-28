@@ -24,6 +24,7 @@
 
 #endif
 
+#define FADE
 
 #include "Adafruit_GFX.h"
 
@@ -72,8 +73,11 @@ class RGBmatrixPanel : public Adafruit_GFX {
     ColorHSV(long hue, uint8_t sat, uint8_t val, boolean gflag);
 
   uint8_t
+#if defined(FADE)
+    swapFade(uint16_t nrefresh, boolean),
+#endif
     setRefresh(uint8_t freq);
-    
+
  private:
 
   uint8_t         *matrixbuff[nBuf];
@@ -92,6 +96,11 @@ class RGBmatrixPanel : public Adafruit_GFX {
   uint8_t
     sclkpin, latpin, oepin, addrapin, addrbpin, addrcpin, addrdpin,
     _sclk, _latch, _oe, _a, _b, _c, _d;
+
+#if defined(FADE)
+  volatile uint16_t FadeCnt, FadeNNext, FadeLen;
+  boolean copyflag;
+#endif
 
 #if defined(__TIVA__)
   uint16_t         refreshFreq;
