@@ -68,6 +68,8 @@ Revisions:
 #include "inc/hw_types.h"
 #include "inc/hw_gpio.h"
 #include "driverlib/gpio.h"
+#include "driverlib/rom_map.h"
+
 
 // portOutputRegister(port) not defined for Tiva, so make up own version
 // include port mask so do not have to worry about changing other pins
