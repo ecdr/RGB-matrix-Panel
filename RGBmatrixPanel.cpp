@@ -35,6 +35,7 @@ BSD license, all text above must be included in any redistribution.
 Revisions:
     getPixel, by RobF42 - Rob Fugina
     daisychain displays, by protonmaster - Phillip Burgess
+    Tiva Launchpad support, 
 */
 
 #include "RGBmatrixPanel.h"
@@ -44,7 +45,22 @@ Revisions:
 // FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
 // Just a temporary patch - until find the proper macro 
 #if defined(ENERGIA)
+
+#if defined(__TM4C129XNCZAD__)
 #define __TIVA__
+
+#elif defined(__TM4C1294NCPDT__)
+// Tiva Connected Launchpad
+#define __TIVA__
+
+#elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
+// Stellaris Launchpad or Tiva Launchpad
+#define __TIVA__
+
+#else
+#error "**** Unrecognized processor ****"
+#endif
+
 #endif
 
 
@@ -114,11 +130,13 @@ Revisions:
  #define DATADIR  DDRA
  #define SCLKPORT PORTB
  
- #elif defined(__SAM3X8E__)
+#elif defined(__SAM3X8E__)
  // Arduino Due uses the SAM3X8E.
  #define DATAPORT PORTC
  #define DATADIR  tobedefined
  #define SCLKPORT tobedefined  
+
+ #warning Arduino Due not finished
  
 #elif defined(__AVR_ATmega32U4__)
  // Arduino Leonardo: this is vestigial code an unlikely to ever be
@@ -145,9 +163,9 @@ const uint8_t BYTES_PER_ROW = 32;
 const uint8_t nPackedPlanes = 3;  // 3 bytes holds 4 planes "packed"
 
 #if defined(__TIVA__)
-const uint16_t refreshfreq = 200; // Cycles per second
-const uint16_t tickspersecond = 1000; // Number of timer ticks in 1 second
-const uint16_t refreshtime = 1 * tickspersecond / refreshfreq;   // Time for 1 display refresh
+const uint16_t refreshFreq = 200; // Cycles per second
+const uint16_t ticksPerSecond = 1000; // Number of timer ticks in 1 second
+const uint16_t refreshTime = 1 * ticksPerSecond / refreshFreq;   // Time for 1 display refresh
 
 #endif
 
@@ -324,7 +342,7 @@ void RGBmatrixPanel::begin(void) {
   TIMSK1 |= _BV(TOIE1); // Enable Timer1 interrupt
   sei();                // Enable global interrupts
 #else
-  rowtime = refreshtime / (nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
+  rowtime = refreshTime / (nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
 
 // FIXME: Set up timer
 // FIXME: Enable interrupts
