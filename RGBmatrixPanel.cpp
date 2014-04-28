@@ -86,6 +86,7 @@ Revisions:
 // Candidates for data port: PortE (BP1), PortK (BP2), or PortL (BP1) (pins 0-5)
 #define DATAPORTMASK  B11111100
 #define DATAPORT      *portMaskedOutputRegister(PK, DATAPORTMASK)
+#define DATAPORTBASE  ((uint32_t)portBASERegister(PK))
 
 #define SCLKPORT      *portDATARegister(PL)
 
@@ -98,6 +99,7 @@ Revisions:
 // PB: use caution in other pin assignments, since PB6 and PB7 are connected to PD0 and PD1
 #define DATAPORTMASK  B11111100
 #define DATAPORT      *portMaskedOutputRegister(PA, DATAPORTMASK)
+#define DATAPORTBASE  ((uint32_t)portBASERegister(PA))
 
 #define SCLKPORT      *portDATARegister(PB)
 
@@ -339,8 +341,8 @@ void RGBmatrixPanel::begin(void) {
   // The high six bits of the data port are set as outputs;
   // Might make this configurable in the future, but not yet.
 #if defined(__TIVA__)
-  MAP_GPIOPinTypeGPIOOutput( DATAPORT, DATAPORTMASK );
-  MAP_GPIOPinWrite(DATAPORT, DATAPORTMASK, 0);
+  MAP_GPIOPinTypeGPIOOutput( DATAPORTBASE, DATAPORTMASK );
+  MAP_GPIOPinWrite(DATAPORTBASE, DATAPORTMASK, 0);
 #else
   DATADIR  = DATAPORTMASK;
   DATAPORT = 0;
