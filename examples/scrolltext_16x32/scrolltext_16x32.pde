@@ -15,6 +15,7 @@
 #else
 #define PROGMEM
 #define F2(progmem_ptr) (const *)progmem_ptr
+#define pgm_read_word( addr ) ((*)(addr))
 #endif
 
 
