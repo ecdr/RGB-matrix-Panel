@@ -74,14 +74,13 @@ Revisions:
 // portOutputRegister(port) not defined for Tiva, so make up own version
 // include port mask so do not have to worry about changing other pins
 
+// For reference:
 //  void digitalWrite(uint8_t pin, uint8_t val) =
 //  HWREG(portBASERegister(digitalPinToPort(pin)) + (GPIO_O_DATA + (digitalPinToBitMask(pin) << 2))) = val ? 0xFF : 0;
 //  HWREGB should work instead (since all ports are 8 bits max)
 //                                     0  
-//#define HWREG(x)                                                              \
-//        (*((volatile uint32_t *)(x)))
-//#define HWREGB(x)                                                             \
-//        (*((volatile uint8_t *)(x)))
+//#define HWREG(x)   (*((volatile uint32_t *)(x)))
+//#define HWREGB(x)  (*((volatile uint8_t  *)(x)))
 
 // TODO: Consider bitband version, for 1 bit control lines
 // BITBAND 
@@ -92,6 +91,7 @@ Revisions:
 
 #define portMaskedOutputRegister(port, mask) (uint8_t *) (portBASERegister(port) + (GPIO_O_DATA + (mask << 2)))
 
+
 // Port/pin definitions for various launchpads
 #if defined(__TM4C129XNCZAD__)
 
@@ -99,25 +99,31 @@ Revisions:
 // Tiva Connected Launchpad
 
 // Candidates for data port: PortE (BP1), PortK (BP2), or PortL (BP1) (pins 0-5)
+#define DATAPORTMASK  B11111100
+#define DATAPORT      *portMaskedOutputRegister(PK, DATAPORTMASK)
+
+#define SCLKPORT      *portDATARegister(PL)
+
 
 #elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
 // Stellaris Launchpad or Tiva Launchpad
 
-// Data port should be on PA or PB, 
-// PA 0,1 are console Uart
+// Data port should be PA or PB, 
+// PA: Do not use 0,1 - console Uart
 // PB: use caution in other pin assignments, since PB6 and PB7 are connected to PD0 and PD1
+#define DATAPORTMASK  B11111100
+#define DATAPORT      *portMaskedOutputRegister(PA, DATAPORTMASK)
+
+#define SCLKPORT      *portDATARegister(PB)
 
 #endif
 
-
-#define DATAPORTMASK  B11111100
-#define DATAPORT      *portMaskedOutputRegister(PK, DATAPORTMASK)
 
 // FIXME: Add masking to sclkport?
 //   Either make sclkpin a constant (so can use constant port masked version of SCLKPORT), 
 //   or make sclkport a variable (so can fill in masked version of sclkport)
 //   (Then fix up the tick/tock code appropriately)
-#define SCLKPORT      *portDATARegister(PL)
+
 
 #else 
 
@@ -709,6 +715,8 @@ void TmrHandler()
   activePanel->updateDisplay();
   
 }
+
+#warning Need to finish Tiva Timer Interrupt handler
 
 #else
 //#elif defined(__AVR__)
