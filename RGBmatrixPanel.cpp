@@ -42,21 +42,6 @@ Revisions:
 #include "gamma.h"
 
 
-// FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
-// Just a temporary patch - until find the proper macro 
-#if defined(ENERGIA)
-
-#if defined(__TM4C129XNCZAD__) || defined(__TM4C1294NCPDT__) || defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
-#define __TIVA__
-
-#else
-
-#error "**** Unrecognized processor ****"
-
-#endif
-
-#endif
-
 
 #if !defined(__AVR__)
 #define pgm_read_byte( a ) (*(a))
@@ -184,9 +169,10 @@ const uint8_t BYTES_PER_ROW = 32;
 const uint8_t nPackedPlanes = 3;  // 3 bytes holds 4 planes "packed"
 
 #if defined(__TIVA__)
-const uint16_t refreshFreq = 200; // Cycles per second
+const uint16_t defaultRefreshFreq = 200; // Cycles per second
 const uint16_t ticksPerSecond = 1000; // Number of timer ticks in 1 second
-const uint16_t refreshTime = 1 * ticksPerSecond / refreshFreq;   // Time for 1 display refresh
+
+const uint16_t minRowTime = 1;         // FIXME: Find minimum number of timer ticks for a row
 
 #endif
 
@@ -361,7 +347,7 @@ void RGBmatrixPanel::begin(void) {
 #endif  
 
 #if defined(__TIVA__)
-  rowtime = refreshTime / (nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
+  setRefresh(defaultRefreshFreq);
 
 // FIXME: Set up timer
 // FIXME: Enable interrupts
@@ -383,7 +369,7 @@ void RGBmatrixPanel::begin(void) {
 #endif
 }
 
-
+  
 // -------------------- Color  --------------------
 
 
@@ -729,6 +715,27 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 }
 
 #endif
+
+
+#if defined(__TIVA__)
+
+// This will introduce a glitch if redefine refresh rate while displaying something
+// FIXME: Revise it to change refresh rate at end of a frame.
+uint8_t RGBmatrixPanel::setRefresh(uint8_t freq){
+  refreshFreq = freq;
+//  uint16_t refreshTime = 1 * ticksPerSecond / refreshFreq;   // Time for 1 display refresh
+//  rowtime = refreshTime / (nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
+  rowtime = ticksPerSecond / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
+  if (rowtime < minRowTime){
+    rowtime = minRowTime;
+    return 1;     // Error flag - todo: give more useful feedback, e.g. actual rate set
+    }
+  else
+    return 0;
+}
+
+#endif
+
 
 // Two constants are used in timing each successive BCM interval.
 // These were found empirically, by checking the value of TCNT1 at

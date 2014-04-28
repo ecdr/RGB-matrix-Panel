@@ -9,6 +9,22 @@
  #include "pins_arduino.h"
 #endif
 
+// FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
+// Just a temporary patch - until find the proper macro 
+#if defined(ENERGIA)
+
+#if defined(__TM4C129XNCZAD__) || defined(__TM4C1294NCPDT__) || defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
+#define __TIVA__
+
+#else
+
+#error "**** Unrecognized processor ****"
+
+#endif
+
+#endif
+
+
 #include "Adafruit_GFX.h"
 
 const uint8_t nBuf = 2;
@@ -55,6 +71,9 @@ class RGBmatrixPanel : public Adafruit_GFX {
     Color888(uint8_t r, uint8_t g, uint8_t b, boolean gflag),
     ColorHSV(long hue, uint8_t sat, uint8_t val, boolean gflag);
 
+  uint8_t
+    setRefresh(uint8_t freq);
+    
  private:
 
   uint8_t         *matrixbuff[nBuf];
@@ -62,7 +81,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
   volatile uint8_t backindex;
   volatile boolean swapflag;
   uint8_t          nPanels;
-
+  
   // Init/alloc code common to both constructors:
   void init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
     uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth);
@@ -73,7 +92,11 @@ class RGBmatrixPanel : public Adafruit_GFX {
   uint8_t
     sclkpin, latpin, oepin, addrapin, addrbpin, addrcpin, addrdpin,
     _sclk, _latch, _oe, _a, _b, _c, _d;
-  uint16_t rowtime;
+
+#if defined(__TIVA__)
+  uint16_t         refreshFreq;
+  volatile uint16_t rowtime;
+#endif
 
   // Counters/pointers for interrupt handler:
   volatile uint8_t row, plane;
