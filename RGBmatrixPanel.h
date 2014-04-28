@@ -9,12 +9,20 @@
  #include "pins_arduino.h"
 #endif
 
+
 // FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
 // Just a temporary patch - until find the proper macro 
 #if defined(ENERGIA)
 
 #if defined(__TM4C129XNCZAD__) || defined(__TM4C1294NCPDT__) || defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
+
+#ifndef __TIVA__
 #define __TIVA__
+#endif
+
+#ifndef __ARM__
+#define __ARM__
+#endif
 
 #else
 
@@ -22,7 +30,8 @@
 
 #endif
 
-#endif
+#endif // ENERGIA
+
 
 #define FADE
 
