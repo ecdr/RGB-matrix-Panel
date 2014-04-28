@@ -180,6 +180,14 @@ const uint16_t refreshTime = 1 * ticksPerSecond / refreshFreq;   // Time for 1 d
 
 #endif
 
+#if defined(__TIVA__)
+extern "C" {
+void enableTimerPeriph(uint32_t offset);
+}
+
+void TmrHandler(void);
+#endif
+
 
 // Todo: Allow multiple displays (share data and address, separate OE)
 
@@ -219,21 +227,9 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   _latch = latch;
   _oe    = oe;
 
-#if defined(__AVR__)
   // Look up port registers and pin masks ahead of time,
   // avoids many slow digitalWrite() calls later.
-  sclkpin   = digitalPinToBitMask(sclk);
-  latport   = portOutputRegister(digitalPinToPort(latch));
-  latpin    = digitalPinToBitMask(latch);
-  oeport    = portOutputRegister(digitalPinToPort(oe));
-  oepin     = digitalPinToBitMask(oe);
-  addraport = portOutputRegister(digitalPinToPort(a));
-  addrapin  = digitalPinToBitMask(a);
-  addrbport = portOutputRegister(digitalPinToPort(b));
-  addrbpin  = digitalPinToBitMask(b);
-  addrcport = portOutputRegister(digitalPinToPort(c));
-  addrcpin  = digitalPinToBitMask(c); 
-#elif defined(__TIVA__)
+#if defined(__TIVA__)
 
   sclkpin   = digitalPinToBitMask(sclk);
 
@@ -251,7 +247,21 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
 
   addrcpin  = digitalPinToBitMask(c); 
   addrcport = portMaskedOutputRegister(digitalPinToPort(c), addrcpin);
-#endif  
+
+#else
+  sclkpin   = digitalPinToBitMask(sclk);
+  latport   = portOutputRegister(digitalPinToPort(latch));
+  latpin    = digitalPinToBitMask(latch);
+  oeport    = portOutputRegister(digitalPinToPort(oe));
+  oepin     = digitalPinToBitMask(oe);
+  addraport = portOutputRegister(digitalPinToPort(a));
+  addrapin  = digitalPinToBitMask(a);
+  addrbport = portOutputRegister(digitalPinToPort(b));
+  addrbpin  = digitalPinToBitMask(b);
+  addrcport = portOutputRegister(digitalPinToPort(c));
+  addrcpin  = digitalPinToBitMask(c); 
+#endif  // __TIVA__
+
   plane     = nPlanes - 1;
   row       = nRows   - 1;
   swapflag  = false;
@@ -311,11 +321,6 @@ RGBmatrixPanel::RGBmatrixPanel(
 }
 */
 
-extern "C" {
-void enableTimerPeriph(uint32_t offset);
-}
-
-void TmrHandler(void);
 
 void RGBmatrixPanel::begin(void) {
 
@@ -337,22 +342,15 @@ void RGBmatrixPanel::begin(void) {
 
   // The high six bits of the data port are set as outputs;
   // Might make this configurable in the future, but not yet.
-#if defined(__AVR__)
-  DATADIR  = B11111100;
-  DATAPORT = 0;
-#elif defined(__TIVA__)
+#if defined(__TIVA__)
   MAP_GPIOPinTypeGPIOOutput( DATAPORT, DATAPORTMASK );
   MAP_GPIOPinWrite(DATAPORT, DATAPORTMASK, 0);
+#else
+  DATADIR  = B11111100;
+  DATAPORT = 0;
 #endif  
 
-#if defined(__AVR__)
-  // Set up Timer1 for interrupt:
-  TCCR1A  = _BV(WGM11); // Mode 14 (fast PWM), OC1A off
-  TCCR1B  = _BV(WGM13) | _BV(WGM12) | _BV(CS10); // Mode 14, no prescale
-  ICR1    = 100;
-  TIMSK1 |= _BV(TOIE1); // Enable Timer1 interrupt
-  sei();                // Enable global interrupts
-#else
+#if defined(__TIVA__)
   rowtime = refreshTime / (nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
 
 // FIXME: Set up timer
@@ -364,6 +362,14 @@ void RGBmatrixPanel::begin(void) {
 
 // Temporary - just to get the code in the assembler listing
 //TmrHandler();
+#else
+//#elif defined(__AVR__)
+  // Set up Timer1 for interrupt:
+  TCCR1A  = _BV(WGM11); // Mode 14 (fast PWM), OC1A off
+  TCCR1B  = _BV(WGM13) | _BV(WGM12) | _BV(CS10); // Mode 14, no prescale
+  ICR1    = 100;
+  TIMSK1 |= _BV(TOIE1); // Enable Timer1 interrupt
+  sei();                // Enable global interrupts
 #endif
 }
 
@@ -694,17 +700,20 @@ void RGBmatrixPanel::dumpMatrix(void) {
 
 
 // -------------------- Interrupt handler stuff --------------------
-#if defined(__AVR__)
-ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
-  activePanel->updateDisplay();   // Call refresh func for active display
-  TIFR1 |= TOV1;                  // Clear Timer1 interrupt flag
-}
-#else
+#if defined(__TIVA__)
 // FIXME: Write ISR for Tiva
 void TmrHandler()
 {
   activePanel->updateDisplay();
   
+}
+
+#else
+//#elif defined(__AVR__)
+
+ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
+  activePanel->updateDisplay();   // Call refresh func for active display
+  TIFR1 |= TOV1;                  // Clear Timer1 interrupt flag
 }
 
 #endif
@@ -802,7 +811,18 @@ void RGBmatrixPanel::updateDisplay(void) {
   } else if(plane == 1) {
     // Plane 0 was loaded on prior interrupt invocation and is about to
     // latch now, so update the row address lines before we do that:
-#if defined(__AVR__)    
+#if defined(__TIVA__)
+// TODO: See if code generated is smaller if use 0xFF in place of addrxpin in the conditional expression
+//  Since using pin masking, they should have same effect
+//  (Or if using code as above, but simple = addrpin or = ~addrpin, or = 0, or = 0xFF)
+//  could also compare to using bitbanding (then just write a 1 or a 0)
+    *addraport = (row & 0x1) ? addrapin : 0;
+    *addrbport = (row & 0x2) ? addrbpin : 0;
+    *addrcport = (row & 0x4) ? addrcpin : 0;
+    if(nRows > 8)
+      *addrdport = (row & 0x8) ? addrdpin : 0;
+#else
+//#elif defined(__AVR__)    
     if(row & 0x1)   *addraport |=  addrapin;
     else            *addraport &= ~addrapin;
     if(row & 0x2)   *addrbport |=  addrbpin;
@@ -813,16 +833,6 @@ void RGBmatrixPanel::updateDisplay(void) {
       if(row & 0x8) *addrdport |=  addrdpin;
       else          *addrdport &= ~addrdpin;
     }
-#elif defined(__TIVA__)
-// TODO: See if code generated is smaller if use 0xFF in place of addrxpin in the conditional expression
-//  Since using pin masking, they should have same effect
-//  (Or if using code as above, but simple = addrpin or = ~addrpin, or = 0, or = 0xFF)
-//  could also compare to using bitbanding (then just write a 1 or a 0)
-    *addraport = (row & 0x1) ? addrapin : 0;
-    *addrbport = (row & 0x2) ? addrbpin : 0);
-    *addrcport = (row & 0x4) ? addrcpin : 0);
-    if(nRows > 8)
-      *addrdport = (row & 0x8) ? addrdpin : 0);
 #endif    
   }
 
@@ -830,12 +840,13 @@ void RGBmatrixPanel::updateDisplay(void) {
   // A local register copy can speed some things up:
   ptr = (uint8_t *)buffptr;
 
-#ifdef AVR
+#if defined(__TIVA__)
+// FIXME: Set timer duration for Tiva
+#warning Need to set next timer interrupt
+
+#else
   ICR1      = duration; // Set interval for next interrupt
   TCNT1     = 0;        // Restart interrupt timer
-#else
-// FIXME: Set timer duration for Tiva
-
 #endif
 
 #if defined(__TIVA__)
