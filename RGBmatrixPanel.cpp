@@ -877,6 +877,22 @@ void RGBmatrixPanel::updateDisplay(void) {
         }
         else {
 // TODO: Calculate which buffer to show now, and update FadeNNext accordingly
+
+// Need to test following expression 
+//  (derived from calculating error differences and a bunch of algebra, so probably wrong)
+//
+// if (FadeLen * (2 * FadeNNext + 1) < 2 * (FadeCnt ^ 2))
+//    Show NextBuffer; FadeNNext++
+// else
+//    Show FrontBuffer;
+//
+// If it works, see how to optimize calculation - 
+//   left hand side can be calculated cumulatively 
+//     (Keep running total of lhs, when increment FadeNNext, then add 2 * FadeLen to total)
+//
+
+#warning Need to finish fade code
+
         }
       }
 #endif // FADE
