@@ -172,7 +172,7 @@ const uint8_t nPackedPlanes = 3;  // 3 bytes holds 4 planes "packed"
 
 #if defined(__TIVA__)
 const uint16_t defaultRefreshFreq = 200; // Cycles per second
-const uint16_t ticksPerSecond = 1000; // Number of timer ticks in 1 second
+const uint32_t ticksPerSecond = 100000; // Number of timer ticks in 1 second
 
 const uint16_t minRowTime = 1;         // FIXME: Find minimum number of timer ticks for a row
 
@@ -723,6 +723,8 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 
 // This will introduce a glitch if redefine refresh rate while displaying something
 // FIXME: Revise it to change refresh rate at end of a frame.
+
+// Caution - be sure enough bits in calculation to get a useful rowtime
 uint8_t RGBmatrixPanel::setRefresh(uint8_t freq){
   refreshFreq = freq;
 //  uint16_t refreshTime = 1 * ticksPerSecond / refreshFreq;   // Time for 1 display refresh
