@@ -129,7 +129,36 @@ Revisions:
 // Timer 4A is used by Tone
 // Timer 5 is used by Energia time tracking
 
-#define TIMER 6
+// TODO: Think energia doesn't use all the timers, maybe better to just grab one not used
+// Timer 4 used by Tone, Timer 5 used by Energia
+// LP: uses regular timer 0-3, wide timer 0-3, 6, 7
+//     Should leave wide timers 4 and 5 available(?)
+// Connected LP: Uses timers 0-5 (so 6 and 7 should be available?)
+//  ?? Seems a little strange that on Connected LP Timers 4 and 5 are used both by tone/Energia and by PWM??
+
+// So should set this up to use timers not necessarily covered by the mapping arrays in Energia
+// WT4 or WT5 on LP, Timer 6 or 7 on Connected LP
+
+#if defined(__TM4C1294NCPDT__)
+#define TIMER TIMER6
+
+// TODO: Fix the macros to automatically generate the various permutations given the base name
+#define TIMER_BASE   TIMER6_BASE
+#define TIMER_SYSCTL SYSCTL_PERIPH_TIMER6
+#define TIMER_INT    INT_TIMER6A
+
+#else
+#define TIMER TIMER4
+// or WTIMERn
+// TODO: Check with wider timers, probably make it wide timer 4 or 5
+
+#define TIMER_BASE   TIMER4_BASE
+#define TIMER_SYSCTL SYSCTL_PERIPH_TIMER4
+#define TIMER_INT    INT_TIMER4A
+
+#endif
+
+//#define TIMER 6
 
 
 // FIXME: Add masking to sclkport?
@@ -206,7 +235,28 @@ const uint16_t minRowTime = 1;         // FIXME: Find minimum number of timer ti
 
 #if defined(__TIVA__)
 
-#define timerToTimeout(timer)  (TIMER_TIMA_TIMEOUT << timerToAB(timer))
+
+//const uint32_t timer_to_int[] = {};
+/*  TIMER0_BASE
+  WTIMER0_BASE
+SYSCTL_PERIPH_WTIMER0
+
+INT_TIMER0A
+
+TIMER##_BASE
+SYSCTL_PERIPH_##TIMER
+*/
+
+#define BASE(t)   (t##_BASE)
+#define SYSCTL(t) (SYCTL_PERIPH_##t)
+#define INTA(t)   (INT_##t##A)
+#define INTB(t)   (INT_##t##B)
+
+/* These don't work at the moment - need to find the extra trick that gets TIMER substituted
+#define TIMER_BASE   BASE(TIMER)
+#define TIMER_SYSCTL SYSCTL(TIMER)
+#define TIMER_INT    INTA(TIMER)
+*/
 
 extern "C" {
 void enableTimerPeriph(uint32_t offset);
@@ -389,55 +439,35 @@ void RGBmatrixPanel::begin(void) {
   setRefresh(defaultRefreshFreq);
 
 
+  // Timer
 
-// Timer
+//#define timerToTimeout(timer)  (TIMER_TIMA_TIMEOUT << timerToAB(timer))
 
-// TODO: Think energia doesn't use all the timers, maybe better to just grab one not used
-// Timer 4 used by Tone, Timer 5 used by Energia
-// LP: uses regular timer 0-3, wide timer 0-3, 6, 7
-//     Should leave wide timers 4 and 5 available(?)
-// Connected LP: Uses timers 0-5 (so 6 and 7 should be available?)
-//  ?? Seems a little strange that on Connected LP Timers 4 and 5 are used both by tone/Energia and by PWM??
-
-// So should set this up to use timers not necessarily covered by the mapping arrays in Energia
-// WT4 or WT5 on LP, Timer 6 or 7 on Connected LP
+//  uint32_t timerBase = getTimerBase(timerToOffset(TIMER));
+//  uint32_t timerAB = TIMER_A << timerToAB(TIMER);
 
 
-//const uint32_t timer_to_int[] = {};
-  
+  MAP_SysCtlPeripheralEnable(TIMER_SYSCTL);
+//  enableTimerPeriph(timerToOffset(TIMER));  // MAP_SysCtlPeripheralEnable
 
-  uint32_t timerBase = getTimerBase(timerToOffset(TIMER));
-  uint32_t timerAB = TIMER_A << timerToAB(TIMER);
-
-  enableTimerPeriph(timerToOffset(TIMER));  // MAP_SysCtlPeripheralEnable
-
-  MAP_TimerConfigure(timerBase, TIMER_CFG_ONE_SHOT);
+  MAP_TimerConfigure(TIMER_BASE, TIMER_CFG_ONE_SHOT);
 
 // FIXME: Enable interrupts
 //  attachInterrupt ( ?? , &TmrHandler(), ?? );
   MAP_IntMasterEnable();
 
-?  MAP_IntEnable(INT_TIMER4A); // FIXME: Need to get INT for TIMER
-  MAP_TimerIntEnable( timerBase, timerToTimeout(TIMER) );
+  MAP_IntEnable(TIMER_INT);
+  MAP_TimerIntEnable( TIMER_BASE, TIMER_TIMA_TIMEOUT );
 
 // Need to set period before enable
-  MAP_TimerEnable(timerBase, timerAB);
+  MAP_TimerEnable( TIMER_BASE, TIMER_A );
 
 // Temporary - just to get the code in the assembler listing
 //TmrHandler();
 
-// Timer setup
-
-  uint32_t final = ( ( uint64_t )period_us * TIMER_CLK ) / ticksPerSecond;
-  MAP_TimerDisable( timerBase, timerAB );
-  MAP_TimerIntClear( timerBase, timerToTimeout(TIMER) );
-  MAP_TimerLoadSet( timerBase, timerAB, ( uint32_t )final - 1 );
-  
-// Start
-//  MAP_TimerLoadSet( timerBase, timerAB, ?? );
-  
 #else
 //#elif defined(__AVR__)
+
   // Set up Timer1 for interrupt:
   TCCR1A  = _BV(WGM11); // Mode 14 (fast PWM), OC1A off
   TCCR1B  = _BV(WGM13) | _BV(WGM12) | _BV(CS10); // Mode 14, no prescale
@@ -447,14 +477,25 @@ void RGBmatrixPanel::begin(void) {
 #endif
 }
 
+/* Notes:
+// Timer setup
+
+  uint32_t final = ( ( uint64_t )period_us * TIMER_CLK ) / ticksPerSecond;
+  MAP_TimerDisable( timerBase, timerAB );
+  MAP_TimerIntClear( timerBase, timerToTimeout(TIMER) );
+  MAP_TimerLoadSet( timerBase, timerAB, ( uint32_t )final - 1 );
+  
+// Start
+//  MAP_TimerLoadSet( timerBase, timerAB, ?? );
+*/  
+
 void RGBmatrixPanel::stop(void) {
 #if defined(__TIVA__)
 // Stop timer
-  uint32_t timerBase = getTimerBase(timerToOffset(TIMER));
   
-  MAP_TimerIntDisable(timerBase, timerToTimeout(TIMER));
-  MAP_TimerIntClear(timerBase, timerToTimeout(TIMER));
-  MAP_TimerDisable(timerBase, TIMER_A << timerToAB(TIMER));
+  MAP_TimerIntDisable(TIMER_BASE, TIMER_TIMA_TIMEOUT);
+  MAP_TimerIntClear(TIMER_BASE, TIMER_TIMA_TIMEOUT);
+  MAP_TimerDisable(TIMER_BASE, TIMER_A);
   
 // TODO: Unregister interrupt handler
 
@@ -824,7 +865,7 @@ void TmrHandler()
 {
   activePanel->updateDisplay();
 
-  MAP_TimerIntClear( getTimerBase(timerToOffset(TIMER)), timerToTimeout(TIMER) );
+  MAP_TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
 }
 
 #else
@@ -848,7 +889,8 @@ uint8_t RGBmatrixPanel::setRefresh(uint8_t freq){
   refreshFreq = freq;
 //  uint16_t refreshTime = 1 * ticksPerSecond / refreshFreq;   // Time for 1 display refresh
 //  rowtime = refreshTime / (nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
-  rowtime = ticksPerSecond / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
+//  rowtime = ticksPerSecond / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
+  rowtime = (uint32_t) TIMER_CLK / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
   if (rowtime < minRowTime){
     rowtime = minRowTime;
     return 1;     // Error flag - todo: give more useful feedback, e.g. actual rate set
@@ -913,7 +955,12 @@ uint8_t RGBmatrixPanel::setRefresh(uint8_t freq){
 
 void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, tick, tock, *ptr;
-  uint16_t t, duration;
+  uint16_t t;
+#if defined(__TIVA__)
+  uint32_t duration;
+#else
+  uint16_t duration;
+#endif
   uint8_t panelcount;
 
 #if defined(__TIVA__)
@@ -926,6 +973,8 @@ void RGBmatrixPanel::updateDisplay(void) {
   
 #if defined(__TIVA__)
   duration = rowtime << plane;
+  // FIXME: Check counter calculation - can probably simplify duration vs this
+//  uint32_t final = ( ( uint64_t )duration * TIMER_CLK ) / 1000000;  // duration in usec
 #else
   // Calculate time to next interrupt BEFORE incrementing plane #.
   // This is because duration is the display time for the data loaded
@@ -1033,14 +1082,12 @@ void RGBmatrixPanel::updateDisplay(void) {
   ptr = (uint8_t *)buffptr;
 
 #if defined(__TIVA__)
-  uint32_t timerBase = getTimerBase(timerToOffset(TIMER));
-  uint32_t timerAB = TIMER_A << timerToAB(TIMER);
-  
-// FIXME: Check counter calculation - can probably simplify duration vs this
-  uint32_t final = ( ( uint64_t )duration * TIMER_CLK ) / 1000000;  // duration in usec
+//  uint32_t timerBase = getTimerBase(timerToOffset(TIMER));
+//  uint32_t timerAB = TIMER_A << timerToAB(TIMER);
+
 //  MAP_TimerDisable( timerBase, timerAB );
-  MAP_TimerLoadSet( timerBase, timerAB, ( uint32_t )final - 1 );
-  MAP_TimerEnable( timerBase, timerAB );
+  MAP_TimerLoadSet( TIMER_BASE, TIMER_A, duration - 1 );
+  MAP_TimerEnable( TIMER_BASE, TIMER_A );
 
 #else
   ICR1      = duration; // Set interval for next interrupt

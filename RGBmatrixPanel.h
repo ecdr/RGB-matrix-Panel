@@ -115,7 +115,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
 #if defined(__TIVA__)
   uint16_t         refreshFreq;
-  volatile uint16_t rowtime;
+  volatile uint32_t rowtime;
 #endif
 
   // Counters/pointers for interrupt handler:
