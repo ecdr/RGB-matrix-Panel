@@ -65,6 +65,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
   void
     begin(void),
+    stop(void),
     drawPixel(int16_t x, int16_t y, uint16_t c),
     fillScreen(uint16_t c),
     updateDisplay(void),

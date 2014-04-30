@@ -50,10 +50,28 @@ Revisions:
 
 #if defined(__TIVA__)
 
+#include "wiring_private.h"
+
 #include "inc/hw_types.h"
 #include "inc/hw_gpio.h"
 #include "driverlib/gpio.h"
 #include "driverlib/rom_map.h"
+
+#include "driverlib/sysctl.h"
+#include "inc/hw_ints.h"
+#include "inc/hw_timer.h"
+#include "driverlib/timer.h"
+
+
+#ifdef __TM4C1294NCPDT__
+// TM4C1294 - can only get clock speed from clock set call
+#define TIMER_CLK F_CPU
+#else
+
+// Only works on TM4C123x
+#define TIMER_CLK SysCtlClockGet()
+
+#endif
 
 
 // portOutputRegister(port) not defined for Tiva, so make up own version
@@ -104,6 +122,14 @@ Revisions:
 #define SCLKPORT      *portDATARegister(PB)
 
 #endif
+
+// FIXME: Select a timer, e.g. one that would do PWM for a pin we are already using
+
+// Note: 
+// Timer 4A is used by Tone
+// Timer 5 is used by Energia time tracking
+
+#define TIMER 6
 
 
 // FIXME: Add masking to sclkport?
@@ -172,13 +198,16 @@ const uint8_t nPackedPlanes = 3;  // 3 bytes holds 4 planes "packed"
 
 #if defined(__TIVA__)
 const uint16_t defaultRefreshFreq = 200; // Cycles per second
-const uint32_t ticksPerSecond = 100000; // Number of timer ticks in 1 second
+const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
 
 const uint16_t minRowTime = 1;         // FIXME: Find minimum number of timer ticks for a row
 
 #endif
 
 #if defined(__TIVA__)
+
+#define timerToTimeout(timer)  (TIMER_TIMA_TIMEOUT << timerToAB(timer))
+
 extern "C" {
 void enableTimerPeriph(uint32_t offset);
 }
@@ -359,15 +388,54 @@ void RGBmatrixPanel::begin(void) {
 #if defined(__TIVA__)
   setRefresh(defaultRefreshFreq);
 
-// FIXME: Set up timer
-// FIXME: Enable interrupts
 
-//	ROM_TimerEnable(timerBase, );
-//  attachInterrupt ( , &TmrHandler(), );
-// TODO: Figure out which timer to use
+
+// Timer
+
+// TODO: Think energia doesn't use all the timers, maybe better to just grab one not used
+// Timer 4 used by Tone, Timer 5 used by Energia
+// LP: uses regular timer 0-3, wide timer 0-3, 6, 7
+//     Should leave wide timers 4 and 5 available(?)
+// Connected LP: Uses timers 0-5 (so 6 and 7 should be available?)
+//  ?? Seems a little strange that on Connected LP Timers 4 and 5 are used both by tone/Energia and by PWM??
+
+// So should set this up to use timers not necessarily covered by the mapping arrays in Energia
+// WT4 or WT5 on LP, Timer 6 or 7 on Connected LP
+
+
+//const uint32_t timer_to_int[] = {};
+  
+
+  uint32_t timerBase = getTimerBase(timerToOffset(TIMER));
+  uint32_t timerAB = TIMER_A << timerToAB(TIMER);
+
+  enableTimerPeriph(timerToOffset(TIMER));  // MAP_SysCtlPeripheralEnable
+
+  MAP_TimerConfigure(timerBase, TIMER_CFG_ONE_SHOT);
+
+// FIXME: Enable interrupts
+//  attachInterrupt ( ?? , &TmrHandler(), ?? );
+  MAP_IntMasterEnable();
+
+?  MAP_IntEnable(INT_TIMER4A); // FIXME: Need to get INT for TIMER
+  MAP_TimerIntEnable( timerBase, timerToTimeout(TIMER) );
+
+// Need to set period before enable
+  MAP_TimerEnable(timerBase, timerAB);
 
 // Temporary - just to get the code in the assembler listing
 //TmrHandler();
+
+// Timer setup
+
+  uint32_t final = ( ( uint64_t )period_us * TIMER_CLK ) / ticksPerSecond;
+  MAP_TimerDisable( timerBase, timerAB );
+  MAP_TimerIntClear( timerBase, timerToTimeout(TIMER) );
+  MAP_TimerLoadSet( timerBase, timerAB, ( uint32_t )final - 1 );
+  
+// Start
+//  MAP_TimerLoadSet( timerBase, timerAB, ?? );
+  
 #else
 //#elif defined(__AVR__)
   // Set up Timer1 for interrupt:
@@ -377,6 +445,24 @@ void RGBmatrixPanel::begin(void) {
   TIMSK1 |= _BV(TOIE1); // Enable Timer1 interrupt
   sei();                // Enable global interrupts
 #endif
+}
+
+void RGBmatrixPanel::stop(void) {
+#if defined(__TIVA__)
+// Stop timer
+  uint32_t timerBase = getTimerBase(timerToOffset(TIMER));
+  
+  MAP_TimerIntDisable(timerBase, timerToTimeout(TIMER));
+  MAP_TimerIntClear(timerBase, timerToTimeout(TIMER));
+  MAP_TimerDisable(timerBase, TIMER_A << timerToAB(TIMER));
+  
+// TODO: Unregister interrupt handler
+
+#else
+
+#endif  // __TIVA__
+// TODO: Should probably send all 0's to the panel
+
 }
 
   
@@ -676,8 +762,9 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
 
 #if defined(FADE)
 // Fade between front and next buffers
-// Take nrefresh refresh cycles for fade
+// Take tfade refresh cycles for fade
 // If copy is true, then at end copy next to front at end of fade
+// Todo: change tfade unit from refresh cycles to time
 
 // Fade is done by PWM between front and next buffers
 uint8_t RGBmatrixPanel::swapFade(uint16_t tfade, boolean copy) {
@@ -689,11 +776,11 @@ uint8_t RGBmatrixPanel::swapFade(uint16_t tfade, boolean copy) {
     return 2;
   else {
     FadeCnt = 0;        // How many cycles have occured in this fade
-//    FadeNNext = 0;      // How many times has the next frame been shown
+//    FadeNNext = 0;    // How many times has the next frame been shown
     FadeNAccum = 0;
     copyflag = copy;    // reminder to do copy at end
     // Start the fade
-    FadeLen = nrefresh; // FadeLen != 0 indicates fade in progress
+    FadeLen = tfade;    // FadeLen != 0 indicates fade in progress
     return 0;
   }
 }
@@ -736,10 +823,9 @@ void RGBmatrixPanel::dumpMatrix(void) {
 void TmrHandler()
 {
   activePanel->updateDisplay();
-  
-}
 
-#warning Need to finish Tiva Timer Interrupt handler
+  MAP_TimerIntClear( getTimerBase(timerToOffset(TIMER)), timerToTimeout(TIMER) );
+}
 
 #else
 //#elif defined(__AVR__)
@@ -868,6 +954,7 @@ void RGBmatrixPanel::updateDisplay(void) {
       if(swapflag == true) {    // Swap front/back buffers if requested
         backindex = 1 - backindex;
         swapflag  = false;
+        buffptr = matrixbuff[1-backindex]; // Reset into front buffer
       }
 #if defined(FADE)
       else if(FadeLen) {
@@ -878,6 +965,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 //          FadeNNext = 0;
           FadeNAccum = 0;
 // FIXME: Need to get the copy done somehow (or just remove that option)
+          buffptr = matrixbuff[1-backindex]; // Reset into front buffer
         }
         else {
 // TODO: Calculate which buffer to show now, and update FadeNNext accordingly
@@ -897,17 +985,20 @@ void RGBmatrixPanel::updateDisplay(void) {
           int16_t FadeCntSq = FadeCnt * FadeCnt;
 
           if (abs(FadeCntSq - FadeNAccum ) > abs(FadeCntSq - FadeNAccum - (2 * FadeLen) )){
-//    Show NextBuffer; 
+//          if (abs(FadeCntSq - FadeNAccum ) > FadeLen )){    // TODO: Something like this might also work
+//    Show NextBuffer;
+            buffptr = matrixbuff[backindex]; // Reset into back buffer
             FadeNAccum += 2 * FadeLen; // Update accumulated showing next // FadeNNext++
           }
           else {
 //    Show FrontBuffer;
+            buffptr = matrixbuff[1-backindex]; // Reset into front buffer
           }
-#warning Need to finish fade code
         }
       }
 #endif // FADE
-      buffptr = matrixbuff[1-backindex]; // Reset into front buffer
+      else
+        buffptr = matrixbuff[1-backindex]; // Reset into front buffer
     }
   } else if(plane == 1) {
     // Plane 0 was loaded on prior interrupt invocation and is about to
@@ -942,8 +1033,14 @@ void RGBmatrixPanel::updateDisplay(void) {
   ptr = (uint8_t *)buffptr;
 
 #if defined(__TIVA__)
-// FIXME: Set timer duration for Tiva
-#warning Need to set next timer interrupt
+  uint32_t timerBase = getTimerBase(timerToOffset(TIMER));
+  uint32_t timerAB = TIMER_A << timerToAB(TIMER);
+  
+// FIXME: Check counter calculation - can probably simplify duration vs this
+  uint32_t final = ( ( uint64_t )duration * TIMER_CLK ) / 1000000;  // duration in usec
+//  MAP_TimerDisable( timerBase, timerAB );
+  MAP_TimerLoadSet( timerBase, timerAB, ( uint32_t )final - 1 );
+  MAP_TimerEnable( timerBase, timerAB );
 
 #else
   ICR1      = duration; // Set interval for next interrupt
