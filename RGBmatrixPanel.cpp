@@ -71,8 +71,8 @@ Revisions:
 
 // Only works on TM4C123x
 //#define TIMER_CLK SysCtlClockGet()
-// However there is a bug in SysCtlClockGet() - so it doesn't work right in 2.1....
-// If you request 80MHz clock
+// However there is a bug in SysCtlClockGet() - so it doesn't work right in 2.1....,
+// if you request 80MHz clock
 // So just bypass it for now
 
 #define TIMER_CLK F_CPU
@@ -903,9 +903,16 @@ uint8_t RGBmatrixPanel::swapFade(uint16_t tfade, boolean copy) {
   Serial.print("swapFade");
 #endif
 
-// TODO: change to use fade time, rather than number of refresh cycles
-  if (0 != FadeLen)
-    return 1;
+  if (0 != FadeLen) {
+    if (0 == tfade){  // Setting tfade = 0 cancels fade in progress
+// FIXME: Consider whether this may cause glitches (e.g. if need to wait until end of frame)
+      FadeLen = 0;
+      FadeNAccum = 0;
+      FadeCnt = 0;
+      return 0;
+    }
+      return 1; // Return error if fade already in progress
+  }
   else if(matrixbuff[0] == matrixbuff[1]) 
 // FIXME: Adapt for nBuf > 2
     return 2;
@@ -915,11 +922,22 @@ uint8_t RGBmatrixPanel::swapFade(uint16_t tfade, boolean copy) {
     FadeNAccum = 0;
     copyflag = copy;    // reminder to do copy at end
     // Start the fade
+
+// TODO: change to use fade time, rather than number of refresh cycles
     FadeLen = tfade;    // FadeLen != 0 indicates fade in progress
+// For fade time in milli-seconds, rather than in refresh cycles
+//    FadeLen = (refreshFreq * (uint32_t)tfade)/1000; 
     return 0;
   }
 }
+
+// Or could make this return uint - fade time remaining
+boolean RGBmatrixPanel::fading() {
+  return (FadeLen != 0);
+}
+
 #endif
+
 
 // Dump display contents to the Serial Monitor, adding some formatting to
 // simplify copy-and-paste of data as a PROGMEM-embedded image for another
