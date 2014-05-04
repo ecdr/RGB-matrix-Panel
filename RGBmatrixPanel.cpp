@@ -59,6 +59,7 @@ Revisions:
 
 #include "driverlib/sysctl.h"
 #include "inc/hw_ints.h"
+#include "driverlib/interrupt.h"
 #include "inc/hw_timer.h"
 #include "driverlib/timer.h"
 
@@ -452,18 +453,14 @@ void RGBmatrixPanel::begin(void) {
 
   MAP_TimerConfigure(TIMER_BASE, TIMER_CFG_ONE_SHOT);
 
-// FIXME: Enable interrupts
-//  attachInterrupt ( ?? , &TmrHandler(), ?? );
+  IntRegister(TIMER_INT, TmrHandler);
   MAP_IntMasterEnable();
 
   MAP_IntEnable(TIMER_INT);
   MAP_TimerIntEnable( TIMER_BASE, TIMER_TIMA_TIMEOUT );
 
-// Need to set period before enable
+// FIXME: Need to set period before enable
   MAP_TimerEnable( TIMER_BASE, TIMER_A );
-
-// Temporary - just to get the code in the assembler listing
-//TmrHandler();
 
 #else
 //#elif defined(__AVR__)
@@ -496,9 +493,7 @@ void RGBmatrixPanel::stop(void) {
   MAP_TimerIntDisable(TIMER_BASE, TIMER_TIMA_TIMEOUT);
   MAP_TimerIntClear(TIMER_BASE, TIMER_TIMA_TIMEOUT);
   MAP_TimerDisable(TIMER_BASE, TIMER_A);
-  
-// TODO: Unregister interrupt handler
-
+  IntUnregister(TIMER_INT);
 #else
 
 #endif  // __TIVA__
