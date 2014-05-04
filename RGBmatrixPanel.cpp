@@ -439,7 +439,6 @@ void RGBmatrixPanel::begin(void) {
 #if defined(__TIVA__)
   setRefresh(defaultRefreshFreq);
 
-
   // Timer
 
 //#define timerToTimeout(timer)  (TIMER_TIMA_TIMEOUT << timerToAB(timer))
@@ -447,19 +446,21 @@ void RGBmatrixPanel::begin(void) {
 //  uint32_t timerBase = getTimerBase(timerToOffset(TIMER));
 //  uint32_t timerAB = TIMER_A << timerToAB(TIMER);
 
+//  MAP_TimerDisable( timerBase, timerAB );
 
-  MAP_SysCtlPeripheralEnable(TIMER_SYSCTL);
+  MAP_SysCtlPeripheralEnable( TIMER_SYSCTL );
 //  enableTimerPeriph(timerToOffset(TIMER));  // MAP_SysCtlPeripheralEnable
 
-  MAP_TimerConfigure(TIMER_BASE, TIMER_CFG_ONE_SHOT);
+  MAP_TimerConfigure( TIMER_BASE, TIMER_CFG_ONE_SHOT );
 
-  IntRegister(TIMER_INT, TmrHandler);
+  IntRegister( TIMER_INT, TmrHandler );
   MAP_IntMasterEnable();
 
-  MAP_IntEnable(TIMER_INT);
+  MAP_IntEnable( TIMER_INT );
   MAP_TimerIntEnable( TIMER_BASE, TIMER_TIMA_TIMEOUT );
 
-// FIXME: Need to set period before enable
+  MAP_TimerLoadSet( TIMER_BASE, TIMER_A, rowtime - 1 );  // Dummy initial interrupt period
+  
   MAP_TimerEnable( TIMER_BASE, TIMER_A );
 
 #else
@@ -876,8 +877,9 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 
 #if defined(__TIVA__)
 
+// Caution: Blank the display before changing refresh
 // This will introduce a glitch if redefine refresh rate while displaying something
-// FIXME: Revise it to change refresh rate at end of a frame.
+// FIXME: Revise to change refresh rate at end of a frame.
 
 // Caution - be sure enough bits in calculation to get a useful rowtime
 uint8_t RGBmatrixPanel::setRefresh(uint8_t freq){
