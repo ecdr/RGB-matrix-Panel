@@ -70,7 +70,13 @@ Revisions:
 #else
 
 // Only works on TM4C123x
-#define TIMER_CLK SysCtlClockGet()
+//#define TIMER_CLK SysCtlClockGet()
+// However there is a bug in SysCtlClockGet() - so it doesn't work right in 2.1....
+// If you request 80MHz clock
+// So just bypass it for now
+
+#define TIMER_CLK F_CPU
+
 
 #endif
 
@@ -149,7 +155,9 @@ Revisions:
 #define TIMER_INT    INT_TIMER6A
 
 #else
+
 #define TIMER TIMER4
+
 // or WTIMERn
 // TODO: Check with wider timers, probably make it wide timer 4 or 5
 
@@ -238,7 +246,8 @@ const uint16_t minRowTime = 1;         // FIXME: Find minimum number of timer ti
 
 
 //const uint32_t timer_to_int[] = {};
-/*  TIMER0_BASE
+/*
+  TIMER0_BASE
   WTIMER0_BASE
 SYSCTL_PERIPH_WTIMER0
 
@@ -439,6 +448,17 @@ void RGBmatrixPanel::begin(void) {
 #if defined(__TIVA__)
   setRefresh(defaultRefreshFreq);
 
+#if defined(DEBUG)
+  Serial.begin(9600); 
+
+  // prints title with ending line break 
+  Serial.println("RGBMatrix:begin"); 
+  
+  Serial.print("Rowtime ");
+  Serial.println(rowtime);
+
+#endif
+  
   // Timer
 
 //#define timerToTimeout(timer)  (TIMER_TIMA_TIMEOUT << timerToAB(timer))
@@ -462,6 +482,10 @@ void RGBmatrixPanel::begin(void) {
   MAP_TimerLoadSet( TIMER_BASE, TIMER_A, rowtime - 1 );  // Dummy initial interrupt period
   
   MAP_TimerEnable( TIMER_BASE, TIMER_A );
+
+#if defined(DEBUG)
+  Serial.println("Timer setup");
+#endif
 
 #else
 //#elif defined(__AVR__)
@@ -500,6 +524,7 @@ void RGBmatrixPanel::stop(void) {
 #endif  // __TIVA__
 // TODO: Should probably send all 0's to the panel
 
+  activePanel = NULL;
 }
 
   
@@ -1013,8 +1038,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 // FIXME: Need to get the copy done somehow (or just remove that option)
           buffptr = matrixbuff[1-backindex]; // Reset into front buffer
         }
-        else {
-// TODO: Calculate which buffer to show now, and update FadeNNext accordingly
+        else {  // Calculate which buffer to show this time
 
 // Need to test following expression 
 //  (derived from calculating error differences and a bunch of algebra, checked in a spreadsheet so think okay)
