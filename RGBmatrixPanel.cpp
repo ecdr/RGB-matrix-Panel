@@ -97,9 +97,14 @@ Revisions:
 //#define HWREGBITB(x, b)                                                       \
 //        HWREGB(((uint32_t)(x) & 0xF0000000) | 0x02000000 |                    \
 //               (((uint32_t)(x) & 0x000FFFFF) << 5) | ((b) << 2))
-        
 
-#define portMaskedOutputRegister(port, mask) (uint8_t *) (portBASERegister(port) + (GPIO_O_DATA + (mask << 2)))
+
+// Caution - be careful of adding masks to pointer types.
+// Cast the portBASERegister back to uint32_t so that it will not do a clandestine left shift 2 on the mask
+// Alternative would be to make use of that left shift, but then need a big note explaining the occult behavior
+
+#define portMaskedOutputRegister(port, mask) \
+  ((volatile uint8_t *) (((uint32_t)portBASERegister(port)) + (GPIO_O_DATA + (((uint32_t)mask) << 2))))
 
 
 // Port/pin definitions for various launchpads
@@ -110,10 +115,10 @@ Revisions:
 
 // Candidates for data port: PortE (BP1), PortK (BP2), or PortL (BP1) (pins 0-5)
 #define DATAPORTMASK  B11111100
-#define DATAPORT      *portMaskedOutputRegister(PK, DATAPORTMASK)
+#define DATAPORT      (*portMaskedOutputRegister(PK, DATAPORTMASK))
 #define DATAPORTBASE  ((uint32_t)portBASERegister(PK))
 
-#define SCLKPORT      *portDATARegister(PL)
+#define SCLKPORT      (*portDATARegister(PL))
 
 
 #elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
@@ -123,10 +128,10 @@ Revisions:
 // PA: Do not use 0,1 - console Uart
 // PB: use caution in other pin assignments, since PB6 and PB7 are connected to PD0 and PD1
 #define DATAPORTMASK  B11111100
-#define DATAPORT      *portMaskedOutputRegister(PA, DATAPORTMASK)
+#define DATAPORT      (*portMaskedOutputRegister(PA, DATAPORTMASK))
 #define DATAPORTBASE  ((uint32_t)portBASERegister(PA))
 
-#define SCLKPORT      *portDATARegister(PB)
+#define SCLKPORT      (*portDATARegister(PB))
 
 #endif
 
@@ -419,6 +424,59 @@ RGBmatrixPanel::RGBmatrixPanel(
 
 void RGBmatrixPanel::begin(void) {
 
+#if defined(DEBUG)
+  Serial.begin(9600);
+
+  // prints title with ending line break
+  Serial.println("RGBMatrix:begin");
+
+  Serial.print("DATAPORT:");
+  Serial.print((uint32_t)&DATAPORT, HEX);
+  Serial.print(", DATAPORTMASK:");
+  Serial.print(DATAPORTMASK, HEX);
+  Serial.print(", DATA port BASE:");
+  Serial.println((uint32_t)DATAPORTBASE, HEX);
+
+  Serial.print("DPB+MASK");
+  Serial.print((uint32_t)(((uint32_t *)DATAPORTBASE)+(DATAPORTMASK)), HEX);
+
+  Serial.print("SCLKPORT ");
+  Serial.print((uint32_t)&SCLKPORT, HEX);
+  Serial.print("sclkpin ");
+  Serial.println(sclkpin, HEX);
+
+  Serial.print("Addraport ");
+  Serial.print((uint32_t)addraport, HEX);
+  Serial.print("Addrapin ");
+  Serial.println(addrapin, HEX);
+
+  Serial.print("Addrbport ");
+  Serial.print((uint32_t)addrbport, HEX);
+  Serial.print("Addrbpin ");
+  Serial.println(addrbpin, HEX);
+
+  Serial.print("Addrcport ");
+  Serial.print((uint32_t)addrcport, HEX);
+  Serial.print("Addrcpin ");
+  Serial.println(addrcpin, HEX);
+
+if(nRows > 8) {
+  Serial.print("Addrdport ");
+  Serial.print((uint32_t)addrdport, HEX);
+  Serial.print("Addrdpin ");
+  Serial.println(addrdpin, HEX);
+}
+  Serial.print("Latport ");
+  Serial.print((uint32_t)latport, HEX);
+  Serial.print("latpin ");
+  Serial.println(latpin, HEX);
+
+  Serial.print("oeport ");
+  Serial.print((uint32_t)oeport, HEX);
+  Serial.print("oepin ");
+  Serial.println(oepin, HEX);
+#endif
+
   backindex   = 0;                         // Back buffer
   buffptr     = matrixbuff[1 - backindex]; // -> front buffer
 // FIXME: Adapt for nBuf > 2  
@@ -449,10 +507,6 @@ void RGBmatrixPanel::begin(void) {
   setRefresh(defaultRefreshFreq);
 
 #if defined(DEBUG)
-  Serial.begin(9600); 
-
-  // prints title with ending line break 
-  Serial.println("RGBMatrix:begin"); 
   
   Serial.print("Rowtime ");
   Serial.println(rowtime);
@@ -625,6 +679,17 @@ uint16_t RGBmatrixPanel::ColorHSV(
 void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
   uint8_t r, g, b, bit, limit, *ptr;
 
+/*
+#if defined(DEBUG)
+  Serial.print("DrawPixel(");
+  Serial.print(x);
+  Serial.print(", ");
+  Serial.print(y);
+  Serial.print(", ");
+  Serial.print(c);
+  Serial.println(")");
+#endif
+*/
   if((x < 0) || (x >= _width) || (y < 0) || (y >= _height)) return;
 
   switch(rotation) {
@@ -799,6 +864,9 @@ uint8_t *RGBmatrixPanel::backBuffer() {
 // draw over every pixel.  (No effect if double-buffering is not enabled.)
 void RGBmatrixPanel::swapBuffers(boolean copy) {
   if(matrixbuff[0] != matrixbuff[1]) {
+#if defined(DEBUG)
+  Serial.print("swapBuffers");
+#endif
 // FIXME: Adapt for nBuf > 2
     // To avoid 'tearing' display, actual swap takes place in the interrupt
     // handler, at the end of a complete screen refresh cycle.
@@ -830,6 +898,11 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
 
 // Fade is done by PWM between front and next buffers
 uint8_t RGBmatrixPanel::swapFade(uint16_t tfade, boolean copy) {
+
+#if defined(DEBUG)
+  Serial.print("swapFade");
+#endif
+
 // TODO: change to use fade time, rather than number of refresh cycles
   if (0 != FadeLen)
     return 1;
@@ -915,6 +988,10 @@ uint8_t RGBmatrixPanel::setRefresh(uint8_t freq){
   rowtime = (uint32_t) TIMER_CLK / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
   if (rowtime < minRowTime){
     rowtime = minRowTime;
+#if defined(DEBUG)
+  Serial.print("Rowtime ");
+  Serial.println(rowtime);
+#endif
     return 1;     // Error flag - todo: give more useful feedback, e.g. actual rate set
     }
   else
@@ -992,7 +1069,13 @@ void RGBmatrixPanel::updateDisplay(void) {
   *oeport  |= oepin;  // Disable LED output during row/plane switchover
   *latport |= latpin; // Latch data loaded during *prior* interrupt
 #endif
-  
+
+/*
+#if defined(DEBUG)
+  Serial.print(plane);
+#endif
+*/
+
 #if defined(__TIVA__)
   duration = rowtime << plane;
   // FIXME: Check counter calculation - can probably simplify duration vs this
@@ -1071,6 +1154,12 @@ void RGBmatrixPanel::updateDisplay(void) {
         buffptr = matrixbuff[1-backindex]; // Reset into front buffer
     }
   } else if(plane == 1) {
+/*
+#if defined(DEBUG)
+    Serial.print("P1R");
+    Serial.print(row);
+#endif
+*/
     // Plane 0 was loaded on prior interrupt invocation and is about to
     // latch now, so update the row address lines before we do that:
 #if defined(__TIVA__)
@@ -1078,13 +1167,20 @@ void RGBmatrixPanel::updateDisplay(void) {
 //  Since using pin masking, they should have same effect
 //  (Or if using code as above, but simple = addrpin or = ~addrpin, or = 0, or = 0xFF)
 //  could also compare to using bitbanding (then just write a 1 or a 0)
+/*
     *addraport = (row & 0x1) ? addrapin : 0;
     *addrbport = (row & 0x2) ? addrbpin : 0;
     *addrcport = (row & 0x4) ? addrcpin : 0;
     if(nRows > 8)
-      *addrdport = (row & 0x8) ? addrdpin : 0;
+      *addrdport = (row & 0x8) ? addrdpin : 0; */
+
+    *addraport = ((row & 0x1) ? 0xFF : 0);
+    *addrbport = ((row & 0x2) ? 0xFF : 0);
+    *addrcport = ((row & 0x4) ? 0xFF : 0);
+    if(nRows > 8)
+      *addrdport = ((row & 0x8) ? 0xFF : 0);
 #else
-//#elif defined(__AVR__)    
+//#elif defined(__AVR__)
     if(row & 0x1)   *addraport |=  addrapin;
     else            *addraport &= ~addrapin;
     if(row & 0x2)   *addrbport |=  addrbpin;
@@ -1095,7 +1191,7 @@ void RGBmatrixPanel::updateDisplay(void) {
       if(row & 0x8) *addrdport |=  addrdpin;
       else          *addrdport &= ~addrdpin;
     }
-#endif    
+#endif
   }
 
   // buffptr, being 'volatile' type, doesn't take well to optimization.
@@ -1106,6 +1202,12 @@ void RGBmatrixPanel::updateDisplay(void) {
 //  uint32_t timerBase = getTimerBase(timerToOffset(TIMER));
 //  uint32_t timerAB = TIMER_A << timerToAB(TIMER);
 
+/*
+#if defined(DEBUG)
+    Serial.print(" du");
+    Serial.println(duration);
+#endif
+*/
 //  MAP_TimerDisable( timerBase, timerAB );
   MAP_TimerLoadSet( TIMER_BASE, TIMER_A, duration - 1 );
   MAP_TimerEnable( TIMER_BASE, TIMER_A );
