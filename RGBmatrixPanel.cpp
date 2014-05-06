@@ -250,16 +250,11 @@ const uint16_t minRowTime = 1;         // FIXME: Find minimum number of timer ti
 #if defined(__TIVA__)
 
 
-//const uint32_t timer_to_int[] = {};
 /*
   TIMER0_BASE
   WTIMER0_BASE
-SYSCTL_PERIPH_WTIMER0
-
-INT_TIMER0A
-
-TIMER##_BASE
-SYSCTL_PERIPH_##TIMER
+  SYSCTL_PERIPH_WTIMER0
+  INT_TIMER0A
 */
 
 #define BASE(t)   (t##_BASE)
@@ -267,7 +262,7 @@ SYSCTL_PERIPH_##TIMER
 #define INTA(t)   (INT_##t##A)
 #define INTB(t)   (INT_##t##B)
 
-/* These don't work at the moment - need to find the extra trick that gets TIMER substituted
+/* TODO: These don't work at the moment - need to find the extra trick that gets TIMER substituted
 #define TIMER_BASE   BASE(TIMER)
 #define TIMER_SYSCTL SYSCTL(TIMER)
 #define TIMER_INT    INTA(TIMER)
@@ -525,6 +520,7 @@ if(nRows > 8) {
   MAP_SysCtlPeripheralEnable( TIMER_SYSCTL );
 //  enableTimerPeriph(timerToOffset(TIMER));  // MAP_SysCtlPeripheralEnable
 
+// TODO: If use wide timer, have to tell it to only use half
   MAP_TimerConfigure( TIMER_BASE, TIMER_CFG_ONE_SHOT );
 
   IntRegister( TIMER_INT, TmrHandler );
