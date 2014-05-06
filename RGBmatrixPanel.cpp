@@ -164,7 +164,8 @@ Revisions:
 #define TIMER TIMER4
 
 // or WTIMERn
-// TODO: Check with wider timers, probably make it wide timer 4 or 5
+// TODO: Test with wider timers, probably make it wide timer 4 or 5
+// On wide timers can only use timer A (could adapt code to allow use of timer B, if want)
 
 #define TIMER_BASE   TIMER4_BASE
 #define TIMER_SYSCTL SYSCTL_PERIPH_TIMER4
@@ -515,13 +516,20 @@ if(nRows > 8) {
 //  uint32_t timerBase = getTimerBase(timerToOffset(TIMER));
 //  uint32_t timerAB = TIMER_A << timerToAB(TIMER);
 
-//  MAP_TimerDisable( timerBase, timerAB );
-
   MAP_SysCtlPeripheralEnable( TIMER_SYSCTL );
-//  enableTimerPeriph(timerToOffset(TIMER));  // MAP_SysCtlPeripheralEnable
 
-// TODO: If use wide timer, have to tell it to only use half
-  MAP_TimerConfigure( TIMER_BASE, TIMER_CFG_ONE_SHOT );
+//  MAP_TimerDisable( TIMER_BASE, TIMER_A );
+
+// For wide timer, use half timer
+// This assumes that WTIMER bases all come after regular timer bases
+//  (which is true in TM4C123x, but need not be true in general)
+#if ( TIMER_BASE >= WTIMER0_BASE )
+#define TIMER_CFG   (TIMER_CFG_SPLIT_PAIR | TIMER_CFG_A_ONE_SHOT)
+#else
+#define TIMER_CFG   TIMER_CFG_ONE_SHOT
+#endif
+
+  MAP_TimerConfigure( TIMER_BASE, TIMER_CFG );
 
   IntRegister( TIMER_INT, TmrHandler );
   MAP_IntMasterEnable();
