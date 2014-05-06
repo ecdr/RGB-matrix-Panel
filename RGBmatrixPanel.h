@@ -104,6 +104,9 @@ class RGBmatrixPanel : public Adafruit_GFX {
     fading();
 #endif
 
+  int8_t
+    copyBuffer(uint8_t from, uint8_t to);
+
  private:
 
   uint8_t         *matrixbuff[nBuf];

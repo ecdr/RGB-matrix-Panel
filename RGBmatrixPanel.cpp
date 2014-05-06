@@ -1063,6 +1063,15 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
   }
 }
 
+// Copy one page to another
+int8_t RGBmatrixPanel::copyBuffer(uint8_t from, uint8_t to){
+  if (from > nBuf)
+    return -1;
+  else if (to > nBuf)
+    return -1;
+  memcpy(matrixbuff[to], matrixbuff[from], BYTES_PER_ROW * nRows * nPackedPlanes * nPanels);
+}
+
 #if defined(FADE)
 // Fade between front and next buffers
 // Take tfade refresh cycles for fade
@@ -1105,6 +1114,9 @@ uint8_t RGBmatrixPanel::swapFade(uint16_t tfade, boolean copy) {
 }
 
 // Or could make this return uint - fade time remaining
+// TODO: Generalize to cover swap buffers (waiting to swap, if don't do busy wait).
+// Perhaps add busy flag for each page?  (boolean busy(page))?
+
 boolean RGBmatrixPanel::fading() {
   return (FadeLen != 0);
 }
