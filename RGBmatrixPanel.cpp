@@ -1418,7 +1418,7 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 // counter variables change between past/present/future tense in mid-
 // function...hopefully tenses are sufficiently commented.
 
-#define SWAP(A, B) {uint8_t swap_tmp; swap_tmp = A; A = B; B = swap_tmp}
+#define SWAP_T(A, B, T) {T swap_tmp; swap_tmp = A; A = B; B = swap_tmp}
 
 void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, *ptr;
@@ -1477,7 +1477,7 @@ void RGBmatrixPanel::updateDisplay(void) {
       row     = 0;              // Yes, reset row counter, then...
       if(swapflag == true) {    // Swap front/back buffers if requested
 //        backindex = 1 - backindex;
-        SWAP(frontindex, nextindex);
+        SWAP_T(frontindex, nextindex, uint8_t);
 
         swapflag  = false;
         buffptr = matrixbuff[frontindex]; // Reset into front buffer
