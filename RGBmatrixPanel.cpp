@@ -65,7 +65,7 @@ Revisions:
 
 
 // Define BENCHMARK to measure TimerHandler time
-#define BENCHMARK
+// #define BENCHMARK
 
 #if defined( BENCHMARK )
 #include "cyclecount.h"
@@ -77,10 +77,10 @@ Revisions:
 #define TIMER_CLK F_CPU
 #else
 
-// Only works on TM4C123x
+// SysCtlClockGet only works on TM4C123x
 //#define TIMER_CLK SysCtlClockGet()
-// However there is a bug in SysCtlClockGet() - so it doesn't work right in 2.1....,
-// if you request 80MHz clock
+// However there is a bug in SysCtlClockGet() - in Tivaware 2.1...., 
+// SysCtlClockGet incorrect if request 80MHz clock 
 // So just bypass it for now
 
 #define TIMER_CLK F_CPU
@@ -449,6 +449,8 @@ void RGBmatrixPanel::begin(void) {
 
   Serial.print("DATAPORT:");
   Serial.print((uint32_t)&DATAPORT, HEX);
+
+#if defined(__TIVA__)  
   Serial.print(", DATAPORTMASK:");
   Serial.print(DATAPORTMASK, HEX);
   Serial.print(", DATA port BASE:");
@@ -456,6 +458,7 @@ void RGBmatrixPanel::begin(void) {
 
   Serial.print("DPB+MASK");
   Serial.print((uint32_t)(((uint32_t *)DATAPORTBASE)+(DATAPORTMASK)), HEX);
+#endif
 
   Serial.print("SCLKPORT ");
   Serial.print((uint32_t)&SCLKPORT, HEX);
@@ -1091,7 +1094,7 @@ n = 176
 const uint16_t minRowTimePerPanel = 1150;        // Ticks per panel for a row
 const uint16_t minRowTimeConst = 180;            // Overhead ticks
 
-// minRowTime = 1148 * nPanels + 176
+// minRowTime = 1148 * nPanels + 176 = 1324
 
 // At 80 MHz, with 4 planes, 200 cycles/second gives about 3333 ticks/row
 //   CPU takes about 1300 ticks to process a row on one panel, so plenty of time
@@ -1113,17 +1116,16 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 #if defined(__TIVA__)
 
 // Caution: Blank the display before changing refresh
-// This will introduce a glitch if redefine refresh rate while displaying something
+// May introduce a visual glitch if redefine refresh rate while displaying something
 // FIXME: Revise to change refresh rate at end of a frame.
 
-// Takes about 1300 ticks for minimum row time on Stellaris for 1 16bit pannel
-//  So maximum refresh something in neighborhood of 1200 cycles/second (maybe a bit less)
+// Takes about 1300 ticks for minimum row time on Stellaris for 1 16row panel
+//  So maximum refresh something in neighborhood of 1300 cycles/second (maybe a bit less)
 
-// With 2 32 row panels (recheck these calculations)
-//  Maximum refresh something in neighborhood of 500 cycles/second (maybe a bit less)
+// With 2 32 row panels
+//  Maximum refresh something in neighborhood of 500 cycles/second 
 //  Might get to neighborhood of 700 cycles/second with 120MHz clock (TM4C1294)
 
-// Caution - be sure enough bits in calculation to get a useful rowtime
 
 // Returns refresh rate
 uint16_t RGBmatrixPanel::setRefresh(uint8_t freq){
