@@ -143,27 +143,28 @@ Revisions:
 
 #endif
 
-// FIXME: Select a timer, e.g. one that would do PWM for a pin we are already using
+// Timer selection
 
 // Note: 
 // Timer 4A is used by Tone
 // Timer 5 is used by Energia time tracking
 
 // TODO: Think energia doesn't use all the timers, maybe better to just grab one not used
-// Timer 4 used by Tone, Timer 5 used by Energia
-// LP: uses regular timer 0-3, wide timer 0-3, 6, 7
-//     Should leave wide timers 4 and 5 available(?)
-// Connected LP: Uses timers 0-5 (so 6 and 7 should be available?)
-//  ?? Seems a little strange that on Connected LP Timers 4 and 5 are used both by tone/Energia and by PWM??
+
+// Launchpad: uses regular timer 0-3, wide timer 0-3, 6, 7
+//     Should leave wide timers 4 and 5 available
+// Connected LP: Energia uses timers 0-5 (so 6 and 7 should be available?)
+//  ?? Seems a little strange that, on Connected LP, Timers 4 and 5 are used both by tone/Energia and by PWM??
+//   Could select timer that does PWM for a pin that is otherwise in use.
 
 // So should set this up to use timers not necessarily covered by the mapping arrays in Energia
-// WTIMER4 or WTIMER5 on LP, Timer 6 or 7 on Connected LP
+// WTIMER4 or WTIMER5 on LP, TIMER6 or TIMER7 on Connected LP
 
 #if defined(__TM4C1294NCPDT__)
 
 #define TIMER TIMER6
 
-// TODO: Fix the macros to automatically generate the various permutations given the base name
+// TODO: Fix the macros to automatically generate the various associated constants given the base name
 #define TIMER_BASE   TIMER6_BASE
 #define TIMER_SYSCTL SYSCTL_PERIPH_TIMER6
 #define TIMER_INT    INT_TIMER6A
@@ -173,9 +174,11 @@ Revisions:
 //#define TIMER TIMER4
 #define TIMER WTIMER4
 
-// or WTIMERn
-// TODO: Test with wider timers, probably make it wide timer 4 or 5
-// On wide timers can only use timer A (could adapt code to allow use of timer B, if want)
+// Can use timer or wide timer
+// Uses full windth timer for regular timer
+// Uses timer A of wide timer
+
+// TODO: could adapt code to allow use of timer B of wide timer
 
 //#define TIMER_BASE   TIMER4_BASE
 //#define TIMER_SYSCTL SYSCTL_PERIPH_TIMER4
@@ -185,8 +188,6 @@ Revisions:
 #define TIMER_INT    INT_WTIMER4A
 
 #endif
-
-//#define TIMER 6
 
 
 // FIXME: Add masking to sclkport?
@@ -256,13 +257,6 @@ const uint8_t nPackedPlanes = 3;  // 3 bytes holds 4 planes "packed"
 #if defined(__TIVA__)
 const uint16_t defaultRefreshFreq = 200; // Cycles per second
 const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
-
-const uint16_t minRowTime = 1320;        // Minimum number of timer ticks for a row
-
-// At 80 MHz, with 4 planes, 200 cycles/second gives about 3333 ticks/row
-//   CPU takes about 1300 ticks to process a row, so plenty of time
-
-// TODO: Reameasure and update minRowTime if make major changes to timer service routine
 
 #endif
 
@@ -1072,11 +1066,34 @@ void TmrHandler()
 
 // Timing for Stellaris launchpad 1x 16x32 panel: 1348, 1316, 1316, 1706
 //   2x 32x32 panel: 3274, 2514, 2472, 2472, 3246, ...
+//   3x 32x32 panel: 4804, 3662, 3620, 3620, 4778, 3662, ...
+
+/*
+2*m + n = 2472
+3*m + n = 3620
+n = 2472 - 2 * m
+3*m + 2472 - 2 * m = 3620
+
+m* (3 - 2) = 3620 - 2472
+m = 1148
+n = 176
+*/
 
 //   Does not include interrupt overhead to call timer handler
 //   Includes a couple of assignments, to record start/stop times
 
 // TODO: See how minRowTime scales with number of panels and with 16 vs 32 LED pannels
+
+const uint16_t minRowTimePerPanel = 1150;        // Ticks per panel for a row
+const uint16_t minRowTimeConst = 180;            // Overhead ticks
+
+// minRowTime = 1148 * nPanels + 176
+
+// At 80 MHz, with 4 planes, 200 cycles/second gives about 3333 ticks/row
+//   CPU takes about 1300 ticks to process a row on one panel, so plenty of time
+
+// TODO: Reameasure and update minRowTime if make major changes to timer service routine
+
 
 #else
 //#elif defined(__AVR__)
@@ -1106,25 +1123,33 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 
 // Returns refresh rate
 uint16_t RGBmatrixPanel::setRefresh(uint8_t freq){
+  uint32_t rowtimetemp;
+  
   refreshFreq = freq;
 //  uint16_t refreshTime = 1 * ticksPerSecond / refreshFreq;   // Time for 1 display refresh
 //  rowtime = refreshTime / (nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
 //  rowtime = ticksPerSecond / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
-  rowtime = (uint32_t) TIMER_CLK / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
+  rowtimetemp = (uint32_t) TIMER_CLK / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
 
-// FIXME: Recheck this calculation (account for 16 vs 32 bit panel) (account for number of panels)
-// TODO: Tune number panels adjustment - probably constant + factor * nPanels (e.g. 1200 * nPanels + 100)
-
-  if (rowtime < minRowTime * nPanels){  // Approximate sanity check
-    rowtime = minRowTime * nPanels;
 #if defined(DEBUG)
-  Serial.print("Rowtime ");
-  Serial.println(rowtime);
+  Serial.print("Rowtime raw: ");
+  Serial.print(rowtime);
+#endif
+
+  if (rowtimetemp < minRowTimePerPanel * nPanels + minRowTimeConst){  // Approximate sanity check
+    rowtime = minRowTimePerPanel * nPanels + minRowTimeConst;
+#if defined(DEBUG)
+  Serial.print(", Rowtime: ");
+  Serial.print(rowtime);
 #endif
 //    return 1;     // Error flag - todo: give more useful feedback, e.g. actual rate set
     }
   else
+    rowtime = rowtimetemp;
 //    return 0;
+#if defined(DEBUG)
+  Serial.println();
+#endif
   return ((uint32_t) TIMER_CLK / (rowtime * nRows * ((1<<nPlanes) - 1)));
 }
 
