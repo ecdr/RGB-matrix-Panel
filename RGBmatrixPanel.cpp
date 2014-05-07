@@ -64,6 +64,14 @@ Revisions:
 #include "driverlib/timer.h"
 
 
+// Define BENCHMARK to measure TimerHandler time
+#define BENCHMARK
+
+#if defined( BENCHMARK )
+#include "cyclecount.h"
+#endif
+
+
 #ifdef __TM4C1294NCPDT__
 // TM4C1294 - can only get clock speed from clock set call
 #define TIMER_CLK F_CPU
@@ -244,7 +252,11 @@ const uint8_t nPackedPlanes = 3;  // 3 bytes holds 4 planes "packed"
 const uint16_t defaultRefreshFreq = 200; // Cycles per second
 const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
 
-const uint16_t minRowTime = 1;         // FIXME: Find minimum number of timer ticks for a row
+const uint16_t minRowTime = 1320;        // Minimum number of timer ticks for a row
+// At 80 MHz, with 4 planes, 200 cycles/second gives about 3333 ticks/row
+//   CPU takes about 1300 ticks to process a row, so plenty of time
+
+// TODO: Reameasure and update minRowTime if make major changes to timer service routine
 
 #endif
 
@@ -422,8 +434,11 @@ RGBmatrixPanel::RGBmatrixPanel(
 
 void RGBmatrixPanel::begin(void) {
 
-#if defined(DEBUG)
+#if defined(DEBUG) || defined( BENCHMARK )
   Serial.begin(9600);
+#endif
+
+#if defined(DEBUG)
 
   // prints title with ending line break
   Serial.println("RGBMatrix:begin");
@@ -502,6 +517,9 @@ if(nRows > 8) {
 #endif  
 
 // Timer setup
+#if defined(BENCHMARK)
+  EnableTiming();
+#endif
 
 #if defined(__TIVA__)
   setRefresh(defaultRefreshFreq);
@@ -631,17 +649,18 @@ uint16_t RGBmatrixPanel::Color888(
     r = pgm_read_byte(&gamma_table[r]); // Gamma correction table maps
     g = pgm_read_byte(&gamma_table[g]); // 8-bit input to 4-bit output
     b = pgm_read_byte(&gamma_table[b]);
-#if (nPlanes == 4)
+//#if (nPlanes == 4)
     return (r << 12) | ((r & 0x8) << 8) | // 4/4/4 -> 5/6/5
            (g <<  7) | ((g & 0xC) << 3) |
            (b <<  1) | ( b        >> 3);
-#elif (nPlanes == 5)  // Requires 5 bit gamma
+/*#elif (nPlanes == 5)  // Requires 5 bit gamma
     return (r << 11) |                    // 5/5/5 -> 5/6/5
            (g <<  6) | ((g & 0x10) << 1) |
            (b) ;
 #else
 #error Unsupported number of planes
 #endif
+*/
   } // else linear (uncorrected) color
   return ((r & 0xF8) << 11) | ((g & 0xFC) << 5) | (b >> 3);
 }
@@ -686,23 +705,24 @@ uint16_t RGBmatrixPanel::ColorHSV(
     g = pgm_read_byte(&gamma_table[(g * v1) >> 8]); // 8-bit input to 4-bit output
     b = pgm_read_byte(&gamma_table[(b * v1) >> 8]);
   } else { // linear (uncorrected) color
-#if (nPlanes == 4)
+//#if (nPlanes == 4)
     r = (r * v1) >> 12; // 4-bit results
     g = (g * v1) >> 12;
     b = (b * v1) >> 12;
-#elif (nPlanes == 5)
+/* #elif (nPlanes == 5)
     r = (r * v1) >> 11; // 5-bit results
     g = (g * v1) >> 11;
     b = (b * v1) >> 11;
 #else
 #error Unsupported number of planes
-#endif    
+#endif
+*/
   }
-#if (nPlanes == 4)
+//#if (nPlanes == 4)
   return (r << 12) | ((r & 0x8) << 8) | // 4/4/4 -> 5/6/5
          (g <<  7) | ((g & 0xC) << 3) |
          (b <<  1) | ( b        >> 3);
-#elif (nPlanes == 5)
+/* #elif (nPlanes == 5)
 
 #warning Requires 5 bit gamma
 
@@ -711,7 +731,8 @@ uint16_t RGBmatrixPanel::ColorHSV(
          (b) ;
 #else
 #error Unsupported number of planes
-#endif
+#endif 
+*/
 }
 
 
@@ -1012,14 +1033,42 @@ void RGBmatrixPanel::dumpMatrix(void) {
 
 
 // -------------------- Interrupt handler stuff --------------------
+
+
 #if defined(__TIVA__)
-// FIXME: Write ISR for Tiva
+
+#if defined( BENCHMARK )
+
+uint8_t nprint = 10;
+
+#endif
+
 void TmrHandler()
 {
+#if defined( BENCHMARK )
+  c_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // at the beginning of the tested code
+#endif
+
   activePanel->updateDisplay();
 
   MAP_TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
+
+#if defined( BENCHMARK )
+  c_stop = HWREG(DWT_BASE + DWT_O_CYCCNT);  // at the end of the tested code  
+
+  if (nprint > 0){
+    --nprint;
+    Serial.print("Tmh: ");
+    Serial.println(c_stop - c_start);
+    };
+#endif
 }
+
+// Timing for Stellaris launchpad 1x 16x32 panel: 1348, 1316, 1316, 1706
+//   Does not include interrupt overhead to call timer handler
+//   Includes a couple of assignments, to record start/stop times
+
+// TODO: See how minRowTime scales with number of panels and with 16 vs 32 LED pannels
 
 #else
 //#elif defined(__AVR__)
@@ -1038,6 +1087,10 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // This will introduce a glitch if redefine refresh rate while displaying something
 // FIXME: Revise to change refresh rate at end of a frame.
 
+// Takes about 1300 ticks for minimum row time on Stellaris for 1 16bit pannel
+//  So maximum refresh something in neighborhood of 500 cycles/second (maybe a bit less)
+//  Might get to neighborhood of 700 cycles/second with 120MHz clock (TM4C1294)
+
 // Caution - be sure enough bits in calculation to get a useful rowtime
 uint8_t RGBmatrixPanel::setRefresh(uint8_t freq){
   refreshFreq = freq;
@@ -1045,6 +1098,7 @@ uint8_t RGBmatrixPanel::setRefresh(uint8_t freq){
 //  rowtime = refreshTime / (nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
 //  rowtime = ticksPerSecond / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
   rowtime = (uint32_t) TIMER_CLK / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
+
   if (rowtime < minRowTime){
     rowtime = minRowTime;
 #if defined(DEBUG)
@@ -1056,6 +1110,8 @@ uint8_t RGBmatrixPanel::setRefresh(uint8_t freq){
   else
     return 0;
 }
+
+
 
 #endif
 
