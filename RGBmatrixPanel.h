@@ -82,7 +82,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
     Color888(uint8_t r, uint8_t g, uint8_t b, boolean gflag),
     ColorHSV(long hue, uint8_t sat, uint8_t val, boolean gflag);
 
-  uint8_t
+  uint16_t
     setRefresh(uint8_t freq);
 #if defined(FADE)
   uint8_t

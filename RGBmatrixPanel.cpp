@@ -1091,11 +1091,16 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // FIXME: Revise to change refresh rate at end of a frame.
 
 // Takes about 1300 ticks for minimum row time on Stellaris for 1 16bit pannel
-//  So maximum refresh something in neighborhood of 500 cycles/second (maybe a bit less)
+//  So maximum refresh something in neighborhood of 1200 cycles/second (maybe a bit less)
+
+// With 2 32 row panels (recheck these calculations)
+//  Maximum refresh something in neighborhood of 500 cycles/second (maybe a bit less)
 //  Might get to neighborhood of 700 cycles/second with 120MHz clock (TM4C1294)
 
 // Caution - be sure enough bits in calculation to get a useful rowtime
-uint8_t RGBmatrixPanel::setRefresh(uint8_t freq){
+
+// Returns refresh rate
+uint16_t RGBmatrixPanel::setRefresh(uint8_t freq){
   refreshFreq = freq;
 //  uint16_t refreshTime = 1 * ticksPerSecond / refreshFreq;   // Time for 1 display refresh
 //  rowtime = refreshTime / (nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
@@ -1105,18 +1110,17 @@ uint8_t RGBmatrixPanel::setRefresh(uint8_t freq){
 // FIXME: Recheck this calculation (account for 16 vs 32 bit panel) (account for number of panels)
 // TODO: Tune number panels adjustment - probably constant + factor * nPanels (e.g. 1200 * nPanels + 100)
 
-  if (rowtime < minRowTime * nPanels){
+  if (rowtime < minRowTime * nPanels){  // Approximate sanity check
     rowtime = minRowTime * nPanels;
 #if defined(DEBUG)
   Serial.print("Rowtime ");
   Serial.println(rowtime);
 #endif
-    return 1;     // Error flag - todo: give more useful feedback, e.g. actual rate set
+//    return 1;     // Error flag - todo: give more useful feedback, e.g. actual rate set
     }
   else
-    return 0;
-// TODO: Should return actual refresh rate set
-//  return ((uint32_t) TIMER_CLK / (rowtime * nRows * ((1<<nPlanes) - 1)));
+//    return 0;
+  return ((uint32_t) TIMER_CLK / (rowtime * nRows * ((1<<nPlanes) - 1)));
 }
 
 
