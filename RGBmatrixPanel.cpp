@@ -306,6 +306,7 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   memset(matrixbuff[0], 0, allocsize);
   // If not double-buffered, both buffers then point to the same address:
   matrixbuff[1] = (dbuf == true) ? &matrixbuff[0][buffsize] : matrixbuff[0];
+// FIXME: Adapt for nBuf > 2
 
   // Save pin numbers for use by begin() method later.
   _a     = a;
@@ -319,6 +320,7 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   // avoids many slow digitalWrite() calls later.
 #if defined(__TIVA__)
 
+// Tiva Energia does not provide portOutputRegister macro
   sclkpin   = digitalPinToBitMask(sclk);
 
   latpin    = digitalPinToBitMask(latch);
@@ -499,6 +501,8 @@ if(nRows > 8) {
   DATAPORT = 0;
 #endif  
 
+// Timer setup
+
 #if defined(__TIVA__)
   setRefresh(defaultRefreshFreq);
 
@@ -508,13 +512,6 @@ if(nRows > 8) {
   Serial.println(rowtime);
 
 #endif
-  
-  // Timer
-
-//#define timerToTimeout(timer)  (TIMER_TIMA_TIMEOUT << timerToAB(timer))
-
-//  uint32_t timerBase = getTimerBase(timerToOffset(TIMER));
-//  uint32_t timerAB = TIMER_A << timerToAB(TIMER);
 
   MAP_SysCtlPeripheralEnable( TIMER_SYSCTL );
 
@@ -545,8 +542,7 @@ if(nRows > 8) {
   Serial.println("Timer setup");
 #endif
 
-#else
-//#elif defined(__AVR__)
+#else   //#elif defined(__AVR__)
 
   // Set up Timer1 for interrupt:
   TCCR1A  = _BV(WGM11); // Mode 14 (fast PWM), OC1A off
@@ -558,16 +554,20 @@ if(nRows > 8) {
 }
 
 /* Notes:
+#define timerToTimeout(timer)  (TIMER_TIMA_TIMEOUT << timerToAB(timer))
+
+  uint32_t timerBase = getTimerBase(timerToOffset(TIMER));
+  uint32_t timerAB = TIMER_A << timerToAB(TIMER);
+
 // Timer setup
 
   uint32_t final = ( ( uint64_t )period_us * TIMER_CLK ) / ticksPerSecond;
   MAP_TimerDisable( timerBase, timerAB );
   MAP_TimerIntClear( timerBase, timerToTimeout(TIMER) );
   MAP_TimerLoadSet( timerBase, timerAB, ( uint32_t )final - 1 );
-  
-// Start
-//  MAP_TimerLoadSet( timerBase, timerAB, ?? );
+ 
 */  
+
 
 void RGBmatrixPanel::stop(void) {
 #if defined(__TIVA__)
