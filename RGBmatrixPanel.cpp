@@ -253,6 +253,7 @@ const uint16_t defaultRefreshFreq = 200; // Cycles per second
 const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
 
 const uint16_t minRowTime = 1320;        // Minimum number of timer ticks for a row
+
 // At 80 MHz, with 4 planes, 200 cycles/second gives about 3333 ticks/row
 //   CPU takes about 1300 ticks to process a row, so plenty of time
 
@@ -1065,6 +1066,8 @@ void TmrHandler()
 }
 
 // Timing for Stellaris launchpad 1x 16x32 panel: 1348, 1316, 1316, 1706
+//   2x 32x32 panel: 3274, 2514, 2472, 2472, 3246, ...
+
 //   Does not include interrupt overhead to call timer handler
 //   Includes a couple of assignments, to record start/stop times
 
@@ -1099,8 +1102,11 @@ uint8_t RGBmatrixPanel::setRefresh(uint8_t freq){
 //  rowtime = ticksPerSecond / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
   rowtime = (uint32_t) TIMER_CLK / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
 
-  if (rowtime < minRowTime){
-    rowtime = minRowTime;
+// FIXME: Recheck this calculation (account for 16 vs 32 bit panel) (account for number of panels)
+// TODO: Tune number panels adjustment - probably constant + factor * nPanels (e.g. 1200 * nPanels + 100)
+
+  if (rowtime < minRowTime * nPanels){
+    rowtime = minRowTime * nPanels;
 #if defined(DEBUG)
   Serial.print("Rowtime ");
   Serial.println(rowtime);
@@ -1109,6 +1115,8 @@ uint8_t RGBmatrixPanel::setRefresh(uint8_t freq){
     }
   else
     return 0;
+// TODO: Should return actual refresh rate set
+//  return ((uint32_t) TIMER_CLK / (rowtime * nRows * ((1<<nPlanes) - 1)));
 }
 
 
