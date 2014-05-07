@@ -1258,8 +1258,6 @@ void RGBmatrixPanel::updateDisplay(void) {
   ptr = (uint8_t *)buffptr;
 
 #if defined(__TIVA__)
-//  uint32_t timerBase = getTimerBase(timerToOffset(TIMER));
-//  uint32_t timerAB = TIMER_A << timerToAB(TIMER);
 
 /*
 #if defined(DEBUG)
