@@ -139,6 +139,10 @@ Revisions:
 #define DATAPORT      (*portMaskedOutputRegister(PA, DATAPORTMASK))
 #define DATAPORTBASE  ((uint32_t)portBASERegister(PA))
 
+
+//#define DATAPORT      (*portMaskedOutputRegister(PF, DATAPORTMASK))
+//#define DATAPORTBASE  ((uint32_t)portBASERegister(PF))
+
 #define SCLKPORT      (*portDATARegister(PB))
 
 #endif
@@ -1125,15 +1129,14 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 uint16_t RGBmatrixPanel::setRefresh(uint8_t freq){
   uint32_t rowtimetemp;
   
-  refreshFreq = freq;
 //  uint16_t refreshTime = 1 * ticksPerSecond / refreshFreq;   // Time for 1 display refresh
 //  rowtime = refreshTime / (nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
 //  rowtime = ticksPerSecond / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
-  rowtimetemp = (uint32_t) TIMER_CLK / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
+  rowtimetemp = (uint32_t) TIMER_CLK / ((uint32_t) freq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
 
 #if defined(DEBUG)
   Serial.print("Rowtime raw: ");
-  Serial.print(rowtime);
+  Serial.print(rowtimetemp);
 #endif
 
   if (rowtimetemp < minRowTimePerPanel * nPanels + minRowTimeConst){  // Approximate sanity check
@@ -1142,18 +1145,19 @@ uint16_t RGBmatrixPanel::setRefresh(uint8_t freq){
   Serial.print(", Rowtime: ");
   Serial.print(rowtime);
 #endif
-//    return 1;     // Error flag - todo: give more useful feedback, e.g. actual rate set
     }
   else
     rowtime = rowtimetemp;
-//    return 0;
+
+  refreshFreq = ((uint32_t) TIMER_CLK / (rowtime * nRows * ((1<<nPlanes) - 1)));
 #if defined(DEBUG)
-  Serial.println();
+  Serial.print("Freq:");
+  Serial.print(freq);
+  Serial.print(" refresh:");
+  Serial.println(refreshFreq);
 #endif
-  return ((uint32_t) TIMER_CLK / (rowtime * nRows * ((1<<nPlanes) - 1)));
+  return refreshFreq;
 }
-
-
 
 #endif
 
