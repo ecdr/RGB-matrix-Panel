@@ -619,6 +619,11 @@ uint16_t RGBmatrixPanel::Color888(uint8_t r, uint8_t g, uint8_t b) {
   return ((r & 0xF8) << 11) | ((g & 0xFC) << 5) | (b >> 3);
 }
 
+// TODO: Seems it would be simpler to just use full 6-bit gamma output 
+// (or possibly 8 bit gamma), and convert from 6/6/6 or 8/8/8 to 5/6/5
+// (Fewer operations to handle made-up bits)
+// Also means less adapting for greater bit depth display
+
 // 8/8/8 -> gamma -> 5/6/5
 uint16_t RGBmatrixPanel::Color888(
   uint8_t r, uint8_t g, uint8_t b, boolean gflag) {
@@ -626,12 +631,25 @@ uint16_t RGBmatrixPanel::Color888(
     r = pgm_read_byte(&gamma_table[r]); // Gamma correction table maps
     g = pgm_read_byte(&gamma_table[g]); // 8-bit input to 4-bit output
     b = pgm_read_byte(&gamma_table[b]);
+#if (nPlanes == 4)
     return (r << 12) | ((r & 0x8) << 8) | // 4/4/4 -> 5/6/5
            (g <<  7) | ((g & 0xC) << 3) |
            (b <<  1) | ( b        >> 3);
+#elif (nPlanes == 5)  // Requires 5 bit gamma
+    return (r << 11) |                    // 5/5/5 -> 5/6/5
+           (g <<  6) | ((g & 0x10) << 1) |
+           (b) ;
+#else
+#error Unsupported number of planes
+#endif
   } // else linear (uncorrected) color
   return ((r & 0xF8) << 11) | ((g & 0xFC) << 5) | (b >> 3);
 }
+
+// TODO: Color mapping extends a color by repeating the upper few bits of the color in the low bits.  
+// Why?
+// 000R, 000G, 000B -> R000 | r[4]000:00 | 0:0ggg:g000:0000 | g[3:2]00:000 | b:bbb0 | b[3]
+// Resulting bits are: R4R3R2R1R4 G4G3G2G1G4G3 B4B3B2B1B4  (R4 means bit 4 of R)
 
 uint16_t RGBmatrixPanel::ColorHSV(
   long hue, uint8_t sat, uint8_t val, boolean gflag) {
@@ -652,7 +670,7 @@ uint16_t RGBmatrixPanel::ColorHSV(
     default: r = 255     ; g =   0     ; b = 255 - lo; break; // M to R
   }
 
-  // Saturation: add 1 so range is 1 to 256, allowig a quick shift operation
+  // Saturation: add 1 so range is 1 to 256, allowing a quick shift operation
   // on the result rather than a costly divide, while the type upgrade to int
   // avoids repeated type conversions in both directions.
   s1 = sat + 1;
@@ -668,13 +686,32 @@ uint16_t RGBmatrixPanel::ColorHSV(
     g = pgm_read_byte(&gamma_table[(g * v1) >> 8]); // 8-bit input to 4-bit output
     b = pgm_read_byte(&gamma_table[(b * v1) >> 8]);
   } else { // linear (uncorrected) color
+#if (nPlanes == 4)
     r = (r * v1) >> 12; // 4-bit results
     g = (g * v1) >> 12;
     b = (b * v1) >> 12;
+#elif (nPlanes == 5)
+    r = (r * v1) >> 11; // 5-bit results
+    g = (g * v1) >> 11;
+    b = (b * v1) >> 11;
+#else
+#error Unsupported number of planes
+#endif    
   }
+#if (nPlanes == 4)
   return (r << 12) | ((r & 0x8) << 8) | // 4/4/4 -> 5/6/5
          (g <<  7) | ((g & 0xC) << 3) |
          (b <<  1) | ( b        >> 3);
+#elif (nPlanes == 5)
+
+#warning Requires 5 bit gamma
+
+  return (r << 11) |                    // 5/5/5 -> 5/6/5
+         (g <<  6) | ((g & 0x10) << 1) |
+         (b) ;
+#else
+#error Unsupported number of planes
+#endif
 }
 
 
