@@ -157,9 +157,10 @@ Revisions:
 //  ?? Seems a little strange that on Connected LP Timers 4 and 5 are used both by tone/Energia and by PWM??
 
 // So should set this up to use timers not necessarily covered by the mapping arrays in Energia
-// WT4 or WT5 on LP, Timer 6 or 7 on Connected LP
+// WTIMER4 or WTIMER5 on LP, Timer 6 or 7 on Connected LP
 
 #if defined(__TM4C1294NCPDT__)
+
 #define TIMER TIMER6
 
 // TODO: Fix the macros to automatically generate the various permutations given the base name
@@ -169,15 +170,19 @@ Revisions:
 
 #else
 
-#define TIMER TIMER4
+//#define TIMER TIMER4
+#define TIMER WTIMER4
 
 // or WTIMERn
 // TODO: Test with wider timers, probably make it wide timer 4 or 5
 // On wide timers can only use timer A (could adapt code to allow use of timer B, if want)
 
-#define TIMER_BASE   TIMER4_BASE
-#define TIMER_SYSCTL SYSCTL_PERIPH_TIMER4
-#define TIMER_INT    INT_TIMER4A
+//#define TIMER_BASE   TIMER4_BASE
+//#define TIMER_SYSCTL SYSCTL_PERIPH_TIMER4
+//#define TIMER_INT    INT_TIMER4A
+#define TIMER_BASE   WTIMER4_BASE
+#define TIMER_SYSCTL SYSCTL_PERIPH_WTIMER4
+#define TIMER_INT    INT_WTIMER4A
 
 #endif
 
@@ -1040,7 +1045,7 @@ void RGBmatrixPanel::dumpMatrix(void) {
 
 #if defined( BENCHMARK )
 
-uint8_t nprint = 10;
+uint8_t nprint = 20;
 
 #endif
 
