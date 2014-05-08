@@ -153,43 +153,31 @@ Revisions:
 // Timer 4A is used by Tone
 // Timer 5 is used by Energia time tracking
 
-// TODO: Think energia doesn't use all the timers, maybe better to just grab one not used
+// Energia doesn't use all the timers, maybe better to just grab one not used
+//   WTIMER4 or WTIMER5 on LP, TIMER6 or TIMER7 on Connected LP
 
 // Launchpad: uses regular timer 0-3, wide timer 0-3, 6, 7
-//     Should leave wide timers 4 and 5 available
+//     Thus wide timers 4 and 5 appear to be available.
 // Connected LP: Energia uses timers 0-5 (so 6 and 7 should be available?)
-//  ?? Seems a little strange that, on Connected LP, Timers 4 and 5 are used both by tone/Energia and by PWM??
+
+//  TODO: Check Energia timer use for timers 4 and 5 on Connected LP
+//    Seems strange that, on Connected LP, Timers 4 and 5 are used both by tone/Energia and by PWM??
 //   Could select timer that does PWM for a pin that is otherwise in use.
 
-// So should set this up to use timers not necessarily covered by the mapping arrays in Energia
-// WTIMER4 or WTIMER5 on LP, TIMER6 or TIMER7 on Connected LP
 
 #if defined(__TM4C1294NCPDT__)
 
 #define TIMER TIMER6
 
-// TODO: Fix the macros to automatically generate the various associated constants given the base name
-#define TIMER_BASE   TIMER6_BASE
-#define TIMER_SYSCTL SYSCTL_PERIPH_TIMER6
-#define TIMER_INT    INT_TIMER6A
-
 #else
 
-//#define TIMER TIMER4
 #define TIMER WTIMER4
 
 // Can use timer or wide timer
-// Uses full windth timer for regular timer
-// Uses timer A of wide timer
+// For regular timer, uses full width timer
+// For wide timer, uses timer A
 
 // TODO: could adapt code to allow use of timer B of wide timer
-
-//#define TIMER_BASE   TIMER4_BASE
-//#define TIMER_SYSCTL SYSCTL_PERIPH_TIMER4
-//#define TIMER_INT    INT_TIMER4A
-#define TIMER_BASE   WTIMER4_BASE
-#define TIMER_SYSCTL SYSCTL_PERIPH_WTIMER4
-#define TIMER_INT    INT_WTIMER4A
 
 #endif
 
@@ -269,32 +257,30 @@ const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
 
 
 /*
-  TIMER0_BASE
-  WTIMER0_BASE
-  SYSCTL_PERIPH_WTIMER0
+Given name of a timer, assemble names of the various associated constants.
+  BASE(TIMER0) =>  TIMER0_BASE
+  SYSCTL_PERIPH_TIMER0
   INT_TIMER0A
 */
 
+// Auxiliary macros (to get substitution to happen correctly)
 #define BASE1(t)   (t##_BASE)
-#define SYSCTL1(t) (SYCTL_PERIPH_##t)
+#define SYSCTL1(t) (SYSCTL_PERIPH_##t)
 #define INTA1(t)   (INT_##t##A)
 #define INTB1(t)   (INT_##t##B)
-
-// Todo: test these - think this was the trick
 
 #define BASE(t)    BASE1(t)
 #define SYSCTL(t)  SYSCTL1(t)
 #define INTA(t)    INTA1(t)
 #define INTB(t)    INTB1(t)
 
-/* TODO: These don't work at the moment - need to find the extra trick that gets TIMER substituted
-#define MAKE_STRING1(X) #X
-#define MAKE_STRING(X) MAKE_STRING1(X)
+
+// Actually assemble the timer macro names
 
 #define TIMER_BASE   BASE(TIMER)
 #define TIMER_SYSCTL SYSCTL(TIMER)
 #define TIMER_INT    INTA(TIMER)
-*/
+
 
 extern "C" {
 void enableTimerPeriph(uint32_t offset);
