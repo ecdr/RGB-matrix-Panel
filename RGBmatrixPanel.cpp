@@ -275,12 +275,22 @@ const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
   INT_TIMER0A
 */
 
-#define BASE(t)   (t##_BASE)
-#define SYSCTL(t) (SYCTL_PERIPH_##t)
-#define INTA(t)   (INT_##t##A)
-#define INTB(t)   (INT_##t##B)
+#define BASE1(t)   (t##_BASE)
+#define SYSCTL1(t) (SYCTL_PERIPH_##t)
+#define INTA1(t)   (INT_##t##A)
+#define INTB1(t)   (INT_##t##B)
+
+// Todo: test these - think this was the trick
+
+#define BASE(t)    BASE1(t)
+#define SYSCTL(t)  SYSCTL1(t)
+#define INTA(t)    INTA1(t)
+#define INTB(t)    INTB1(t)
 
 /* TODO: These don't work at the moment - need to find the extra trick that gets TIMER substituted
+#define MAKE_STRING1(X) #X
+#define MAKE_STRING(X) MAKE_STRING1(X)
+
 #define TIMER_BASE   BASE(TIMER)
 #define TIMER_SYSCTL SYSCTL(TIMER)
 #define TIMER_INT    INTA(TIMER)
@@ -392,15 +402,6 @@ RGBmatrixPanel::RGBmatrixPanel(
   init(8, a, b, c, sclk, latch, oe, dbuf, pwidth);
 }
 
-// Only 1 panel - compatible with old interface
-RGBmatrixPanel::RGBmatrixPanel(
-  uint8_t a, uint8_t b, uint8_t c,
-  uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf) :
-  Adafruit_GFX(BYTES_PER_ROW*1, 16) {
-
-  init(8, a, b, c, sclk, latch, oe, dbuf, 1);
-}
-
 // Constructor for 32x32 panel:
 RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c, uint8_t d,
@@ -420,7 +421,7 @@ RGBmatrixPanel::RGBmatrixPanel(
 #endif
 }
 
-/*
+/* Compiler complained about this one
 // Constructor for 32x32 panel: - only 1 panel
 RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c, uint8_t d,

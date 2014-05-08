@@ -45,7 +45,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
     
   // Constructor for 16x32 panel:
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c,
-    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth);
+    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth = 1);
     /* Parameters
     a, b, c are the pins used for addressing the rows
     cclk, latch and oe are the pins used for Serial Clock, Latach and Output Enable
@@ -53,13 +53,11 @@ class RGBmatrixPanel : public Adafruit_GFX {
     pwidth is the number of Panels used together in a multi panel configuration
     */
 
-  RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c,
-    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf);
-
-    // Constructor for 32x32 panel (adds 'd' pin): (THIS HAS NOT BEEN TESTED WITH MULTIPLE PANELS)
+  // Constructor for 32x32 panel (adds 'd' pin)
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
     uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth);
 
+// Compiler couldn't distinguish this one.
 //  RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
 //    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf);
 
@@ -69,7 +67,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
     drawPixel(int16_t x, int16_t y, uint16_t c),
     fillScreen(uint16_t c),
     updateDisplay(void),
-    swapBuffers(boolean),
+    swapBuffers(boolean copy = false),
     dumpMatrix(void);
   uint8_t
     *frontBuffer(void),
@@ -86,7 +84,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
     setRefresh(uint8_t freq);
 #if defined(FADE)
   uint8_t
-    swapFade(uint16_t tfade, boolean);
+    swapFade(uint16_t tfade, boolean copy = false);
   boolean
     fading();
 #endif
