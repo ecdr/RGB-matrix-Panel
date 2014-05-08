@@ -126,7 +126,7 @@ Revisions:
 #define DATAPORT      (*portMaskedOutputRegister(PK, DATAPORTMASK))
 #define DATAPORTBASE  ((uint32_t)portBASERegister(PK))
 
-#define SCLKPORT      (*portDATARegister(PL))
+#define SCLKPORT      (*portDATARegister(PM))
 
 
 #elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
@@ -259,7 +259,8 @@ const uint8_t BYTES_PER_ROW = 32;
 const uint8_t nPackedPlanes = 3;  // 3 bytes holds 4 planes "packed"
 
 #if defined(__TIVA__)
-const uint16_t defaultRefreshFreq = 200; // Cycles per second
+const uint16_t defaultRefreshFreq = 100; // Cycles per second 
+  // (200 should work for 1 16 row panel)
 const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
 
 #endif
@@ -1075,6 +1076,7 @@ void TmrHandler()
 //   2x 32x32 panel: 3274, 2514, 2472, 2472, 3246, ...
 //   3x 32x32 panel: 4804, 3662, 3620, 3620, 4778, 3662, ...
 
+
 /*
 2*m + n = 2472
 3*m + n = 3620
@@ -1084,6 +1086,7 @@ n = 2472 - 2 * m
 m* (3 - 2) = 3620 - 2472
 m = 1148
 n = 176
+
 */
 
 //   Does not include interrupt overhead to call timer handler
@@ -1091,8 +1094,19 @@ n = 176
 
 // TODO: See how minRowTime scales with number of panels and with 16 vs 32 LED pannels
 
+#if defined(__TM4C1294NCPDT__)
+// Connected Launchpad (120 MHz clock)
+
+const uint16_t minRowTimePerPanel = 1610;        // Ticks per panel for a row
+const uint16_t minRowTimeConst = 270;            // Overhead ticks
+
+#else
+// For Stellaris Launchpad (80 MHz clock)
+
 const uint16_t minRowTimePerPanel = 1150;        // Ticks per panel for a row
 const uint16_t minRowTimeConst = 180;            // Overhead ticks
+
+#endif
 
 // minRowTime = 1148 * nPanels + 176 = 1324
 
