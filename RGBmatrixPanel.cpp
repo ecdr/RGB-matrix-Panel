@@ -547,7 +547,7 @@ if(nRows > 8) {
   MAP_IntEnable( TIMER_INT );
   MAP_TimerIntEnable( TIMER_BASE, TIMER_TIMA_TIMEOUT );
 
-  MAP_TimerLoadSet( TIMER_BASE, TIMER_A, rowtime - 1 );  // Dummy initial interrupt period
+  MAP_TimerLoadSet( TIMER_BASE, TIMER_A, rowtime );  // Dummy initial interrupt period
   
   MAP_TimerEnable( TIMER_BASE, TIMER_A );
 
@@ -1218,10 +1218,10 @@ uint16_t RGBmatrixPanel::setRefresh(uint8_t freq){
 
 void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, tick, tock, *ptr;
-  uint16_t t;
 #if defined(__TIVA__)
   uint32_t duration;
 #else
+  uint16_t t;
   uint16_t duration;
 #endif
   uint8_t panelcount;
@@ -1371,7 +1371,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 #endif
 */
 //  MAP_TimerDisable( timerBase, timerAB );
-  MAP_TimerLoadSet( TIMER_BASE, TIMER_A, duration - 1 );
+  MAP_TimerLoadSet( TIMER_BASE, TIMER_A, duration );
   MAP_TimerEnable( TIMER_BASE, TIMER_A );
 
 #else
@@ -1430,20 +1430,22 @@ void RGBmatrixPanel::updateDisplay(void) {
       pew pew pew pew pew pew pew pew
     } 
 #else				// Code for non AVR (i.e. Due and ARM based systems)
-    for(i=0; i<(BYTES_PER_ROW*nPanels); i++)    // TODO: Would it help to cache this calculation in a variable?
+    uint8_t iFinal = (BYTES_PER_ROW*nPanels);
+    for(i=0; i<iFinal; i++)
     {
       DATAPORT = ptr[i];
 //#if defined(__TIVA__)
 //      SCLKPORT = 0;     // Clock lo
-//      SCLKPORT = 0xFF;  // Clock hi   // TODO: Could use sclkpin instead if made smaller/faster code
+//      SCLKPORT = 0xFF;  // Clock hi   
+// TODO: Could use sclkpin instead if made smaller/faster code
         // TODO: Or could try bitbanding
 //#else      
       SCLKPORT = tick; // Clock lo
       SCLKPORT = tock; // Clock hi
 //#endif
-    }       
+    }
 #endif    
-    buffptr += (BYTES_PER_ROW*nPanels);
+    buffptr += iFinal;
 
 
   } else { // 920 ticks from TCNT1=0 (above) to end of function
