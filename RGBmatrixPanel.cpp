@@ -87,9 +87,10 @@ Revisions:
 
 // TODO: Consider bitband version, for 1 bit control lines
 // BITBAND 
-//#define HWREGBITB(x, b)                                                       \
-//        HWREGB(((uint32_t)(x) & 0xF0000000) | 0x02000000 |                    \
-//               (((uint32_t)(x) & 0x000FFFFF) << 5) | ((b) << 2))
+/*#define HWREGBITB(x, b)                                                       \
+        HWREGB(((uint32_t)(x) & 0xF0000000) | 0x02000000 |                    \
+               (((uint32_t)(x) & 0x000FFFFF) << 5) | ((b) << 2))
+ */
 
 
 // Caution - be careful of adding masks to pointer types.
@@ -1449,7 +1450,18 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 #else				// Code for non AVR (i.e. Due and ARM based systems)
 
-#define pew DATAPORT = *ptr++; SCLKPORT = tick; SCLKPORT = tock;
+#define UNROLL_LOOP
+
+// In this case local variables easier for the compiler to access/optimize
+// (Might be able to do it with the dataport variable in "this" instead?)
+// Makes the inner "loop" 4 instructions, a load and 3 stores
+
+volatile uint8_t * dataport = &DATAPORT;
+volatile uint8_t * sclkp = &SCLKPORT;
+
+#define pew *dataport = *ptr++; * sclkp = tick; * sclkp = tock;
+
+//#define pew DATAPORT = *ptr++; SCLKPORT = tick; SCLKPORT = tock;
 
 #endif
 
