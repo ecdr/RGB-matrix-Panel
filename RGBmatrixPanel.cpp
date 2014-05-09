@@ -42,7 +42,6 @@ Revisions:
 #include "gamma.h"
 
 
-
 #if !defined(__AVR__)
 #define pgm_read_byte( a ) (*(a))
 #endif
@@ -64,7 +63,7 @@ Revisions:
 #include "driverlib/timer.h"
 
 
-// Define BENCHMARK to measure TimerHandler time
+// On Tiva, define BENCHMARK to measure TimerHandler time
 //#define BENCHMARK
 
 #if defined( BENCHMARK )
@@ -72,25 +71,9 @@ Revisions:
 #endif
 
 
-#ifdef __TM4C1294NCPDT__
-// TM4C1294 - can only get clock speed from clock set call
-#define TIMER_CLK F_CPU
-#else
-
-// SysCtlClockGet only works on TM4C123x
-//#define TIMER_CLK SysCtlClockGet()
-// However there is a bug in SysCtlClockGet() - in Tivaware 2.1...., 
-// SysCtlClockGet incorrect if request 80MHz clock 
-// So just bypass it for now
-
-#define TIMER_CLK F_CPU
-
-
-#endif
-
-
 // portOutputRegister(port) not defined for Tiva, so make up own version
-// include port mask so do not have to worry about changing other pins
+// include port mask so do not have to do read modify write
+// can just write to the address, without changing other pins
 
 // For reference:
 //  void digitalWrite(uint8_t pin, uint8_t val) =
@@ -108,8 +91,10 @@ Revisions:
 
 
 // Caution - be careful of adding masks to pointer types.
-// Cast the portBASERegister back to uint32_t so that it will not do a clandestine left shift 2 on the mask
-// Alternative would be to make use of that left shift, but then need a big note explaining the occult behavior
+// Cast the portBASERegister back to uint32_t before add offset
+// Otherwise it will do a clandestine left shift 2 on the mask
+// Alternative would be to make use of that left shift, 
+// but then need a big note explaining the occult behavior
 
 #define portMaskedOutputRegister(port, mask) \
   ((volatile uint8_t *) (((uint32_t)portBASERegister(port)) + (GPIO_O_DATA + (((uint32_t)mask) << 2))))
@@ -121,31 +106,38 @@ Revisions:
 #elif defined(__TM4C1294NCPDT__)
 // Tiva Connected Launchpad
 
-// Candidates for data port: PortE (BP1), PortK (BP2), or PortL (BP1) (pins 0-5)
+// Candidates for data port: 
+//   PortE (BP1), PortK (BP2), or PortL (BP1) (pins 0-5)
+
 #define DATAPORTMASK  B11111100
 #define DATAPORT      (*portMaskedOutputRegister(PK, DATAPORTMASK))
 #define DATAPORTBASE  ((uint32_t)portBASERegister(PK))
 
+// SCLK pin must be on port defined here
 #define SCLKPORT      (*portDATARegister(PM))
 
 
 #elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
-// Stellaris Launchpad or Tiva Launchpad
+// Stellaris or Tiva Launchpad
 
 // Data port should be PA or PB, 
 // PA: Do not use 0,1 - console Uart
-// PB: use caution in other pin assignments, since PB6 and PB7 are connected to PD0 and PD1
+// PB: use caution in other pin assignments, 
+//     since PB6 and PB7 are connected to PD0 and PD1
+
 #define DATAPORTMASK  B11111100
 #define DATAPORT      (*portMaskedOutputRegister(PA, DATAPORTMASK))
 #define DATAPORTBASE  ((uint32_t)portBASERegister(PA))
 
-
+// Used in testing - show data on onboard LED
 //#define DATAPORT      (*portMaskedOutputRegister(PF, DATAPORTMASK))
 //#define DATAPORTBASE  ((uint32_t)portBASERegister(PF))
+
 
 #define SCLKPORT      (*portDATARegister(PB))
 
 #endif
+
 
 // Timer selection
 
@@ -221,7 +213,7 @@ Revisions:
  #define SCLKPORT tobedefined  
 
  #warning Arduino Due not finished
- 
+
 #elif defined(__AVR_ATmega32U4__)
  // Arduino Leonardo: this is vestigial code an unlikely to ever be
  // finished -- DO NOT USE!!!  Unlike the Uno, digital pins 2-7 do NOT
@@ -242,18 +234,37 @@ Revisions:
 #endif
 
 
-const uint8_t nPlanes = 4;
-const uint8_t BYTES_PER_ROW = 32;
-const uint8_t nPackedPlanes = 3;  // 3 bytes holds 4 planes "packed"
+static const uint8_t nPlanes = 4;
+static const uint8_t BYTES_PER_ROW = 32;
+static const uint8_t nPackedPlanes = 3;  // 3 bytes holds 4 planes "packed"
+
 
 #if defined(__TIVA__)
-const uint16_t defaultRefreshFreq = 100; // Cycles per second 
+
+static const uint16_t defaultRefreshFreq = 100; // Cycles per second 
   // (200 should work for 1 16 row panel)
-const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
+//const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
 
 #endif
 
+
 #if defined(__TIVA__)
+
+#ifdef __TM4C1294NCPDT__
+// TM4C1294 - can only get clock speed from clock set call
+#define TIMER_CLK F_CPU
+#else
+
+// SysCtlClockGet only works on TM4C123x
+//#define TIMER_CLK SysCtlClockGet()
+// However there is a bug in SysCtlClockGet() - in Tivaware 2.1...., 
+// SysCtlClockGet incorrect if request 80MHz clock 
+// So just bypass it for now
+
+#define TIMER_CLK F_CPU
+
+
+#endif
 
 
 /*
@@ -282,11 +293,12 @@ Given name of a timer, assemble names of the various associated constants.
 #define TIMER_INT    INTA(TIMER)
 
 
-extern "C" {
-void enableTimerPeriph(uint32_t offset);
-}
+// extern "C" {
+//void enableTimerPeriph(uint32_t offset);
+//}
 
 void TmrHandler(void);
+
 #endif
 
 
