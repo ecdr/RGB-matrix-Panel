@@ -65,7 +65,7 @@ Revisions:
 
 
 // Define BENCHMARK to measure TimerHandler time
-// #define BENCHMARK
+//#define BENCHMARK
 
 #if defined( BENCHMARK )
 #include "cyclecount.h"
@@ -1223,8 +1223,8 @@ void RGBmatrixPanel::updateDisplay(void) {
 #else
   uint16_t t;
   uint16_t duration;
-  uint8_t panelcount;
 #endif
+  uint8_t panelcount;
 
 
 #if defined(__TIVA__)
@@ -1422,6 +1422,15 @@ void RGBmatrixPanel::updateDisplay(void) {
          [tick] "r" (tick),                   \
          [tock] "r" (tock));
 
+#define UNROLL_LOOP
+
+#else				// Code for non AVR (i.e. Due and ARM based systems)
+
+#define pew DATAPORT = *ptr++; SCLKPORT = tick; SCLKPORT = tock;
+
+#endif
+
+#if defined( UNROLL_LOOP )
     for (panelcount = 0; panelcount < nPanels; panelcount++)
     {
     	// Loop is unrolled for speed:
@@ -1430,8 +1439,12 @@ void RGBmatrixPanel::updateDisplay(void) {
       pew pew pew pew pew pew pew pew
       pew pew pew pew pew pew pew pew
     } 
-#else				// Code for non AVR (i.e. Due and ARM based systems)
-    uint8_t iFinal = (BYTES_PER_ROW*nPanels); // Saves 2 instructions in loop
+
+#else     // Loopy version
+
+    // Calculating final value ahead saves 2 instructions per loop
+    uint8_t iFinal = (BYTES_PER_ROW*nPanels); 
+
     for(i=0; i<iFinal; i++)
     {
       DATAPORT = ptr[i];
@@ -1445,21 +1458,14 @@ void RGBmatrixPanel::updateDisplay(void) {
       SCLKPORT = tock; // Clock hi
 //#endif
     }
-/* Version below saves 2 more instructions in loop
-// Try with pointers rather than indexing
+/*
+// Pointers rather than indexing, saves 2 more instructions per loop
     uint8_t *pFinal = ptr + (BYTES_PER_ROW*nPanels);
     for(; ptr<pFinal; ptr++)
     {
       DATAPORT = *ptr;
-//#if defined(__TIVA__)
-//      SCLKPORT = 0;     // Clock lo
-//      SCLKPORT = 0xFF;  // Clock hi   
-// TODO: Could use sclkpin instead if made smaller/faster code
-        // TODO: Or could try bitbanding
-//#else      
       SCLKPORT = tick; // Clock lo
       SCLKPORT = tock; // Clock hi
-//#endif
     }
 */
 #endif
