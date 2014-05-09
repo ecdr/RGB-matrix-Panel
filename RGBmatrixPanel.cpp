@@ -1113,18 +1113,36 @@ void TmrHandler()
 //   2x 32x32 panel: 3274, 2514, 2472, 2472, 3246, ...
 //   3x 32x32 panel: 4804, 3662, 3620, 3620, 4778, 3662, ...
 
+// With loop unrolling, using local variables for pointers, etc.
+// 1x16: 1588, 392, 360, 360, 1560, 392, 360, 360
+// 2x32: 2996, 604, 564, 564, 2968, 604, 564, 564
+
 
 #if defined(__TM4C1294NCPDT__)
 // Connected Launchpad (120 MHz clock)
 
+#if defined(UNROLL_LOOP)
+
+// FIXME: These are just estimates based on ratios from Stellars LP
+//   Should measure values for Connected LP
+const uint16_t minRowTimePerPanel = 300;        // Ticks per panel for a row
+const uint16_t minRowTimeConst = 240;            // Overhead ticks
+
+#else
 const uint16_t minRowTimePerPanel = 1610;        // Ticks per panel for a row
 const uint16_t minRowTimeConst = 270;            // Overhead ticks
 
 #else
 // For Stellaris Launchpad (80 MHz clock)
 
+#if defined(UNROLL_LOOP)
+const uint16_t minRowTimePerPanel = 210;        // Ticks per panel for a row
+const uint16_t minRowTimeConst = 160;            // Overhead ticks
+
+#else
 const uint16_t minRowTimePerPanel = 1150;        // Ticks per panel for a row
 const uint16_t minRowTimeConst = 180;            // Overhead ticks
+#endif
 
 // minRowTime = 1148 * nPanels + 176 = 1324
 
@@ -1148,14 +1166,16 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // May introduce a visual glitch if redefine refresh rate while displaying something
 // FIXME: Revise to change refresh rate at end of a frame.
 
+// Unoptimized:
 // Takes about 1300 ticks for minimum row time on Stellaris for 1 16row panel
-//  So maximum refresh something in neighborhood of 500 cycles/second (maybe a bit less)
+//  So maximum refresh something in neighborhood of 500 cycles/second 
+
 
 // With 2 32 row panels
 //  Maximum refresh something in neighborhood of 128 cycles/second 
 //  Might get to neighborhood of 200 cycles/second with 120MHz clock (TM4C1294)
 
-// Optimization can probably improve those figures
+// Optimized version might be able to do 500 refreshes/second for 2 panels
 
 
 // Returns refresh rate
@@ -1466,6 +1486,21 @@ void RGBmatrixPanel::updateDisplay(void) {
 // (Might be able to do it with the dataport variable in "this" instead?)
 // Makes the inner "loop" 4 instructions, a load and 3 stores
 
+// Possible improvement would be if could read a word,
+// then shift it to output 4 successive bytes.
+//
+// uint32_t * ptr;
+// t = *ptr++; *dataport = t; *dataport = t>>8; * dataport = t>>16; ...
+//
+// ldrb.w r7, [r5, #0]
+// strb	r7, [r2, #0]
+// ... toggle sclkp
+// lsrs	r7, r7, #8
+// strb	r7, [r2, #0]
+// ...
+// ldrb.w r7, [r5, #4]
+//
+
 volatile uint8_t * dataport = &DATAPORT;
 volatile uint8_t * sclkp = &SCLKPORT;
 
@@ -1493,8 +1528,7 @@ volatile uint8_t * sclkp = &SCLKPORT;
     for(i=0; i<iFinal; i++)
     {
       DATAPORT = ptr[i];
-// TODO: Or could try bitbanding
-// I think the comments here were wrong, said tick was lo, tock hi
+// I think the comments here were wrong, said tick was lo, tock hi?
       SCLKPORT = tick;
       SCLKPORT = tock;
     }
