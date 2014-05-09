@@ -64,7 +64,7 @@ Revisions:
 
 
 // On Tiva, define BENCHMARK to measure TimerHandler time
-//#define BENCHMARK
+#define BENCHMARK
 
 #if defined( BENCHMARK )
 #include "cyclecount.h"
@@ -116,7 +116,8 @@ Revisions:
 #define DATAPORT      (*portMaskedOutputRegister(PK, DATAPORTMASK))
 #define DATAPORTBASE  ((uint32_t)portBASERegister(PK))
 
-// SCLK pin must be on port defined here
+// On Tiva, defining SCLKPORT as a constant slows down refresh code
+// sclkport is derived from sclk pin. 
 //#define SCLKPORT      (*portDATARegister(PM))
 
 #elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
@@ -135,7 +136,8 @@ Revisions:
 //#define DATAPORT      (*portMaskedOutputRegister(PF, DATAPORTMASK))
 //#define DATAPORTBASE  ((uint32_t)portBASERegister(PF))
 
-
+// On Tiva, defining SCLKPORT as a constant slows down refresh code
+// sclkport is derived from sclk pin. 
 //#define SCLKPORT      (*portDATARegister(PB))
 
 #endif
@@ -175,14 +177,6 @@ Revisions:
 
 #endif
 
-
-// FIXME: Add masking to sclkport?
-//   Either make sclkpin a constant (so can use constant port masked version of SCLKPORT), 
-//   or make sclkport a variable (so can fill in masked version of sclkport)
-//   (Then fix up the tick/tock code appropriately)
-// TODO: Could use sclkpin instead if made smaller/faster code
-
-#define SCLKPORT        (*sclkport)
 
 
 #else 
@@ -240,8 +234,8 @@ Revisions:
 
 
 static const uint8_t nPlanes = 4;
-static const uint8_t BYTES_PER_ROW = 32;
 static const uint8_t nPackedPlanes = 3;  // 3 bytes holds 4 planes "packed"
+static const uint8_t BYTES_PER_ROW = 32;
 
 
 #if defined(__TIVA__)
@@ -255,6 +249,15 @@ static const uint16_t defaultRefreshFreq = 100; // Cycles per second
 
 #if defined(__TIVA__)
 
+
+// Use variable for sclkport
+#if !defined( SCLKPORT )
+#define SCLKPORT        (*sclkport)
+#else
+#warning SCLKPORT should not be defined on Stellaris/Tiva
+#endif
+
+
 #ifdef __TM4C1294NCPDT__
 // TM4C1294 - can only get clock speed from clock set call
 #define TIMER_CLK F_CPU
@@ -262,7 +265,7 @@ static const uint16_t defaultRefreshFreq = 100; // Cycles per second
 
 // SysCtlClockGet only works on TM4C123x
 //#define TIMER_CLK SysCtlClockGet()
-// However there is a bug in SysCtlClockGet() - in Tivaware 2.1...., 
+// However there is a bug in SysCtlClockGet() in Tivaware 2.1...., 
 // SysCtlClockGet incorrect if request 80MHz clock 
 // So just bypass it for now
 
@@ -445,6 +448,8 @@ RGBmatrixPanel::RGBmatrixPanel(
 void RGBmatrixPanel::begin(void) {
 
 #if defined(DEBUG) || defined( BENCHMARK )
+// FIXME: Should check if Serial already begun, and only begin if not
+//   Don't see a call in the reference to test this, have to check the code
   Serial.begin(9600);
 #endif
 
@@ -556,6 +561,10 @@ if(nRows > 8) {
 #else
 #define TIMER_CFG   TIMER_CFG_ONE_SHOT
 #endif
+
+// TODO: If miss an interrupt, the display driver dies
+//   Try make more robust.
+//   Maybe using repeat timer, rather than ONE_SHOT might help?
 
   MAP_TimerConfigure( TIMER_BASE, TIMER_CFG );
 
@@ -1077,27 +1086,33 @@ void TmrHandler()
 #endif
 }
 
+
+// Minimum refresh timing
+// minRowTime =  minRowTimePerPanel * nPanels + minRowTimeConst
+//   minRowTime needs to be greater than the time for the shortest row
+//   It also needs to be long enough that planes with extra processing
+//     Will still fit, when done with the appropriate multiplier
+//     e.g. if use fancy coding for the 4th plane, 
+//     then handling that must take less than minRowTime << 3 
+//
+// Can measure by setting BENCHMARK, and checking serial output
+//   Does not include interrupt overhead to call timer handler
+//   Includes a couple of assignments, to record start/stop times
+//
+// TimePerPanel = time for 2 panel - time for 1 panel
+// TimeConst    = time for 1 panel - TimePerPanel
+//
+
+// TODO: Reameasure and update minRowTime if make major changes to timer service routine
+
+// Before optimization:
+// Stellaris: At 80 MHz, with 4 planes, 200 cycles/second gives about 3333 ticks/row
+//   CPU takes about 1300 ticks to process a row on one panel
+
 // Timing for Stellaris launchpad 1x 16x32 panel: 1348, 1316, 1316, 1706
 //   2x 32x32 panel: 3274, 2514, 2472, 2472, 3246, ...
 //   3x 32x32 panel: 4804, 3662, 3620, 3620, 4778, 3662, ...
 
-
-/*
-2*m + n = 2472
-3*m + n = 3620
-n = 2472 - 2 * m
-3*m + 2472 - 2 * m = 3620
-
-m* (3 - 2) = 3620 - 2472
-m = 1148
-n = 176
-
-*/
-
-//   Does not include interrupt overhead to call timer handler
-//   Includes a couple of assignments, to record start/stop times
-
-// TODO: See how minRowTime scales with number of panels
 
 #if defined(__TM4C1294NCPDT__)
 // Connected Launchpad (120 MHz clock)
@@ -1111,14 +1126,9 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 const uint16_t minRowTimePerPanel = 1150;        // Ticks per panel for a row
 const uint16_t minRowTimeConst = 180;            // Overhead ticks
 
-#endif
-
 // minRowTime = 1148 * nPanels + 176 = 1324
 
-// At 80 MHz, with 4 planes, 200 cycles/second gives about 3333 ticks/row
-//   CPU takes about 1300 ticks to process a row on one panel, so plenty of time
-
-// TODO: Reameasure and update minRowTime if make major changes to timer service routine
+#endif
 
 
 #else
