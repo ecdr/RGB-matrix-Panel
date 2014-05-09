@@ -71,7 +71,9 @@ Revisions:
 #endif
 
 // Define UNROLL_LOOP to linearize the inner loop in display
-//#define UNROLL_LOOP
+#define UNROLL_LOOP
+
+// TODO: Clean up (or remove) code for UNROLL_LOOP not defined
 
 // portOutputRegister(port) not defined for Tiva, so make up own version
 // include port mask so do not have to do read modify write
@@ -301,9 +303,9 @@ Given name of a timer, assemble names of the various associated constants.
 #define TIMER_INT    INTA(TIMER)
 
 
-// extern "C" {
-//void enableTimerPeriph(uint32_t offset);
-//}
+/* extern "C" {
+void enableTimerPeriph(uint32_t offset);
+} */
 
 void TmrHandler(void);
 
@@ -1116,6 +1118,9 @@ void TmrHandler()
 // With loop unrolling, using local variables for pointers, etc.
 // 1x16: 1588, 392, 360, 360, 1560, 392, 360, 360
 // 2x32: 2996, 604, 564, 564, 2968, 604, 564, 564
+  // with locals declared right before
+// 2x32: 2370, 612, 572, 572, 2344, 612, 572, 572
+  // with locals used in loop versions (not sure why little slower for most planes)
 
 
 #if defined(__TM4C1294NCPDT__)
@@ -1131,6 +1136,8 @@ const uint16_t minRowTimeConst = 240;            // Overhead ticks
 #else
 const uint16_t minRowTimePerPanel = 1610;        // Ticks per panel for a row
 const uint16_t minRowTimeConst = 270;            // Overhead ticks
+
+#endif
 
 #else
 // For Stellaris Launchpad (80 MHz clock)
@@ -1270,6 +1277,9 @@ void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, *ptr;
 #if defined(__TIVA__)
   uint32_t duration;
+volatile uint8_t * dataport = &DATAPORT;
+volatile uint8_t * sclkp = &SCLKPORT;
+ 
 #else
   uint16_t t;
   uint16_t duration;
@@ -1480,11 +1490,14 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 #else				// Code for non AVR (i.e. Due and ARM based systems)
 
-#define UNROLL_LOOP
-
-// In this case local variables easier for the compiler to access/optimize
+// For sclkport, dataport, local variables easier for the compiler to access/optimize
 // (Might be able to do it with the dataport variable in "this" instead?)
 // Makes the inner "loop" 4 instructions, a load and 3 stores
+
+#define pew *dataport = *ptr++; * sclkp = tick; * sclkp = tock;
+
+//#define pew DATAPORT = *ptr++; SCLKPORT = tick; SCLKPORT = tock;
+
 
 // Possible improvement would be if could read a word,
 // then shift it to output 4 successive bytes.
@@ -1501,12 +1514,6 @@ void RGBmatrixPanel::updateDisplay(void) {
 // ldrb.w r7, [r5, #4]
 //
 
-volatile uint8_t * dataport = &DATAPORT;
-volatile uint8_t * sclkp = &SCLKPORT;
-
-#define pew *dataport = *ptr++; * sclkp = tick; * sclkp = tock;
-
-//#define pew DATAPORT = *ptr++; SCLKPORT = tick; SCLKPORT = tock;
 
 #endif
 
@@ -1527,10 +1534,10 @@ volatile uint8_t * sclkp = &SCLKPORT;
 
     for(i=0; i<iFinal; i++)
     {
-      DATAPORT = ptr[i];
+      * dataport = ptr[i];
 // I think the comments here were wrong, said tick was lo, tock hi?
-      SCLKPORT = tick;
-      SCLKPORT = tock;
+      * sclkp = tick;
+      * sclkp = tock;
     }
 /*
 // Pointers rather than indexing, saves 2 more instructions per loop
@@ -1558,12 +1565,21 @@ volatile uint8_t * sclkp = &SCLKPORT;
     // because binary coded modulation is used (not PWM), that plane
     // has the longest display interval, so the extra work fits.
     for(i=0; i<(BYTES_PER_ROW*nPanels); i++) {
+#if defined(__AVR__)
       DATAPORT =
         ( ptr[i]    << 6)                   |
         ((ptr[i+(BYTES_PER_ROW*nPanels)] << 4) & 0x30) |
         ((ptr[i+(BYTES_PER_ROW*2*nPanels)] << 2) & 0x0C);
       SCLKPORT = tick;
       SCLKPORT = tock;
+#else
+      * dataport =
+        ( ptr[i]    << 6)                   |
+        ((ptr[i+(BYTES_PER_ROW*nPanels)] << 4) & 0x30) |
+        ((ptr[i+(BYTES_PER_ROW*2*nPanels)] << 2) & 0x0C);
+      * sclkp = tick;
+      * sclkp = tock;
+#endif
     } 
   }
 }
