@@ -1091,7 +1091,7 @@ n = 176
 //   Does not include interrupt overhead to call timer handler
 //   Includes a couple of assignments, to record start/stop times
 
-// TODO: See how minRowTime scales with number of panels and with 16 vs 32 LED pannels
+// TODO: See how minRowTime scales with number of panels
 
 #if defined(__TM4C1294NCPDT__)
 // Connected Launchpad (120 MHz clock)
@@ -1133,11 +1133,13 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // FIXME: Revise to change refresh rate at end of a frame.
 
 // Takes about 1300 ticks for minimum row time on Stellaris for 1 16row panel
-//  So maximum refresh something in neighborhood of 1300 cycles/second (maybe a bit less)
+//  So maximum refresh something in neighborhood of 500 cycles/second (maybe a bit less)
 
 // With 2 32 row panels
-//  Maximum refresh something in neighborhood of 500 cycles/second 
-//  Might get to neighborhood of 700 cycles/second with 120MHz clock (TM4C1294)
+//  Maximum refresh something in neighborhood of 128 cycles/second 
+//  Might get to neighborhood of 200 cycles/second with 120MHz clock (TM4C1294)
+
+// Optimization can probably improve those figures
 
 
 // Returns refresh rate
