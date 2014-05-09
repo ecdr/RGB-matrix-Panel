@@ -1223,8 +1223,9 @@ void RGBmatrixPanel::updateDisplay(void) {
 #else
   uint16_t t;
   uint16_t duration;
-#endif
   uint8_t panelcount;
+#endif
+
 
 #if defined(__TIVA__)
   *oeport  = oepin;  // Disable LED output during row/plane switchover
@@ -1430,7 +1431,7 @@ void RGBmatrixPanel::updateDisplay(void) {
       pew pew pew pew pew pew pew pew
     } 
 #else				// Code for non AVR (i.e. Due and ARM based systems)
-    uint8_t iFinal = (BYTES_PER_ROW*nPanels);
+    uint8_t iFinal = (BYTES_PER_ROW*nPanels); // Saves 2 instructions in loop
     for(i=0; i<iFinal; i++)
     {
       DATAPORT = ptr[i];
@@ -1444,8 +1445,25 @@ void RGBmatrixPanel::updateDisplay(void) {
       SCLKPORT = tock; // Clock hi
 //#endif
     }
-#endif    
-    buffptr += iFinal;
+/* Version below saves 2 more instructions in loop
+// Try with pointers rather than indexing
+    uint8_t *pFinal = ptr + (BYTES_PER_ROW*nPanels);
+    for(; ptr<pFinal; ptr++)
+    {
+      DATAPORT = *ptr;
+//#if defined(__TIVA__)
+//      SCLKPORT = 0;     // Clock lo
+//      SCLKPORT = 0xFF;  // Clock hi   
+// TODO: Could use sclkpin instead if made smaller/faster code
+        // TODO: Or could try bitbanding
+//#else      
+      SCLKPORT = tick; // Clock lo
+      SCLKPORT = tock; // Clock hi
+//#endif
+    }
+*/
+#endif
+    buffptr += (BYTES_PER_ROW*nPanels);
 
 
   } else { // 920 ticks from TCNT1=0 (above) to end of function
