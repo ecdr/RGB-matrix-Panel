@@ -104,6 +104,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
   // PORT register pointers, pin bitmasks, pin numbers:
   volatile uint8_t
     *latport, *oeport, *addraport, *addrbport, *addrcport, *addrdport;
+
   uint8_t
     sclkpin, latpin, oepin, addrapin, addrbpin, addrcpin, addrdpin,
     _sclk, _latch, _oe, _a, _b, _c, _d;
@@ -115,6 +116,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
 #endif
 
 #if defined(__TIVA__)
+  volatile uint8_t *sclkport;
   uint16_t         refreshFreq;
   volatile uint32_t rowtime;
 #endif

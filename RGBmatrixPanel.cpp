@@ -70,6 +70,8 @@ Revisions:
 #include "cyclecount.h"
 #endif
 
+// Define UNROLL_LOOP to linearize the inner loop in display
+//#define UNROLL_LOOP
 
 // portOutputRegister(port) not defined for Tiva, so make up own version
 // include port mask so do not have to do read modify write
@@ -114,8 +116,7 @@ Revisions:
 #define DATAPORTBASE  ((uint32_t)portBASERegister(PK))
 
 // SCLK pin must be on port defined here
-#define SCLKPORT      (*portDATARegister(PM))
-
+//#define SCLKPORT      (*portDATARegister(PM))
 
 #elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
 // Stellaris or Tiva Launchpad
@@ -134,7 +135,7 @@ Revisions:
 //#define DATAPORTBASE  ((uint32_t)portBASERegister(PF))
 
 
-#define SCLKPORT      (*portDATARegister(PB))
+//#define SCLKPORT      (*portDATARegister(PB))
 
 #endif
 
@@ -178,6 +179,9 @@ Revisions:
 //   Either make sclkpin a constant (so can use constant port masked version of SCLKPORT), 
 //   or make sclkport a variable (so can fill in masked version of sclkport)
 //   (Then fix up the tick/tock code appropriately)
+// TODO: Could use sclkpin instead if made smaller/faster code
+
+#define SCLKPORT        (*sclkport)
 
 
 #else 
@@ -347,7 +351,8 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
 
 // Tiva Energia does not provide portOutputRegister macro
   sclkpin   = digitalPinToBitMask(sclk);
-
+  sclkport  = portMaskedOutputRegister(digitalPinToPort(sclk), sclkpin);
+  
   latpin    = digitalPinToBitMask(latch);
   latport   = portMaskedOutputRegister(digitalPinToPort(latch), latpin);
 
@@ -1231,7 +1236,7 @@ uint16_t RGBmatrixPanel::setRefresh(uint8_t freq){
 
 
 void RGBmatrixPanel::updateDisplay(void) {
-  uint8_t  i, tick, tock, *ptr;
+  uint8_t  i, *ptr;
 #if defined(__TIVA__)
   uint32_t duration;
 #else
@@ -1402,7 +1407,7 @@ void RGBmatrixPanel::updateDisplay(void) {
   *latport &= ~latpin;  // Latch down
 #endif 
 
-//#if !defined(__TIVA__)
+#if !defined(__TIVA__)
   // Record current state of SCLKPORT register, as well as a second
   // copy with the clock bit set.  This makes the innnermost data-
   // pushing loops faster, as they can just set the PORT state and
@@ -1411,9 +1416,13 @@ void RGBmatrixPanel::updateDisplay(void) {
   // handler is set ISR_BLOCK, halting any other interrupts that
   // might otherwise also be twiddling the port at the same time
   // (else this would clobber them).
+  uint8_t tick, tock;
   tock = SCLKPORT;
   tick = tock | sclkpin;
-//#endif
+#else
+  static const uint8_t tick = 0xFF;
+  static const uint8_t tock = 0;
+#endif
 
   if(plane > 0) { // 188 ticks from TCNT1=0 (above) to end of function
 
@@ -1462,15 +1471,10 @@ void RGBmatrixPanel::updateDisplay(void) {
     for(i=0; i<iFinal; i++)
     {
       DATAPORT = ptr[i];
-//#if defined(__TIVA__)
-//      SCLKPORT = 0;     // Clock lo
-//      SCLKPORT = 0xFF;  // Clock hi   
-// TODO: Could use sclkpin instead if made smaller/faster code
-        // TODO: Or could try bitbanding
-//#else      
-      SCLKPORT = tick; // Clock lo
-      SCLKPORT = tock; // Clock hi
-//#endif
+// TODO: Or could try bitbanding
+// I think the comments here were wrong, said tick was lo, tock hi
+      SCLKPORT = tick;
+      SCLKPORT = tock;
     }
 /*
 // Pointers rather than indexing, saves 2 more instructions per loop
@@ -1478,8 +1482,8 @@ void RGBmatrixPanel::updateDisplay(void) {
     for(; ptr<pFinal; ptr++)
     {
       DATAPORT = *ptr;
-      SCLKPORT = tick; // Clock lo
-      SCLKPORT = tock; // Clock hi
+      SCLKPORT = tick;
+      SCLKPORT = tock;
     }
 */
 #endif
@@ -1502,15 +1506,8 @@ void RGBmatrixPanel::updateDisplay(void) {
         ( ptr[i]    << 6)                   |
         ((ptr[i+(BYTES_PER_ROW*nPanels)] << 4) & 0x30) |
         ((ptr[i+(BYTES_PER_ROW*2*nPanels)] << 2) & 0x0C);
-/* #if defined(__TIVA__)
-      SCLKPORT = 0;     // Clock lo
-      SCLKPORT = 0xFF;  // Clock hi   // TODO: Could use sclkpin instead if made smaller/faster code
-        // TODO: Or could try bitbanding
-#else  */
-      SCLKPORT = tick; // Clock lo
-      SCLKPORT = tock; // Clock hi
-//#endif
+      SCLKPORT = tick;
+      SCLKPORT = tock;
     } 
   }
 }
-
