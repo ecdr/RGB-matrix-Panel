@@ -1,4 +1,7 @@
 
+/* RGBmatrixPanel Arduino/Energia library for 16x32 and 32x32 RGB LED matrix panels. */
+
+
 #ifndef RGBmatrixPanel_h
 #define RGBmatrixPanel_h
 
@@ -9,10 +12,10 @@
  #include "pins_arduino.h"
 #endif
 
+#include "Adafruit_GFX.h"
 
-//#define DEBUG
 
-
+// Define build control macros: __TIVA__ and __ARM__
 // FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
 // Just a temporary patch - until find the proper macro 
 // There is a macro for MSP430 - __MSP430_CPU__
@@ -41,10 +44,10 @@
 #endif // ENERGIA
 
 
+// define FADE to include support for fading between displays
 #define FADE
 
-#include "Adafruit_GFX.h"
-
+// FIXME: Number of buffers
 const uint8_t nBuf = 2;
 
 class RGBmatrixPanel : public Adafruit_GFX {
@@ -61,21 +64,22 @@ class RGBmatrixPanel : public Adafruit_GFX {
     pwidth is the number of panels used together in a multi panel configuration
     */
 
-  // Constructor for 32x32 panel (adds 'd' address pin)
+  // Constructor for 32x32 panel (adds 'd' row address pin)
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
     uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth);
 
+// TODO: See if can get 32x32 constructor with default pwidth
 // Compiler couldn't distinguish this one.
 //  RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
 //    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf);
 
   void
-    begin(void),
-    stop(void),
+    begin(void),              // Start display
+    stop(void),               // Stop display
     drawPixel(int16_t x, int16_t y, uint16_t c),
-    fillScreen(uint16_t c),
-    updateDisplay(void),
-    swapBuffers(boolean copy = false),
+    fillScreen(uint16_t c),   // fill current drawing buffer with color c
+    updateDisplay(void),      // TODO: Why is updateDisplay public?
+    swapBuffers(boolean copy = false),  // Display next buffer
     dumpMatrix(void);
   int8_t
     loadBuffer(uint8_t *img, uint16_t imgsize);
@@ -96,16 +100,18 @@ class RGBmatrixPanel : public Adafruit_GFX {
     ColorHSV(long hue, uint8_t sat, uint8_t val, boolean gflag);
 
   uint16_t
-    setRefresh(uint16_t freq);
+    setRefresh(uint16_t freq);   // Set number of display updates per second
+  uint16_t
+    getRefresh();                // Return refresh frequency
 #if defined(FADE)
   uint8_t
     swapFade(uint16_t tfade, boolean copy = false);
   boolean
-    fading();
+    fading();   // true if fade is in progress
 #endif
 
   int8_t
-    copyBuffer(uint8_t from, uint8_t to);
+    copyBuffer(uint8_t from, uint8_t to); // Duplicate contents of one buffer to another
 
  private:
 
@@ -131,14 +137,14 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
 #if defined(FADE)
   volatile uint16_t FadeCnt, FadeLen; 
-  volatile int16_t FadeNAccum; // replaces FadeNNext, 
+  volatile int16_t FadeNAccum; // replaces FadeNNext
   boolean copyflag;
 #endif
 
 #if defined(__TIVA__)
   volatile uint8_t *sclkport;
   uint16_t         refreshFreq;
-  volatile uint32_t rowtime;
+  volatile uint32_t rowtime;      // time to display one row
 #endif
 
   // Counters/pointers for interrupt handler:

@@ -34,17 +34,16 @@ BSD license, all text above must be included in any redistribution.
 
 Revisions:
     getPixel, by RobF42 - Rob Fugina
-    daisychain displays, by protonmaster - Phillip Burgess
-    Tiva Launchpad support, 
+    Multiple display daisychain, by protonmaster - Phillip Burgess
+    TI Stellaris/Tiva Launchpad support, by Michael Hanson
+
+- Tiva version allows more port configuration from user code (faster to use
+  port variables rather than constants).  Does not need inline assembly
+  language (carefully selected c code sufficient).
 */
 
 #include "RGBmatrixPanel.h"
 #include "gamma.h"
-
-
-#if !defined(__AVR__)
-#define pgm_read_byte( a ) (*(a))
-#endif
 
 
 #if defined(__TIVA__)
@@ -61,9 +60,17 @@ Revisions:
 #include "driverlib/interrupt.h"
 #include "inc/hw_timer.h"
 #include "driverlib/timer.h"
+#endif
 
 
-// On Tiva, define BENCHMARK to measure TimerHandler time
+// -------------------- Configuration  --------------------
+
+//Define DEBUG to send diagnostic/testing messages to console
+//#define DEBUG
+
+#if defined(__TIVA__)
+
+// On Tiva, define BENCHMARK to output TimerHandler time to console
 //#define BENCHMARK
 
 #if defined( BENCHMARK )
@@ -111,6 +118,10 @@ Revisions:
 //   Compiling the port into the library does not help performance on ARM
 
 #if defined(__TM4C129XNCZAD__)
+// Tiva DK-TM4C129
+
+#warning Ports not defined for DK-TM4C129
+
 
 #warning "Ports not defined for TM4C129 DK"
 
@@ -118,7 +129,13 @@ Revisions:
 // Tiva Connected Launchpad
 
 // Candidates for data port: 
-//   PortE (BP1), PortK (BP2), or PortL (BP1) (pins 0-5)
+//   PortE (BP1), or PortK (BP2)
+//   PortL (BP1) (pins 0-5) would be a candidate if code was modified to use pins 0-5
+//      Doing a proper job of changing would be a bit of work
+//      However adding a bit shift just before outputting the bits should do the job
+//      with only a modest decrease in performance
+// The performance decrease from splitting the pins to 2 ports might be tollerable.
+//    
 
 #define DATAPORTMASK  B11111100
 #define DATAPORT      (*portMaskedOutputRegister(PK, DATAPORTMASK))
@@ -172,22 +189,28 @@ Revisions:
 #endif
 
 
-// Timer selection
+// Timer selection 
 
-// Note: 
+// Can use regular timer or wide timer
+// For regular timer, uses full width timer
+// For wide timer, uses timer A
+
+// TODO: could adapt code to allow use of timer B of wide timer
+
+// Energia doesn't use all the timers, can use one not used
+//   Not used by Energia: WTIMER4 or WTIMER5 on LP, TIMER6 or TIMER7 on Connected LP
+// Could select timer that does PWM for pin(s) that are not using PWM (analogWrite).
+
+// Energia pin use:
 // Timer 4A is used by Tone
 // Timer 5 is used by Energia time tracking
 
-// Energia doesn't use all the timers, maybe better to just grab one not used
-//   WTIMER4 or WTIMER5 on LP, TIMER6 or TIMER7 on Connected LP
-
-// Launchpad: uses regular timer 0-3, wide timer 0-3, 6, 7
+// Launchpad: PWM uses regular timer 0-3, wide timer 0-3, 6, 7
 //     Thus wide timers 4 and 5 appear to be available.
-// Connected LP: Energia uses timers 0-5 (so 6 and 7 should be available?)
+// Connected LP: Energia uses timers 0-5 (so 6 and 7 should be available)
 
 //  TODO: Check Energia timer use for timers 4 and 5 on Connected LP
 //    Seems strange that, on Connected LP, Timers 4 and 5 are used both by tone/Energia and by PWM??
-//   Could select timer that does PWM for a pin that is otherwise in use.
 
 // TODO: Make timer selectable by user code
 
@@ -196,15 +219,13 @@ Revisions:
 
 #define TIMER TIMER6
 
-#else
+#elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
 
 #define TIMER WTIMER4
 
-// Can use timer or wide timer
-// For regular timer, uses full width timer
-// For wide timer, uses timer A
+#else
 
-// TODO: could adapt code to allow use of timer B of wide timer
+#warning Timer not selected for this processor
 
 #endif
 
@@ -275,6 +296,13 @@ static const uint16_t defaultRefreshFreq = 100; // Cycles per second
   // (200 should work for 1 16 row panel)
 //const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
 
+#endif
+
+
+// -------------------- Declarations, Macros  --------------------
+
+#if !defined(__AVR__)
+#define pgm_read_byte( a ) (*(a))
 #endif
 
 
@@ -1075,7 +1103,10 @@ int8_t RGBmatrixPanel::copyBuffer(uint8_t from, uint8_t to){
 #if defined(FADE)
 // Fade between front and next buffers
 // Take tfade refresh cycles for fade
-// If copy is true, then at end copy next to front at end of fade
+// copy similar to swapBuffers, 
+// If copy is true, copy the new front buffer contents to the old front buffer 
+// after fade. (not implemented)
+
 // Todo: change tfade unit from refresh cycles to time
 
 // Fade is done by PWM between front and next buffers
@@ -1107,19 +1138,23 @@ uint8_t RGBmatrixPanel::swapFade(uint16_t tfade, boolean copy) {
 
 // TODO: change to use fade time, rather than number of refresh cycles
     FadeLen = tfade;    // FadeLen != 0 indicates fade in progress
-// For fade time in milli-seconds, rather than in refresh cycles
+// For fade time in milliseconds, rather than in refresh cycles
 //    FadeLen = (refreshFreq * (uint32_t)tfade)/1000; 
     return 0;
   }
 }
 
-// Or could make this return uint - fade time remaining
-// TODO: Generalize to cover swap buffers (waiting to swap, if don't do busy wait).
-// Perhaps add busy flag for each page?  (boolean busy(page))?
+// fading() - return true if fade is in progress
 
 boolean RGBmatrixPanel::fading() {
   return (FadeLen != 0);
 }
+
+// TODO: Could make fading return uint - fade time (or cycles) remaining
+
+// TODO: Generalize to cover swap buffers (waiting to swap, if don't do busy wait).
+// Perhaps add busy flag for each page?  (boolean busy(page))?
+
 
 #endif
 
@@ -1362,6 +1397,11 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
   Serial.print(" refresh:");
   Serial.println(refreshFreq);
 #endif
+  return refreshFreq;
+}
+
+
+uint16_t getRefresh() {
   return refreshFreq;
 }
 
