@@ -256,12 +256,11 @@ static const uint16_t defaultRefreshFreq = 100; // Cycles per second
 #else
 
 // SysCtlClockGet only works on TM4C123x
-//#define TIMER_CLK SysCtlClockGet()
+#define TIMER_CLK SysCtlClockGet()
 // However there is a bug in SysCtlClockGet() - in Tivaware 2.1...., 
 // SysCtlClockGet incorrect if request 80MHz clock 
-// So just bypass it for now
 
-#define TIMER_CLK F_CPU
+//#define TIMER_CLK F_CPU
 
 
 #endif
