@@ -10,9 +10,17 @@
 #endif
 
 
+//#define DEBUG
+
+
 // FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
 // Just a temporary patch - until find the proper macro 
+// There is a macro for MSP430 - __MSP430_CPU__
+// Is there a macro for C2000?
+
 #if defined(ENERGIA)
+
+//#if !defined(__MSP430_CPU__)
 
 #if defined(__TM4C129XNCZAD__) || defined(__TM4C1294NCPDT__) || defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
 
