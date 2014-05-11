@@ -1016,6 +1016,13 @@ void RGBmatrixPanel::dumpMatrix(void) {
 
   int i, buffsize = BYTES_PER_ROW * nRows * nPackedPlanes * nPanels;
 
+  Serial.print("// RGBmatrixPanel image, ");
+  Serial.print(nPanels);
+  Serial.print( (nRows > 8) ? ", 32" : ", 16" );
+  Serial.print(" row panels\n");
+  Serial.print("static const uint16_t imgsize =")
+  Serial.print(buffsize);
+  Serial.print(";\n");
 #if defined(__AVR__)
   Serial.print("\n\n"
     "#include <avr/pgmspace.h>\n\n"
