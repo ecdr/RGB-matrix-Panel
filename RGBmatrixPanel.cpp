@@ -95,6 +95,7 @@ Revisions:
 //#define HWREG(x)   (*((volatile uint32_t *)(x)))
 //#define HWREGB(x)  (*((volatile uint8_t  *)(x)))
 
+/*
 // TODO: Consider bitband version, for 1 bit control lines
 // BITBAND 
 /*
@@ -580,11 +581,7 @@ if(nRows > 8) {
 #endif
 */
 
-  backindex   = 0;                         // Back buffer
-  frontindex  = (dbuf == true) ? 1 : 0;
-  nextindex   = backindex;
   buffptr     = matrixbuff[frontindex];   // -> front buffer
-// FIXME: Adapt for nBuf > 2  
   activePanel = this;                      // For interrupt hander
 
   // Enable all comm & address pins as outputs, set default states:
@@ -1018,25 +1015,25 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
 
 // -------------------- Buffer --------------------
 
-uint8_t *RGBmatrixPanel::backIndex(uint8_t back) {
+uint8_t RGBmatrixPanel::backIndex(uint8_t back) {
   if (back < nBuf)
     return backindex = back;
   else
     return nBuf;
 }
 
-uint8_t *RGBmatrixPanel::nextIndex(uint8_t next) {
+uint8_t RGBmatrixPanel::nextIndex(uint8_t next) {
   if (next < nBuf)
     return nextindex = next;
   else
     return nBuf;
 }
 
-uint8_t *RGBmatrixPanel::getBackIndex(void) {
+uint8_t RGBmatrixPanel::getBackIndex(void) {
   return backindex;
 }
 
-uint8_t *RGBmatrixPanel::getNextIndex(void) {
+uint8_t RGBmatrixPanel::getNextIndex(void) {
   return nextindex;
 }
 
@@ -1098,6 +1095,7 @@ int8_t RGBmatrixPanel::copyBuffer(uint8_t from, uint8_t to){
   else if (to > nBuf)
     return -1;
   memcpy(matrixbuff[to], matrixbuff[from], BYTES_PER_ROW * nRows * nPackedPlanes * nPanels);
+  return 0;
 }
 
 #if defined(FADE)
@@ -1401,7 +1399,7 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 }
 
 
-uint16_t getRefresh() {
+uint16_t RGBmatrixPanel::getRefresh() {
   return refreshFreq;
 }
 
@@ -1458,7 +1456,7 @@ uint16_t getRefresh() {
 // counter variables change between past/present/future tense in mid-
 // function...hopefully tenses are sufficiently commented.
 
-#define SWAP_T(A, B, T) {T swap_tmp; swap_tmp = A; A = B; B = swap_tmp}
+#define SWAP_T(A, B, T) {T swap_tmp; swap_tmp = A; A = B; B = swap_tmp;}
 
 void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, *ptr;
