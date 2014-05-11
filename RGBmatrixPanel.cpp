@@ -1472,6 +1472,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 
 #if defined(__TIVA__)
+// Tiva - Masking means don't need read/modify/write
   *oeport  = oepin;  // Disable LED output during row/plane switchover
   *latport = latpin; // Latch data loaded during *prior* interrupt
 #else
