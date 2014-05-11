@@ -292,10 +292,6 @@ Given name of a timer, assemble names of the various associated constants.
 #define TIMER_INT    INTA(TIMER)
 
 
-// extern "C" {
-//void enableTimerPeriph(uint32_t offset);
-//}
-
 void TmrHandler(void);
 
 #endif
