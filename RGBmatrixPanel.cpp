@@ -114,10 +114,17 @@ Revisions:
 #define DATAPORT      (*portMaskedOutputRegister(PK, DATAPORTMASK))
 #define DATAPORTBASE  ((uint32_t)portBASERegister(PK))
 
-// Dataport values are bits 1-7 of the byte
+// Dataport values start as bits 1-7 of the byte
 // To use lower pin numbers, define DATAPORTSHIFT as the number of bits to shift the value left
 // e.g. if using pins 0-5, then define DATAPORTSHIFT to be -2 (and datapormask B00111111 )
-#define DATAPORTSHIFT -2
+//#define DATAPORTSHIFT -2
+// If leave it undefined there will be no shifting
+
+// Some ARM processors have more than 8 pins per port
+// Therefore more likely to want to shift the pins on those processors
+// So DATAPORTSHIFT is defined as a left shift, 
+// even though right (negative) shifts are only useful ones on Tiva
+
 
 // SCLK pin must be on port defined here
 #define SCLKPORT      (*portDATARegister(PM))
@@ -305,6 +312,8 @@ void TmrHandler(void);
 #if !defined( DATAPORTSHIFT )
 #define DATAPORTSHIFT 0
 #endif
+
+#define LEFT_SHIFT(value, shift) ((shift < 0) ? (value) >> - (shift) : ((value) << (shift)))
 
 
 // Todo: Allow multiple displays (share data and address, separate OE)
@@ -1130,6 +1139,7 @@ n = 176
 
 // TODO: See how minRowTime scales with number of panels
 
+// TODO: Timing does not include shift - adjust if DATAPORTSHIFT != 0
 #if defined(__TM4C1294NCPDT__)
 // Connected Launchpad (120 MHz clock)
 
@@ -1476,7 +1486,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 #else				// Code for non AVR (i.e. Due and ARM based systems)
 
-#define pew DATAPORT = (*ptr++) << DATAPORTSHIFT; SCLKPORT = tick; SCLKPORT = tock;
+#define pew DATAPORT = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); SCLKPORT = tick; SCLKPORT = tock;
 
 #endif
 
@@ -1499,7 +1509,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 
     for(i=0; i<iFinal; i++)
     {
-      DATAPORT = (ptr[i]) << DATAPORTSHIFT;
+      DATAPORT = LEFT_SHIFT((ptr[i]), DATAPORTSHIFT);
       SCLKPORT = tick; // Clock lo
       SCLKPORT = tock; // Clock hi
     }
@@ -1508,7 +1518,7 @@ void RGBmatrixPanel::updateDisplay(void) {
     uint8_t *pFinal = ptr + (BYTES_PER_ROW*nPanels);
     for(; ptr<pFinal; ptr++)
     {
-      DATAPORT = *ptr;
+      DATAPORT = LEFT_SHIFT((*ptr), DATAPORTSHIFT);
       SCLKPORT = tick; // Clock lo
       SCLKPORT = tock; // Clock hi
     }
@@ -1530,9 +1540,9 @@ void RGBmatrixPanel::updateDisplay(void) {
     // has the longest display interval, so the extra work fits.
     for(i=0; i<(BYTES_PER_ROW*nPanels); i++) {
       DATAPORT =
-        (( ptr[i]    << 6)                   |
+        LEFT_SHIFT((( ptr[i]    << 6)                   |
         ((ptr[i+(BYTES_PER_ROW*nPanels)] << 4) & 0x30) |
-        ((ptr[i+(BYTES_PER_ROW*2*nPanels)] << 2) & 0x0C)) << DATAPORTSHIFT;
+        ((ptr[i+(BYTES_PER_ROW*2*nPanels)] << 2) & 0x0C)), DATAPORTSHIFT);
       SCLKPORT = tick; // Clock lo
       SCLKPORT = tock; // Clock hi
 //#endif
