@@ -155,6 +155,10 @@ Revisions:
 // sclkport is derived from sclk pin. 
 //#define SCLKPORT      (*portDATARegister(PB))
 
+#else
+
+#error Unknown TIVA processor
+
 #endif
 
 
@@ -1178,28 +1182,35 @@ void TmrHandler()
 
 // FIXME: These are just estimates based on ratios from Stellars LP
 //   Should measure values for Connected LP
-const uint16_t minRowTimePerPanel = 300;        // Ticks per panel for a row
+const uint16_t minRowTimePerPanel = 300;         // Ticks per panel for a row
 const uint16_t minRowTimeConst = 240;            // Overhead ticks
 
 #else
 const uint16_t minRowTimePerPanel = 1610;        // Ticks per panel for a row
 const uint16_t minRowTimeConst = 270;            // Overhead ticks
 
-#endif
+#endif // UNROLL_LOOP
 
-#else
+#elif defined(__TM4C129XNCZAD__)
+
+
+#elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
 // For Stellaris Launchpad (80 MHz clock)
 
 #if defined(UNROLL_LOOP)
-const uint16_t minRowTimePerPanel = 210;        // Ticks per panel for a row
+const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
 const uint16_t minRowTimeConst = 160;            // Overhead ticks
 
 #else
 const uint16_t minRowTimePerPanel = 1150;        // Ticks per panel for a row
 const uint16_t minRowTimeConst = 180;            // Overhead ticks
-#endif
+#endif // UNROLL_LOOP
 
 // minRowTime = 1148 * nPanels + 176 = 1324
+
+#else
+
+#error Unknown TIVA processor
 
 #endif
 
@@ -1212,7 +1223,7 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
   TIFR1 |= TOV1;                  // Clear Timer1 interrupt flag
 }
 
-#endif
+#endif // __TIVA__
 
 
 #if defined(__TIVA__)
@@ -1267,7 +1278,7 @@ uint16_t RGBmatrixPanel::setRefresh(uint8_t freq){
   return refreshFreq;
 }
 
-#endif
+#endif // __TIVA__
 
 
 // Two constants are used in timing each successive BCM interval.
