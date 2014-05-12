@@ -114,6 +114,11 @@ Revisions:
 #define DATAPORT      (*portMaskedOutputRegister(PK, DATAPORTMASK))
 #define DATAPORTBASE  ((uint32_t)portBASERegister(PK))
 
+// Dataport values are bits 1-7 of the byte
+// To use lower pin numbers, define DATAPORTSHIFT as the number of bits to shift the value left
+// e.g. if using pins 0-5, then define DATAPORTSHIFT to be -2 (and datapormask B00111111 )
+#define DATAPORTSHIFT -2
+
 // SCLK pin must be on port defined here
 #define SCLKPORT      (*portDATARegister(PM))
 
@@ -295,6 +300,10 @@ Given name of a timer, assemble names of the various associated constants.
 
 void TmrHandler(void);
 
+#endif
+
+#if !defined( DATAPORTSHIFT )
+#define DATAPORTSHIFT 0
 #endif
 
 
@@ -1467,7 +1476,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 #else				// Code for non AVR (i.e. Due and ARM based systems)
 
-#define pew DATAPORT = *ptr++; SCLKPORT = tick; SCLKPORT = tock;
+#define pew DATAPORT = (*ptr++) << DATAPORTSHIFT; SCLKPORT = tick; SCLKPORT = tock;
 
 #endif
 
@@ -1490,16 +1499,9 @@ void RGBmatrixPanel::updateDisplay(void) {
 
     for(i=0; i<iFinal; i++)
     {
-      DATAPORT = ptr[i];
-//#if defined(__TIVA__)
-//      SCLKPORT = 0;     // Clock lo
-//      SCLKPORT = 0xFF;  // Clock hi   
-// TODO: Could use sclkpin instead if made smaller/faster code
-        // TODO: Or could try bitbanding
-//#else      
+      DATAPORT = (ptr[i]) << DATAPORTSHIFT;
       SCLKPORT = tick; // Clock lo
       SCLKPORT = tock; // Clock hi
-//#endif
     }
 /*
 // Pointers rather than indexing, saves 2 more instructions per loop
@@ -1528,14 +1530,9 @@ void RGBmatrixPanel::updateDisplay(void) {
     // has the longest display interval, so the extra work fits.
     for(i=0; i<(BYTES_PER_ROW*nPanels); i++) {
       DATAPORT =
-        ( ptr[i]    << 6)                   |
+        (( ptr[i]    << 6)                   |
         ((ptr[i+(BYTES_PER_ROW*nPanels)] << 4) & 0x30) |
-        ((ptr[i+(BYTES_PER_ROW*2*nPanels)] << 2) & 0x0C);
-/* #if defined(__TIVA__)
-      SCLKPORT = 0;     // Clock lo
-      SCLKPORT = 0xFF;  // Clock hi   // TODO: Could use sclkpin instead if made smaller/faster code
-        // TODO: Or could try bitbanding
-#else  */
+        ((ptr[i+(BYTES_PER_ROW*2*nPanels)] << 2) & 0x0C)) << DATAPORTSHIFT;
       SCLKPORT = tick; // Clock lo
       SCLKPORT = tock; // Clock hi
 //#endif
