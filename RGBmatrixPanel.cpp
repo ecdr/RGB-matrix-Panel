@@ -85,10 +85,11 @@ Revisions:
 
 // TODO: Consider bitband version, for 1 bit control lines
 // BITBAND 
+/*
 //#define HWREGBITB(x, b)                                                       \
 //        HWREGB(((uint32_t)(x) & 0xF0000000) | 0x02000000 |                    \
 //               (((uint32_t)(x) & 0x000FFFFF) << 5) | ((b) << 2))
-
+*/
 
 // Caution - be careful of adding masks to pointer types.
 // Cast the portBASERegister back to uint32_t before add offset
@@ -1016,7 +1017,7 @@ void RGBmatrixPanel::dumpMatrix(void) {
   Serial.print(nPanels);
   Serial.print( (nRows > 8) ? ", 32" : ", 16" );
   Serial.print(" row panels\n");
-  Serial.print("static const uint16_t imgsize =")
+  Serial.print("static const uint16_t imgsize =");
   Serial.print(buffsize);
   Serial.print(";\n");
 #if defined(__AVR__)
@@ -1038,6 +1039,31 @@ void RGBmatrixPanel::dumpMatrix(void) {
     }
   }
   Serial.println("\n};");
+}
+
+// TODO: Add information to matrix dump structure 
+//   (number of rows, number panels, number panes, whether it uses fancy panel compression)
+//   so can do conversion/error checking when load
+
+// TODO: Add way to display images in flash memory
+//   Direct pointer to buffer in flash, flag as read only image
+
+// TODO: Load image routine
+int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
+
+  // Could do more sophisticated error handling - adjust for change in nPanels, nRows
+  if (imgsize != BYTES_PER_ROW * nRows * nPackedPlanes * nPanels)
+    return -1;
+#if defined(__AVR__)
+#warning Need to write this - use memcpy that uses pgm_read
+  unsigned int i;
+  for (i = 0; i < imgsize; i++)
+    matrixbuff[backindex][i] = pgm_read_byte(img[i]);
+#else
+// FIXME: Check which way memcpy works (source vs. dest)  
+  memcpy(matrixbuff[backindex], img, imgsize);
+#endif
+  return 0;
 }
 
 
@@ -1240,7 +1266,6 @@ void RGBmatrixPanel::updateDisplay(void) {
   uint16_t t;
   uint16_t duration;
 #endif
-  uint8_t panelcount;
 
 
 #if defined(__TIVA__)
@@ -1447,6 +1472,8 @@ void RGBmatrixPanel::updateDisplay(void) {
 #endif
 
 #if defined( UNROLL_LOOP )
+    uint8_t panelcount;
+  
     for (panelcount = 0; panelcount < nPanels; panelcount++)
     {
     	// Loop is unrolled for speed:

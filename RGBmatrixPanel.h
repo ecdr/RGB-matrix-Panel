@@ -77,6 +77,8 @@ class RGBmatrixPanel : public Adafruit_GFX {
     updateDisplay(void),
     swapBuffers(boolean copy = false),
     dumpMatrix(void);
+  int8_t
+    loadBuffer(uint8_t *img, uint16_t imgsize);
   uint8_t
     *frontBuffer(void),
     *backBuffer(void);
