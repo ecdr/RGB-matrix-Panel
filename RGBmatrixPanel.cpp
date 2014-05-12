@@ -89,11 +89,11 @@ Revisions:
 
 // TODO: Consider bitband version, for 1 bit control lines
 // BITBAND 
-/*#define HWREGBITB(x, b)                                                       \
-        HWREGB(((uint32_t)(x) & 0xF0000000) | 0x02000000 |                    \
-               (((uint32_t)(x) & 0x000FFFFF) << 5) | ((b) << 2))
- */
-
+/*
+//#define HWREGBITB(x, b)                                                       \
+//        HWREGB(((uint32_t)(x) & 0xF0000000) | 0x02000000 |                    \
+//               (((uint32_t)(x) & 0x000FFFFF) << 5) | ((b) << 2))
+*/
 
 // Caution - be careful of adding masks to pointer types.
 // Cast the portBASERegister back to uint32_t before add offset
@@ -118,9 +118,22 @@ Revisions:
 #define DATAPORT      (*portMaskedOutputRegister(PK, DATAPORTMASK))
 #define DATAPORTBASE  ((uint32_t)portBASERegister(PK))
 
+// Dataport values start as bits 1-7 of the byte
+// To use lower pin numbers, define DATAPORTSHIFT as the number of bits to shift the value left
+// e.g. if using pins 0-5, then define DATAPORTSHIFT to be -2 (and datapormask B00111111 )
+//#define DATAPORTSHIFT -2
+// If leave it undefined there will be no shifting
+
+// Some ARM processors have more than 8 pins per port
+// Therefore more likely to want to shift the pins on those processors
+// So DATAPORTSHIFT is defined as a left shift, 
+// even though right (negative) shifts are only useful ones on Tiva
+
+
 // On Tiva, defining SCLKPORT as a constant slows down refresh code
 // sclkport is derived from sclk pin. 
 //#define SCLKPORT      (*portDATARegister(PM))
+
 
 #elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
 // Stellaris or Tiva Launchpad
@@ -266,12 +279,12 @@ static const uint16_t defaultRefreshFreq = 100; // Cycles per second
 #else
 
 // SysCtlClockGet only works on TM4C123x
-//#define TIMER_CLK SysCtlClockGet()
-// However there is a bug in SysCtlClockGet() in Tivaware 2.1...., 
-// SysCtlClockGet incorrect if request 80MHz clock 
-// So just bypass it for now
+#define TIMER_CLK SysCtlClockGet()
+// However there is a bug in SysCtlClockGet() - in Tivaware 2.1...., 
+// SysCtlClockGet incorrect if request 80MHz clock
+// But Energia does not use Tivaware 2.1 at this point
 
-#define TIMER_CLK F_CPU
+//#define TIMER_CLK F_CPU
 
 
 #endif
@@ -303,13 +316,15 @@ Given name of a timer, assemble names of the various associated constants.
 #define TIMER_INT    INTA(TIMER)
 
 
-/* extern "C" {
-void enableTimerPeriph(uint32_t offset);
-} */
-
 void TmrHandler(void);
 
 #endif
+
+#if !defined( DATAPORTSHIFT )
+#define DATAPORTSHIFT 0
+#endif
+
+#define LEFT_SHIFT(value, shift) ((shift < 0) ? (value) >> - (shift) : ((value) << (shift)))
 
 
 // Todo: Allow multiple displays (share data and address, separate OE)
@@ -1034,6 +1049,13 @@ void RGBmatrixPanel::dumpMatrix(void) {
 
   int i, buffsize = BYTES_PER_ROW * nRows * nPackedPlanes * nPanels;
 
+  Serial.print("// RGBmatrixPanel image, ");
+  Serial.print(nPanels);
+  Serial.print( (nRows > 8) ? ", 32" : ", 16" );
+  Serial.print(" row panels\n");
+  Serial.print("static const uint16_t imgsize =");
+  Serial.print(buffsize);
+  Serial.print(";\n");
 #if defined(__AVR__)
   Serial.print("\n\n"
     "#include <avr/pgmspace.h>\n\n"
@@ -1053,6 +1075,31 @@ void RGBmatrixPanel::dumpMatrix(void) {
     }
   }
   Serial.println("\n};");
+}
+
+// TODO: Add information to matrix dump structure 
+//   (number of rows, number panels, number panes, whether it uses fancy panel compression)
+//   so can do conversion/error checking when load
+
+// TODO: Add way to display images in flash memory
+//   Direct pointer to buffer in flash, flag as read only image
+
+// TODO: Load image routine
+int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
+
+  // Could do more sophisticated error handling - adjust for change in nPanels, nRows
+  if (imgsize != BYTES_PER_ROW * nRows * nPackedPlanes * nPanels)
+    return -1;
+#if defined(__AVR__)
+#warning Need to write this - use memcpy that uses pgm_read
+  unsigned int i;
+  for (i = 0; i < imgsize; i++)
+    matrixbuff[backindex][i] = pgm_read_byte(img[i]);
+#else
+// FIXME: Check which way memcpy works (source vs. dest)  
+  memcpy(matrixbuff[backindex], img, imgsize);
+#endif
+  return 0;
 }
 
 
@@ -1123,6 +1170,7 @@ void TmrHandler()
   // with locals used in loop versions (not sure why little slower for most planes)
 
 
+// TODO: Timing does not include shift - adjust if DATAPORTSHIFT != 0
 #if defined(__TM4C1294NCPDT__)
 // Connected Launchpad (120 MHz clock)
 
@@ -1284,7 +1332,6 @@ volatile uint8_t * sclkp = &SCLKPORT;
   uint16_t t;
   uint16_t duration;
 #endif
-  uint8_t panelcount;
 
 
 #if defined(__TIVA__)
@@ -1493,10 +1540,11 @@ volatile uint8_t * sclkp = &SCLKPORT;
 // For sclkport, dataport, local variables easier for the compiler to access/optimize
 // (Might be able to do it with the dataport variable in "this" instead?)
 // Makes the inner "loop" 4 instructions, a load and 3 stores
+//   (+1 instruction if a shift is needed)
 
-#define pew *dataport = *ptr++; * sclkp = tick; * sclkp = tock;
+#define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; * sclkp = tock;
 
-//#define pew DATAPORT = *ptr++; SCLKPORT = tick; SCLKPORT = tock;
+//#define pew DATAPORT = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); SCLKPORT = tick; SCLKPORT = tock;
 
 
 // Possible improvement would be if could read a word,
@@ -1518,6 +1566,8 @@ volatile uint8_t * sclkp = &SCLKPORT;
 #endif
 
 #if defined( UNROLL_LOOP )
+    uint8_t panelcount;
+  
     for (panelcount = 0; panelcount < nPanels; panelcount++)
     {
     	// Loop is unrolled for speed:
@@ -1534,7 +1584,7 @@ volatile uint8_t * sclkp = &SCLKPORT;
 
     for(i=0; i<iFinal; i++)
     {
-      * dataport = ptr[i];
+      * dataport = LEFT_SHIFT((ptr[i]), DATAPORTSHIFT);
 // I think the comments here were wrong, said tick was lo, tock hi?
       * sclkp = tick;
       * sclkp = tock;
@@ -1544,7 +1594,7 @@ volatile uint8_t * sclkp = &SCLKPORT;
     uint8_t *pFinal = ptr + (BYTES_PER_ROW*nPanels);
     for(; ptr<pFinal; ptr++)
     {
-      DATAPORT = *ptr;
+      DATAPORT = LEFT_SHIFT((*ptr), DATAPORTSHIFT);;
       SCLKPORT = tick;
       SCLKPORT = tock;
     }
@@ -1574,9 +1624,9 @@ volatile uint8_t * sclkp = &SCLKPORT;
       SCLKPORT = tock;
 #else
       * dataport =
-        ( ptr[i]    << 6)                   |
+        LEFT_SHIFT((( ptr[i]    << 6)                   |
         ((ptr[i+(BYTES_PER_ROW*nPanels)] << 4) & 0x30) |
-        ((ptr[i+(BYTES_PER_ROW*2*nPanels)] << 2) & 0x0C);
+        ((ptr[i+(BYTES_PER_ROW*2*nPanels)] << 2) & 0x0C)), DATAPORTSHIFT);
       * sclkp = tick;
       * sclkp = tock;
 #endif
