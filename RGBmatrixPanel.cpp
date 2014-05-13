@@ -1190,7 +1190,7 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 
 
 // Returns refresh rate
-uint16_t RGBmatrixPanel::setRefresh(uint8_t freq){
+uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
   uint32_t rowtimetemp;
   
 //  uint16_t refreshTime = 1 * ticksPerSecond / refreshFreq;   // Time for 1 display refresh
