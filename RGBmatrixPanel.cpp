@@ -264,7 +264,10 @@ Revisions:
 #endif
 
 
-static const uint8_t nPlanes = 4;
+// Unfortunately, can not do conditional compliation based on constant
+#define nPlanes 5
+//static const uint8_t nPlanes = 4;
+
 static const uint8_t nPackedPlanes = nPlanes - 1;  // 3 bytes holds 4 planes "packed"
 static const uint8_t BYTES_PER_ROW = 32;
 
@@ -703,18 +706,21 @@ uint16_t RGBmatrixPanel::Color888(
     r = pgm_read_byte(&gamma_table[r]); // Gamma correction table maps
     g = pgm_read_byte(&gamma_table[g]); // 8-bit input to 4-bit output
     b = pgm_read_byte(&gamma_table[b]);
-//#if (nPlanes == 4)
+#if (nPlanes == 4)
     return (r << 12) | ((r & 0x8) << 8) | // 4/4/4 -> 5/6/5
            (g <<  7) | ((g & 0xC) << 3) |
            (b <<  1) | ( b        >> 3);
-/*#elif (nPlanes == 5)  // Requires 5 bit gamma
+#elif (nPlanes == 5)
+
+#warning Need 5 bit gamma table
+
     return (r << 11) |                    // 5/5/5 -> 5/6/5
            (g <<  6) | ((g & 0x10) << 1) |
            (b) ;
 #else
 #error Unsupported number of planes
 #endif
-*/
+
   } // else linear (uncorrected) color
   return ((r & 0xF8) << 11) | ((g & 0xFC) << 5) | (b >> 3);
 }
@@ -760,34 +766,34 @@ uint16_t RGBmatrixPanel::ColorHSV(
     g = pgm_read_byte(&gamma_table[(g * v1) >> 8]); // 8-bit input to 4-bit output
     b = pgm_read_byte(&gamma_table[(b * v1) >> 8]);
   } else { // linear (uncorrected) color
-//#if (nPlanes == 4)
+#if (nPlanes == 4)
     r = (r * v1) >> 12; // 4-bit results
     g = (g * v1) >> 12;
     b = (b * v1) >> 12;
-/* #elif (nPlanes == 5)
+#elif (nPlanes == 5)
     r = (r * v1) >> 11; // 5-bit results
     g = (g * v1) >> 11;
     b = (b * v1) >> 11;
 #else
 #error Unsupported number of planes
 #endif
-*/
+
   }
-//#if (nPlanes == 4)
+#if (nPlanes == 4)
   return (r << 12) | ((r & 0x8) << 8) | // 4/4/4 -> 5/6/5
          (g <<  7) | ((g & 0xC) << 3) |
          (b <<  1) | ( b        >> 3);
-/* #elif (nPlanes == 5)
+#elif (nPlanes == 5)
 
-#warning Requires 5 bit gamma
+#warning Requires 5 bit gamma table
 
   return (r << 11) |                    // 5/5/5 -> 5/6/5
          (g <<  6) | ((g & 0x10) << 1) |
          (b) ;
 #else
 #error Unsupported number of planes
-#endif 
-*/
+#endif
+
 }
 
 
@@ -824,13 +830,13 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
     break;
   }
 
-//#if (4 == nPlanes)
+#if (4 == nPlanes)
   // Adafruit_GFX uses 16-bit color in 5/6/5 format, while matrix needs
   // 4/4/4.  Pluck out relevant bits while separating into R,G,B:
   r =  c >> 12;        // RRRRrggggggbbbbb
   g = (c >>  7) & 0xF; // rrrrrGGGGggbbbbb
   b = (c >>  1) & 0xF; // rrrrrggggggBBBBb
-/*
+
 #elif (5 == nPlanes)
   r =  c >> 11;         // RRRRRggggggbbbbb
   g = (c >>  6) & 0x1F; // rrrrrGGGGGgbbbbb
@@ -838,7 +844,7 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
 #else
 #error drawPixel Unsupported number of planes
 #endif
-*/  
+
 
   // Loop counter stuff
   bit   = 2;
@@ -953,19 +959,21 @@ uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
     }
   }
 
-//#if (4 == nPlanes)
+#if (4 == nPlanes)
   return Color444(r, g, b);
-/*
 #elif (5 == nPlanes)
 //  return Color555(r, g, b);
   // RRRRRGGGGGgBBBBB
   return ((r & 0x1F) << 11) | 
          ((g & 0x1F) <<  6) | ((g & 0x10) << 2) |
-         ((b & 0x1F) <<   ) | ;
+         ((b & 0x1F) );
 #else
 #error getPixel Unsupported number of planes
+  return ((r & 0x1F) << 11) | 
+         ((g & 0x3F) <<  5) |
+         ((b & 0x1F) );  // return expression is here just to suppress warning message
 #endif
-*/
+
 }
 
 
@@ -1209,6 +1217,8 @@ void TmrHandler()
 // 2x32: 2370, 612, 572, 572, 2344, 612, 572, 572
   // with locals used in loop versions (not sure why little slower for most planes)
 
+// 1x16: nPlanes = 5: 1218, 400, 368, 368, 368, 1190, ...
+
 
 // TODO: Reameasure and update minRowTime if make major changes to timer service routine
 
@@ -1276,12 +1286,13 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // Takes about 1300 ticks for minimum row time on Stellaris for 1 16row panel
 //  So maximum refresh something in neighborhood of 500 cycles/second 
 
+// Optimized: 370 ticks for min row, -> about 800 cycles/second with 1 16 row, 5 planes
 
 // With 2 32 row panels
 //  Maximum refresh something in neighborhood of 128 cycles/second 
 //  Might get to neighborhood of 200 cycles/second with 120MHz clock (TM4C1294)
 
-// Optimized version might be able to do 500 refreshes/second for 2 panels
+// Optimized version might be able to do 500 refreshes/second for 2 panels, 4 planes
 
 
 // Returns refresh rate
