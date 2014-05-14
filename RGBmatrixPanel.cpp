@@ -64,19 +64,20 @@ Revisions:
 
 
 // On Tiva, define BENCHMARK to measure TimerHandler time
-#define BENCHMARK
+//#define BENCHMARK
 
 #if defined( BENCHMARK )
 #include "cyclecount.h"
 #endif
 
-// Define UNROLL_LOOP to linearize the inner loop in display
+// Define UNROLL_LOOP to speed up display by linearizing the inner loop
 #define UNROLL_LOOP
 
 // TODO: Clean up (or remove) code for UNROLL_LOOP not defined
 
-// portOutputRegister(port) not defined for Tiva, so make up own version
-// include port mask so do not have to do read modify write
+// Energia does not define portOutputRegister(port) for Tiva
+// So make up own version, portMaskedOutputRegister(port, mask)
+// include port mask to avoid read modify write
 // can just write to the address, without changing other pins
 
 // For reference:
@@ -106,7 +107,12 @@ Revisions:
 
 
 // Port/pin definitions for various launchpads
+// TODO: Could make data port configurable at run time 
+//   Compiling the port into the library does not help performance on ARM
+
 #if defined(__TM4C129XNCZAD__)
+
+#warning "Ports not defined for TM4C129 DK"
 
 #elif defined(__TM4C1294NCPDT__)
 // Tiva Connected Launchpad
@@ -120,18 +126,20 @@ Revisions:
 
 // Dataport values start as bits 1-7 of the byte
 // To use lower pin numbers, define DATAPORTSHIFT as the number of bits to shift the value left
-// e.g. if using pins 0-5, then define DATAPORTSHIFT to be -2 (and datapormask B00111111 )
+// e.g. if connect panel to pins 0-5, then define DATAPORTSHIFT to be -2 
+// and DATAPORTMASK B00111111
 //#define DATAPORTSHIFT -2
-// If leave it undefined there will be no shifting
+//#define DATAPORTMASK  B00111111
+// If leave DATAPORTSHIFT undefined there will be no shifting
 
-// Some ARM processors have more than 8 pins per port
+// Some ARM processors (e.g. SAM) have more than 8 pins per port
 // Therefore more likely to want to shift the pins on those processors
 // So DATAPORTSHIFT is defined as a left shift, 
-// even though right (negative) shifts are only useful ones on Tiva
+// even though right (negative) shifts are the only useful ones on Tiva
 
 
 // On Tiva, defining SCLKPORT as a constant slows down refresh code
-// sclkport is derived from sclk pin. 
+// instead sclkport is derived from sclk pin.
 //#define SCLKPORT      (*portDATARegister(PM))
 
 
@@ -147,9 +155,11 @@ Revisions:
 #define DATAPORT      (*portMaskedOutputRegister(PA, DATAPORTMASK))
 #define DATAPORTBASE  ((uint32_t)portBASERegister(PA))
 
-// Used in testing - show data on onboard LED
+// Used in testing - data makes onboard LED blink
 //#define DATAPORT      (*portMaskedOutputRegister(PF, DATAPORTMASK))
 //#define DATAPORTBASE  ((uint32_t)portBASERegister(PF))
+//#define DATAPORTMASK B01111110
+//#define DATAPORTSHIFT -1
 
 // On Tiva, defining SCLKPORT as a constant slows down refresh code
 // sclkport is derived from sclk pin. 
@@ -178,6 +188,8 @@ Revisions:
 //  TODO: Check Energia timer use for timers 4 and 5 on Connected LP
 //    Seems strange that, on Connected LP, Timers 4 and 5 are used both by tone/Energia and by PWM??
 //   Could select timer that does PWM for a pin that is otherwise in use.
+
+// TODO: Make timer selectable by user code
 
 
 #if defined(__TM4C1294NCPDT__)
@@ -253,7 +265,7 @@ Revisions:
 
 
 static const uint8_t nPlanes = 4;
-static const uint8_t nPackedPlanes = 3;  // 3 bytes holds 4 planes "packed"
+static const uint8_t nPackedPlanes = nPlanes - 1;  // 3 bytes holds 4 planes "packed"
 static const uint8_t BYTES_PER_ROW = 32;
 
 
@@ -273,7 +285,7 @@ static const uint16_t defaultRefreshFreq = 100; // Cycles per second
 #if !defined( SCLKPORT )
 #define SCLKPORT        (*sclkport)
 #else
-#warning SCLKPORT should not be defined on Stellaris/Tiva
+#warning Defining SCLKPORT as a constant slows down refresh on Stellaris/Tiva
 #endif
 
 
@@ -328,6 +340,8 @@ void TmrHandler(void);
 #define DATAPORTSHIFT 0
 #endif
 
+// Shift value left by shift bits  If shift is negative then uses a right shift.
+// (The compiler put out some more complicated code when given a constant negative shift.)
 #define LEFT_SHIFT(value, shift) ((shift < 0) ? (value) >> - (shift) : ((value) << (shift)))
 
 

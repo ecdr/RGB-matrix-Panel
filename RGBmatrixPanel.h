@@ -58,10 +58,10 @@ class RGBmatrixPanel : public Adafruit_GFX {
     a, b, c are the pins used for addressing the rows
     cclk, latch and oe are the pins used for Serial Clock, Latach and Output Enable
     dbuf enables double buffering. This will use 2x RAM for frame buffer, but will give nice smooth animation
-    pwidth is the number of Panels used together in a multi panel configuration
+    pwidth is the number of panels used together in a multi panel configuration
     */
 
-  // Constructor for 32x32 panel (adds 'd' pin)
+  // Constructor for 32x32 panel (adds 'd' address pin)
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
     uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth);
 
