@@ -9,7 +9,7 @@
 
 #define GAMMA 2.5
 
-int planes = 4;
+int planes = 5;
 
 int main(int argc, char *argv[])
 {
