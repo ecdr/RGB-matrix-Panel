@@ -98,7 +98,6 @@ Revisions:
 /*
 // TODO: Consider bitband version, for 1 bit control lines
 // BITBAND 
-/*
 //#define HWREGBITB(x, b)                                                       \
 //        HWREGB(((uint32_t)(x) & 0xF0000000) | 0x02000000 |                    \
 //               (((uint32_t)(x) & 0x000FFFFF) << 5) | ((b) << 2))
@@ -928,8 +927,14 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
 }
 
 uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
+  return getPixel(frontindex, x, y);
+    };
+    
+uint16_t RGBmatrixPanel::getPixel(uint8_t buf, int16_t x, int16_t y) {
   uint8_t r, g, b, bit, limit, *ptr;
 
+  if (buf >= nBuf)
+    buf = frontindex;
   if((x < 0) || (x >= _width) || (y < 0) || (y >= _height)) return 0;
 
   switch(rotation) {
@@ -959,7 +964,7 @@ uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
   if(y < nRows) {
     // Data for the upper half of the display is stored in the lower
     // bits of each byte.
-    ptr = &matrixbuff[frontindex][y * WIDTH * (nPlanes - 1) + x]; // Base addr
+    ptr = &matrixbuff[buf][y * WIDTH * (nPlanes - 1) + x]; // Base addr
 // plane 0 trick
     // Plane 0 is a tricky case -- its data is spread about,
     // stored in least two bits not used by the other planes.
@@ -979,7 +984,7 @@ uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
   } else {
     // Data for the lower half of the display is stored in the upper
     // bits, except for the plane 0 stuff, using 2 least bits.
-    ptr = &matrixbuff[frontindex][(y - nRows) * WIDTH * (nPlanes - 1) + x];
+    ptr = &matrixbuff[buf][(y - nRows) * WIDTH * (nPlanes - 1) + x];
 // plane 0 trick
     if (ptr[BYTES_PER_ROW] & B00000010) r |= 1;   // Plane 0 R: 32 bytes ahead, bit 1
     if (*ptr    & B00000001) g |= 1;   // Plane 0 G: bit 0
@@ -1029,9 +1034,9 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
 // returns nBuf for error (invalid buffer, or can not draw on buffer)
 uint8_t RGBmatrixPanel::setDraw(uint8_t buf) {
   if (buf < nBuf) {
-    if (readonly[buf])
+/*    if (readonly[buf])      // for flashBuf version
       return nBuf;
-    else 
+    else */
       return backindex = buf;
   }
   else
