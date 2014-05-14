@@ -11,6 +11,7 @@
 #include <Adafruit_GFX.h>   // Core graphics library
 #include <RGBmatrixPanel.h> // Hardware-specific library
 
+#if defined(__AVR__)
 
 #define CLK 8
 #define LAT A3
@@ -18,6 +19,30 @@
 #define A   A0
 #define B   A1
 #define C   A2
+
+#elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
+
+#define CLK PB_4
+#define LAT PE_4
+#define OE  PE_5      
+#define A   PE_3
+#define B   PE_1
+#define C   PE_2
+#define D   PE_4
+
+#elif defined( __TM4C1294NCPDT__ )
+
+#define CLK PM_1
+#define LAT PM_2
+#define OE  PM_0
+#define A   PQ_3
+#define B   PP_3
+#define C   PH_1
+#define D   PH_0
+
+#endif
+
+
 // Last parameter = 'true' enables double-buffering, for flicker-free,
 // buttery smooth animation.  Note that NOTHING WILL SHOW ON THE DISPLAY
 // until the first call to swapBuffers().  This is normal.
@@ -26,6 +51,7 @@ RGBmatrixPanel matrix(A, B, C, CLK, LAT, OE, true);
 //#include "image.h"
 
 
+// TODO: Adapt Energia timer functions to fill in these pseudo-functions
 typedef uint32_t TIME_T;
 
 // Time/timer operations
@@ -38,7 +64,8 @@ TIME_T msToTimet(uint16_t timems);
 // Delay until a given time
 int8_t delayuntil(TIME_T);
 
-// returned color cr : c2 - c1 :: r1 : r2
+
+// returned color cresult : c2 - c1 :: r1 : r2
 uint16_t interpolateColor(uint16_t c1, uint16_t c2, uint16_t r1, uint16_t r2);
 //RRRRRGGGGGgBBBBB 
 
@@ -53,7 +80,6 @@ uint8_t myFade(uint8_t bufTmp1, uint8_t bufTmp2, uint16_t tFade, uint8_t nSteps)
   uint8_t bufFrom = matrix.getFront();
   uint8_t bufTo = matrix.getNext();
   uint8_t myNxtBuf = bufTmp1;
-
   
   // Range checks
   if ((bufFrom == nBuf) || (bufTo == nBuf) || (bufTmp1 >= nBuf) || 
@@ -74,7 +100,7 @@ uint8_t myFade(uint8_t bufTmp1, uint8_t bufTmp2, uint16_t tFade, uint8_t nSteps)
     delayuntil(tstart + tStep);
     matrix.swapBuffers();           // Or could try FadeTo
 
-    // Switch to other temp buffer
+    // Switch to other temp buffer (show one while generate the next)
     myNxtBuf = ((myNxtBuf == bufTmp1) ? bufTmp2 : bufTmp1);
   }
   matrix.setNext(bufTo);          // Last time - display final buffer
@@ -106,6 +132,7 @@ uint16_t interpolateColor(uint16_t c1, uint16_t c2, uint16_t rat1, uint16_t rat2
   br = (b2 * rat1 + b1 * ratdif)/rat2;
   return matrix.Color888(rr,gr,br);
 }
+
 
 void setup() {
 //  matrix.setBufferPtr(4, img, sizeof(img));
