@@ -1048,6 +1048,11 @@ uint8_t RGBmatrixPanel::setNext(uint8_t next) {
     return nBuf;
 }
 
+// If called without arguments, makes the drawing buffer next
+uint8_t RGBmatrixPanel::setNext() {
+  return nextindex = backindex;
+}
+
 uint8_t RGBmatrixPanel::getDraw(void) {
   return backindex;
 }

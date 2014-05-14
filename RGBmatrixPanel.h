@@ -86,6 +86,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
   uint8_t
     setDraw(uint8_t back),
     setNext(uint8_t next),
+    setNext(),
     getBack(void),
     getNext(void);
   uint8_t
