@@ -724,6 +724,7 @@ uint16_t RGBmatrixPanel::Color888(
 // 000R, 000G, 000B -> R000 | r[4]000:00 | 0:0ggg:g000:0000 | g[3:2]00:000 | b:bbb0 | b[3]
 // Resulting bits are: R4R3R2R1R4 G4G3G2G1G4G3 B4B3B2B1B4  (R4 means bit 4 of R)
 
+
 uint16_t RGBmatrixPanel::ColorHSV(
   long hue, uint8_t sat, uint8_t val, boolean gflag) {
 
@@ -823,11 +824,21 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
     break;
   }
 
+//#if (4 == nPlanes)
   // Adafruit_GFX uses 16-bit color in 5/6/5 format, while matrix needs
   // 4/4/4.  Pluck out relevant bits while separating into R,G,B:
   r =  c >> 12;        // RRRRrggggggbbbbb
   g = (c >>  7) & 0xF; // rrrrrGGGGggbbbbb
   b = (c >>  1) & 0xF; // rrrrrggggggBBBBb
+/*
+#elif (5 == nPlanes)
+  r =  c >> 11;         // RRRRRggggggbbbbb
+  g = (c >>  6) & 0x1F; // rrrrrGGGGGgbbbbb
+  b = (c )      & 0x1F; // rrrrrggggggBBBBB
+#else
+#error drawPixel Unsupported number of planes
+#endif
+*/  
 
   // Loop counter stuff
   bit   = 2;
@@ -942,8 +953,21 @@ uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
     }
   }
 
-  return Color444(r, g, b);;
+//#if (4 == nPlanes)
+  return Color444(r, g, b);
+/*
+#elif (5 == nPlanes)
+//  return Color555(r, g, b);
+  // RRRRRGGGGGgBBBBB
+  return ((r & 0x1F) << 11) | 
+         ((g & 0x1F) <<  6) | ((g & 0x10) << 2) |
+         ((b & 0x1F) <<   ) | ;
+#else
+#error getPixel Unsupported number of planes
+#endif
+*/
 }
+
 
 
 void RGBmatrixPanel::fillScreen(uint16_t c) {
