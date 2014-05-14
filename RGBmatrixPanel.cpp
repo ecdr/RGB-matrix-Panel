@@ -1061,6 +1061,10 @@ uint8_t RGBmatrixPanel::getNext(void) {
   return nextindex;
 }
 
+uint8_t RGBmatrixPanel::getFront(void) {
+  return frontindex;
+}
+
 // -------------------- Buffers --------------------
 
 // Return address of front buffer -- can then read display directly
