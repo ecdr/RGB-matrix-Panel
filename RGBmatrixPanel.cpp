@@ -368,8 +368,8 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   nPanels = pwidth;
 
   // Allocate and initialize matrix buffer:
-  int buffsize  = BYTES_PER_ROW * nRows * nPackedPlanes * nPanels, // x3 = 3 bytes holds 4 planes "packed"
-      allocsize = (dbuf == true) ? (buffsize * nBuf) : buffsize;
+  unsigned int buffsize  = BYTES_PER_ROW * nRows * nPackedPlanes * nPanels;
+  unsigned int allocsize = (dbuf == true) ? (buffsize * nBuf) : buffsize;
   if(NULL == (matrixbuff[0] = (uint8_t *)malloc(allocsize))) return;
   memset(matrixbuff[0], 0, allocsize);
   // If not double-buffered, both buffers then point to the same address:
@@ -474,8 +474,13 @@ RGBmatrixPanel::RGBmatrixPanel(
 
   // Init a few extra 32x32-specific elements:
   _d        = d;
-  addrdport = portOutputRegister(digitalPinToPort(d));
   addrdpin  = digitalPinToBitMask(d);
+  
+#if defined(__TIVA__)
+  addrdport = portMaskedOutputRegister(digitalPinToPort(d), addrdpin);
+#else
+  addrdport = portOutputRegister(digitalPinToPort(d));
+#endif  
 }
 */
 
@@ -488,9 +493,9 @@ void RGBmatrixPanel::begin(void) {
   Serial.begin(9600);
 #endif
 
+/*
 #if defined(DEBUG)
 
-  // prints title with ending line break
   Serial.println("RGBMatrix:begin");
 
   Serial.print("DATAPORT:");
@@ -542,6 +547,7 @@ if(nRows > 8) {
   Serial.print("oepin ");
   Serial.println(oepin, HEX);
 #endif
+*/
 
   backindex   = 0;                         // Back buffer
   buffptr     = matrixbuff[1 - backindex]; // -> front buffer
@@ -559,8 +565,8 @@ if(nRows > 8) {
     pinMode(_d  , OUTPUT); *addrdport &= ~addrdpin; // Low
   }
 
-  // The high six bits of the data port are set as outputs;
-  // Might make this configurable in the future, but not yet.
+  // Configure dataport bits as output, and initialize to 0
+
 #if defined(__TIVA__)
   MAP_GPIOPinTypeGPIOOutput( DATAPORTBASE, DATAPORTMASK );
   MAP_GPIOPinWrite(DATAPORTBASE, DATAPORTMASK, 0);
@@ -628,23 +634,9 @@ if(nRows > 8) {
 #endif
 }
 
-/* Notes:
-#define timerToTimeout(timer)  (TIMER_TIMA_TIMEOUT << timerToAB(timer))
-
-  uint32_t timerBase = getTimerBase(timerToOffset(TIMER));
-  uint32_t timerAB = TIMER_A << timerToAB(TIMER);
-
-// Timer setup
-
-  uint32_t final = ( ( uint64_t )period_us * TIMER_CLK ) / ticksPerSecond;
-  MAP_TimerDisable( timerBase, timerAB );
-  MAP_TimerIntClear( timerBase, timerToTimeout(TIMER) );
-  MAP_TimerLoadSet( timerBase, timerAB, ( uint32_t )final - 1 );
- 
-*/  
-
 
 void RGBmatrixPanel::stop(void) {
+
 #if defined(__TIVA__)
 // Stop timer
   
@@ -654,8 +646,13 @@ void RGBmatrixPanel::stop(void) {
   IntUnregister(TIMER_INT);
 #else
 
+#warning "Need AVR code to turn off timer"
+
 #endif  // __TIVA__
+
 // TODO: Should probably send all 0's to the panel
+
+  *oeport    |= oepin;     // High (disable output)
 
   activePanel = NULL;
 }
@@ -998,7 +995,8 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
 // (sure, the transition starts in the middle of a frame, but is that a problem?
 //  would one see that temporary top of screen is old display bottom new for that
 //  vs whole display new repaint - given that lasts 1/200 second, and that each one
-//  is a continuation of temporally adjacent patterns (just part is from the old, and part is from the new))
+//  is a continuation of temporally adjacent patterns 
+//  (just part is from the old, and part is from the new))
 
     while(swapflag == true) delay(1); // wait for interrupt to clear it
     if(copy == true)
@@ -1128,14 +1126,16 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 
 #if defined( BENCHMARK )
 
+// Number of times to print time taken by updateDisplay
 uint8_t nprint = 20;
 
 #endif
 
+
 void TmrHandler()
 {
 #if defined( BENCHMARK )
-  c_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // at the beginning of the tested code
+  c_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // beginning of the tested code
 #endif
 
   activePanel->updateDisplay();
@@ -1143,7 +1143,7 @@ void TmrHandler()
   MAP_TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
 
 #if defined( BENCHMARK )
-  c_stop = HWREG(DWT_BASE + DWT_O_CYCCNT);  // at the end of the tested code  
+  c_stop = HWREG(DWT_BASE + DWT_O_CYCCNT);  // end of the tested code  
 
   if (nprint > 0){
     --nprint;
@@ -1158,19 +1158,17 @@ void TmrHandler()
 // minRowTime =  minRowTimePerPanel * nPanels + minRowTimeConst
 //   minRowTime needs to be greater than the time for the shortest row
 //   It also needs to be long enough that planes with extra processing
-//     Will still fit, when done with the appropriate multiplier
+//     will still fit when done with the appropriate multiplier
 //     e.g. if use fancy coding for the 4th plane, 
 //     then handling that must take less than minRowTime << 3 
 //
 // Can measure by setting BENCHMARK, and checking serial output
-//   Does not include interrupt overhead to call timer handler
+//   BENCHMARK result does not include interrupt overhead to call timer handler
 //   Includes a couple of assignments, to record start/stop times
 //
 // TimePerPanel = time for 2 panel - time for 1 panel
 // TimeConst    = time for 1 panel - TimePerPanel
 //
-
-// TODO: Reameasure and update minRowTime if make major changes to timer service routine
 
 // Before optimization:
 // Stellaris: At 80 MHz, with 4 planes, 200 cycles/second gives about 3333 ticks/row
@@ -1188,7 +1186,10 @@ void TmrHandler()
   // with locals used in loop versions (not sure why little slower for most planes)
 
 
+// TODO: Reameasure and update minRowTime if make major changes to timer service routine
+
 // TODO: Timing does not include shift - adjust if DATAPORTSHIFT != 0
+
 #if defined(__TM4C1294NCPDT__)
 // Connected Launchpad (120 MHz clock)
 
@@ -1205,9 +1206,6 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 
 #endif // UNROLL_LOOP
 
-#elif defined(__TM4C129XNCZAD__)
-
-
 #elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
 // For Stellaris Launchpad (80 MHz clock)
 
@@ -1221,6 +1219,10 @@ const uint16_t minRowTimeConst = 180;            // Overhead ticks
 #endif // UNROLL_LOOP
 
 // minRowTime = 1148 * nPanels + 176 = 1324
+
+#elif defined(__TM4C129XNCZAD__)
+
+#warning "Row timing not determined for TM4C129 DK"
 
 #else
 
@@ -1272,12 +1274,15 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
   Serial.print(rowtimetemp);
 #endif
 
-  if (rowtimetemp < minRowTimePerPanel * nPanels + minRowTimeConst){  // Approximate sanity check
+  // Approximate sanity check (try to keep from making refresh rate too high)
+  if (rowtimetemp < minRowTimePerPanel * nPanels + minRowTimeConst){  
     rowtime = minRowTimePerPanel * nPanels + minRowTimeConst;
+
 #if defined(DEBUG)
   Serial.print(", Rowtime: ");
   Serial.print(rowtime);
 #endif
+
     }
   else
     rowtime = rowtimetemp;
@@ -1350,8 +1355,8 @@ void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, *ptr;
 #if defined(__TIVA__)
   uint32_t duration;
-volatile uint8_t * dataport = &DATAPORT;
-volatile uint8_t * sclkp = &SCLKPORT;
+  volatile uint8_t * dataport = &DATAPORT;
+  volatile uint8_t * sclkp = &SCLKPORT;
  
 #else
   uint16_t t;
@@ -1375,8 +1380,7 @@ volatile uint8_t * sclkp = &SCLKPORT;
 
 #if defined(__TIVA__)
   duration = rowtime << plane;
-  // FIXME: Check counter calculation - can probably simplify duration vs this
-//  uint32_t final = ( ( uint64_t )duration * TIMER_CLK ) / 1000000;  // duration in usec
+
 #else
   // Calculate time to next interrupt BEFORE incrementing plane #.
   // This is because duration is the display time for the data loaded
@@ -1460,16 +1464,7 @@ volatile uint8_t * sclkp = &SCLKPORT;
     // Plane 0 was loaded on prior interrupt invocation and is about to
     // latch now, so update the row address lines before we do that:
 #if defined(__TIVA__)
-// TODO: See if code generated is smaller if use 0xFF in place of addrxpin in the conditional expression
-//  Since using pin masking, they should have same effect
-//  (Or if using code as above, but simple = addrpin or = ~addrpin, or = 0, or = 0xFF)
-//  could also compare to using bitbanding (then just write a 1 or a 0)
-/*
-    *addraport = (row & 0x1) ? addrapin : 0;
-    *addrbport = (row & 0x2) ? addrbpin : 0;
-    *addrcport = (row & 0x4) ? addrcpin : 0;
-    if(nRows > 8)
-      *addrdport = (row & 0x8) ? addrdpin : 0; */
+// TODO: could compare to using bitbanding (then just write a 1 or a 0)
 
     *addraport = ((row & 0x1) ? 0xFF : 0);
     *addrbport = ((row & 0x2) ? 0xFF : 0);
@@ -1495,6 +1490,8 @@ volatile uint8_t * sclkp = &SCLKPORT;
   // A local register copy can speed some things up:
   ptr = (uint8_t *)buffptr;
 
+
+// Set timer for next interrupt
 #if defined(__TIVA__)
 
 /*
@@ -1511,6 +1508,7 @@ volatile uint8_t * sclkp = &SCLKPORT;
   ICR1      = duration; // Set interval for next interrupt
   TCNT1     = 0;        // Restart interrupt timer
 #endif
+
 
 #if defined(__TIVA__)
   *oeport  = 0;  // Re-enable output
@@ -1533,6 +1531,7 @@ volatile uint8_t * sclkp = &SCLKPORT;
   tock = SCLKPORT;
   tick = tock | sclkpin;
 #else
+  // Tiva uses masking, so do not worry about changing other pins.
   static const uint8_t tick = 0xFF;
   static const uint8_t tock = 0;
 #endif
@@ -1558,7 +1557,10 @@ volatile uint8_t * sclkp = &SCLKPORT;
          [tick] "r" (tick),                   \
          [tock] "r" (tock));
 
+// Always unroll loop on AVR
+#if !defined( UNROLL_LOOP )
 #define UNROLL_LOOP
+#endif
 
 #else				// Code for non AVR (i.e. Due and ARM based systems)
 
@@ -1572,8 +1574,9 @@ volatile uint8_t * sclkp = &SCLKPORT;
 //#define pew DATAPORT = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); SCLKPORT = tick; SCLKPORT = tock;
 
 
-// Possible improvement would be if could read a word,
+// Possible improvement might be if could read a word,
 // then shift it to output 4 successive bytes.
+// TODO: Try this, see if it improves performance
 //
 // uint32_t * ptr;
 // t = *ptr++; *dataport = t; *dataport = t>>8; * dataport = t>>16; ...
@@ -1603,25 +1606,28 @@ volatile uint8_t * sclkp = &SCLKPORT;
     } 
 
 #else     // Loopy version
-
+/*
     // Calculating final value ahead saves 2 instructions per loop
+    // This version was tested and does work
     uint8_t iFinal = (BYTES_PER_ROW*nPanels); 
 
     for(i=0; i<iFinal; i++)
     {
       * dataport = LEFT_SHIFT((ptr[i]), DATAPORTSHIFT);
-// I think the comments here were wrong, said tick was lo, tock hi?
       * sclkp = tick;
       * sclkp = tock;
     }
-/*
-// Pointers rather than indexing, saves 2 more instructions per loop
+*/
+// For loop pointer, rather than indexing, saves 2 more instructions per loop
     uint8_t *pFinal = ptr + (BYTES_PER_ROW*nPanels);
     for(; ptr<pFinal; ptr++)
     {
-      DATAPORT = LEFT_SHIFT((*ptr), DATAPORTSHIFT);;
-      SCLKPORT = tick;
-      SCLKPORT = tock;
+      * dataport = LEFT_SHIFT((ptr[i]), DATAPORTSHIFT);
+      * sclkp = tick;
+      * sclkp = tock;
+//      DATAPORT = LEFT_SHIFT((*ptr), DATAPORTSHIFT);;
+//      SCLKPORT = tick;
+//      SCLKPORT = tock;
     }
 */
 #endif
