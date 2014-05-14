@@ -1025,25 +1025,34 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
 
 // -------------------- Buffer --------------------
 
-uint8_t RGBmatrixPanel::backIndex(uint8_t back) {
-  if (back < nBuf)
-    return backindex = back;
+// Select buffer to draw on, returns buffer selected, 
+// returns nBuf for error (invalid buffer, or can not draw on buffer)
+uint8_t RGBmatrixPanel::setDraw(uint8_t buf) {
+  if (buf < nBuf) {
+    if (readonly[buf])
+      return nBuf;
+    else 
+      return backindex = buf;
+  }
   else
     return nBuf;
 }
 
-uint8_t RGBmatrixPanel::nextIndex(uint8_t next) {
+// Select buffer to display next 
+// (buffer that will be displayed when call swapBuffers or fade)
+// returns nBuf for error (invalid buffer, or can not draw on buffer)
+uint8_t RGBmatrixPanel::setNext(uint8_t next) {
   if (next < nBuf)
     return nextindex = next;
   else
     return nBuf;
 }
 
-uint8_t RGBmatrixPanel::getBackIndex(void) {
+uint8_t RGBmatrixPanel::getDraw(void) {
   return backindex;
 }
 
-uint8_t RGBmatrixPanel::getNextIndex(void) {
+uint8_t RGBmatrixPanel::getNext(void) {
   return nextindex;
 }
 
