@@ -1049,7 +1049,7 @@ uint8_t RGBmatrixPanel::setNext(uint8_t next) {
 }
 
 // If called without arguments, makes the drawing buffer next
-uint8_t RGBmatrixPanel::setNext() {
+uint8_t RGBmatrixPanel::setNext(void) {
   return nextindex = backindex;
 }
 
@@ -1072,6 +1072,15 @@ uint8_t *RGBmatrixPanel::frontBuffer() {
 uint8_t *RGBmatrixPanel::backBuffer() {
   return matrixbuff[backindex];
 }
+
+// Return address of given buffer -- can then load/store data directly
+uint8_t *RGBmatrixPanel::buffer(uint8_t buf) {
+  if (buf < nBuf)
+    return matrixbuff[buf];
+  else
+    return NULL;
+}
+
 
 // swaps front and next
 
