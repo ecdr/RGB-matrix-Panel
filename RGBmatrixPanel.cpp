@@ -1033,12 +1033,8 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
 // Select buffer to draw on, returns buffer selected, 
 // returns nBuf for error (invalid buffer, or can not draw on buffer)
 uint8_t RGBmatrixPanel::setDraw(uint8_t buf) {
-  if (buf < nBuf) {
-/*    if (readonly[buf])      // for flashBuf version
-      return nBuf;
-    else */
-      return backindex = buf;
-  }
+  if (buf < nBuf) 
+    return backindex = buf;
   else
     return nBuf;
 }
