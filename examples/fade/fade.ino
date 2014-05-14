@@ -26,26 +26,21 @@ RGBmatrixPanel matrix(A, B, C, CLK, LAT, OE, true);
 //#include "image.h"
 
 
-void setup() {
-//  matrix.setBufferPtr(4, img, sizeof(img));
-#warning need to draw something
-  matrix.begin();
-  matrix.setNext(4);
-  matrix.swapBuffers(false);
-  delay(1000);
-
-}
-
-// Try using multiple buffers
-
 typedef uint32_t TIME_T;
 
+// Time/timer operations
+// Get current timer time
 TIME_T gettime(void);
+
+// Convert from time in ms to time in timer units
+TIME_T msToTimet(uint16_t timems);
+
+// Delay until a given time
 int8_t delayuntil(TIME_T);
 
-
+// returned color cr : c2 - c1 :: r1 : r2
 uint16_t interpolateColor(uint16_t c1, uint16_t c2, uint16_t r1, uint16_t r2);
-
+//RRRRRGGGGGgBBBBB 
 
 // Fade from front to next in time tFade (ms)
 // bufTmp1, 2 are temporary for interpolated images
@@ -54,7 +49,7 @@ uint8_t myFade(uint8_t bufTmp1, uint8_t bufTmp2, uint16_t tFade, uint8_t nSteps)
   uint16_t x, y;
 
   TIME_T tstart = gettime();               // When started showing previous image
-  uint16_t tStep = tFade / nSteps;
+  TIME_T tStep = msToTimet(tFade / nSteps);
   uint8_t bufFrom = matrix.getFront();
   uint8_t bufTo = matrix.getNext();
   uint8_t myNxtBuf = bufTmp1;
@@ -86,6 +81,40 @@ uint8_t myFade(uint8_t bufTmp1, uint8_t bufTmp2, uint16_t tFade, uint8_t nSteps)
   delayuntil(tstart + tStep);   // Wait until time to show the final buffer
   matrix.swapBuffers();           // Or could try FadeTo
   return 0;
+}
+
+// Convert 5/6/5 to 8/8/8 color
+//RRRRRGGGGGgBBBBB  -> RRRRR000, GGGGGg00, BBBBB000
+
+#define GETRGB(c, r, g, b) {r = (c >> 8) & 0xF8; g = (c >> 3) & 0xFC ; b = (c << 3) & 0xF8;}
+
+
+// This will probably be really slow.
+// Might be able to speed up by caching current value and delta value for each color for each pixel
+//   (might take fair ammount of space).
+// Simple speedup would be to cache ratdif, since that is constant for many calls
+uint16_t interpolateColor(uint16_t c1, uint16_t c2, uint16_t rat1, uint16_t rat2){
+  //result = c1 + rat1/rat2 * (c2 - c1);
+  uint16_t r1, g1, b1, r2, g2, b2;
+  uint8_t rr, gr, br;
+  GETRGB(c1, r1, g1, b1);
+  GETRGB(c2, r2, g2, b2);
+  uint16_t ratdif = rat2 - rat1;
+//  rr = r1 + ((r2 - r1) * rat1)/rat2;
+  rr = (r2 * rat1 + r1 * ratdif)/rat2;
+  gr = (g2 * rat1 + g1 * ratdif)/rat2;
+  br = (b2 * rat1 + b1 * ratdif)/rat2;
+  return matrix.Color888(rr,gr,br);
+}
+
+void setup() {
+//  matrix.setBufferPtr(4, img, sizeof(img));
+#warning need to draw something
+  matrix.begin();
+  matrix.setNext(4);
+  matrix.swapBuffers(false);
+  delay(1000);
+
 }
 
 
