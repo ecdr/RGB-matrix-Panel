@@ -1153,40 +1153,9 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 }
 
 
-// -------------------- Interrupt handler stuff --------------------
-
+// -------------------- Refresh timing --------------------
 
 #if defined(__TIVA__)
-
-#if defined( BENCHMARK )
-
-// Number of times to print time taken by updateDisplay
-uint8_t nprint = 20;
-
-#endif
-
-
-void TmrHandler()
-{
-#if defined( BENCHMARK )
-  c_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // beginning of the tested code
-#endif
-
-  activePanel->updateDisplay();
-
-  MAP_TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
-
-#if defined( BENCHMARK )
-  c_stop = HWREG(DWT_BASE + DWT_O_CYCCNT);  // end of the tested code  
-
-  if (nprint > 0){
-    --nprint;
-    Serial.print("Tmh: ");
-    Serial.println(c_stop - c_start);
-    };
-#endif
-}
-
 
 // Minimum refresh timing
 // minRowTime =  minRowTimePerPanel * nPanels + minRowTimeConst
@@ -1263,18 +1232,6 @@ const uint16_t minRowTimeConst = 180;            // Overhead ticks
 #endif
 
 
-#else
-//#elif defined(__AVR__)
-
-ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
-  activePanel->updateDisplay();   // Call refresh func for active display
-  TIFR1 |= TOV1;                  // Clear Timer1 interrupt flag
-}
-
-#endif // __TIVA__
-
-
-#if defined(__TIVA__)
 
 // Caution: Blank the display before changing refresh
 // May introduce a visual glitch if redefine refresh rate while displaying something
@@ -1327,6 +1284,52 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
   Serial.println(refreshFreq);
 #endif
   return refreshFreq;
+}
+
+#endif // __TIVA__
+
+
+// -------------------- Interrupt handler stuff --------------------
+
+
+#if defined(__TIVA__)
+
+#if defined( BENCHMARK )
+
+// Number of times to print time taken by updateDisplay
+uint8_t nprint = 20;
+
+#endif
+
+
+void TmrHandler()
+{
+#if defined( BENCHMARK )
+  c_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // beginning of the tested code
+#endif
+
+  activePanel->updateDisplay();
+
+  MAP_TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
+
+#if defined( BENCHMARK )
+  c_stop = HWREG(DWT_BASE + DWT_O_CYCCNT);  // end of the tested code  
+
+  if (nprint > 0){
+    --nprint;
+    Serial.print("Tmh: ");
+    Serial.println(c_stop - c_start);
+    };
+#endif
+}
+
+
+#else
+//#elif defined(__AVR__)
+
+ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
+  activePanel->updateDisplay();   // Call refresh func for active display
+  TIFR1 |= TOV1;                  // Clear Timer1 interrupt flag
 }
 
 #endif // __TIVA__
