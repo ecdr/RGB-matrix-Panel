@@ -397,6 +397,8 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   // Look up port registers and pin masks ahead of time,
   // avoids many slow digitalWrite() calls later.
 #if defined(__TIVA__)
+  dimtime = 0;
+  dimwait = false;
 
 // Tiva Energia does not provide portOutputRegister macro
   sclkpin   = digitalPinToBitMask(sclk);
@@ -1286,6 +1288,15 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
   return refreshFreq;
 }
 
+
+// Dimmer - set a delay between refreshes (with LEDs turned off)
+void RGBmatrixPanel::setDim(uint32_t time){
+// TODO: Should probably specify some minimum delay, allow time for 
+// clearing interrupt and return from interrupt
+  dimwait = false;  // Next interrupt will be a refresh, one after that will be a delay
+  dimtime = time;   // Setting dimtime != 0 enables the delay
+}
+
 #endif // __TIVA__
 
 
@@ -1304,6 +1315,7 @@ uint8_t nprint = 20;
 
 void TmrHandler()
 {
+
 #if defined( BENCHMARK )
   c_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // beginning of the tested code
 #endif
@@ -1398,6 +1410,23 @@ void RGBmatrixPanel::updateDisplay(void) {
   uint16_t duration;
 #endif
 
+
+#if defined(__TIVA__)
+  // Dimmer - Insert a delay with LEDs off between refreshes
+  if (dimtime){
+    if (dimwait){
+      // last time was a refresh, so this time we wait
+      dimwait = false;   // Next interrupt will not be a wait
+      *oeport  = oepin;  // Disable LED output during delay
+// TODO: should the latch be done now, or should that wait until really going to change addr
+
+      MAP_TimerLoadSet( TIMER_BASE, TIMER_A, dimtime );
+      MAP_TimerEnable( TIMER_BASE, TIMER_A );
+      return;
+    } else
+      dimwait = true;
+  }
+#endif
 
 #if defined(__TIVA__)
   *oeport  = oepin;  // Disable LED output during row/plane switchover
