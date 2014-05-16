@@ -83,7 +83,8 @@ class RGBmatrixPanel : public Adafruit_GFX {
     fillScreen(uint16_t c),   // fill current drawing buffer with color c
     updateDisplay(void),      // TODO: Why is updateDisplay public?
     swapBuffers(boolean copy = false),  // Display next buffer
-    dumpMatrix(void);
+    dumpMatrix(void),
+    dumpMatrix(uint8_t buf);
   int8_t
     loadBuffer(uint8_t *img, uint16_t imgsize);
   uint8_t

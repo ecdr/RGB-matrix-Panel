@@ -1204,15 +1204,24 @@ boolean RGBmatrixPanel::fading() {
 
 #endif
 
+void RGBmatrixPanel::dumpMatrix(void){
+  dumpMatrix(backindex);
+}
 
 // Dump display contents to the Serial Monitor, adding some formatting to
 // simplify copy-and-paste of data as a PROGMEM-embedded image for another
 // sketch.  If using multiple dumps this way, you'll need to edit the
 // output to change the 'img' name for each.  Data can then be loaded
 // back into the display using a pgm_read_byte() loop.
-void RGBmatrixPanel::dumpMatrix(void) {
+void RGBmatrixPanel::dumpMatrix(uint8_t buf) {
 
   int i, buffsize = WIDTH * nRows * nPackedPlanes;
+
+  if (buf >= nBuf){
+    Serial.print("dumpMatrix: Invalid buffer number");
+    Serial.println(buf);
+    return;
+  }
 
   Serial.print("// RGBmatrixPanel image, ");
   Serial.print(nPanels);
@@ -1232,8 +1241,8 @@ void RGBmatrixPanel::dumpMatrix(void) {
 
   for(i=0; i<buffsize; i++) {
     Serial.print("0x");
-    if(matrixbuff[backindex][i] < 0x10) Serial.print('0');
-    Serial.print(matrixbuff[backindex][i],HEX);
+    if(matrixbuff[buf][i] < 0x10) Serial.print('0');
+    Serial.print(matrixbuff[buf][i],HEX);
     if(i < (buffsize - 1)) {
       if((i & 7) == 7) Serial.print(",\n  ");
       else             Serial.print(',');
