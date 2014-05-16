@@ -857,7 +857,7 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
   if(y < nRows) {
     // Data for the upper half of the display is stored in the lower
     // bits of each byte.
-    ptr = &matrixbuff[backindex][y * WIDTH * (nPlanes - 1) + x]; // Base addr
+    ptr = &matrixbuff[backindex][y * WIDTH * nPackedPlanes + x]; // Base addr
 // FIXME: Adapt for nBuf > 2
     // Plane 0 is a tricky case -- its data is spread about,
     // stored in least two bits not used by the other planes.
@@ -882,7 +882,7 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
   } else {
     // Data for the lower half of the display is stored in the upper
     // bits, except for the plane 0 stuff, using 2 least bits.
-    ptr = &matrixbuff[backindex][(y - nRows) * WIDTH * (nPlanes - 1) + x];
+    ptr = &matrixbuff[backindex][(y - nRows) * WIDTH * nPackedPlanes + x];
 // FIXME: Adapt for nBuf > 2
     *ptr &= ~B00000011;               // Plane 0 G,B mask out in one op
     if(r & 1)  ptr[BYTES_PER_ROW*nPanels] |=  B00000010; // Plane 0 R: 32 bytes ahead, bit 1
@@ -931,7 +931,7 @@ uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
   if(y < nRows) {
     // Data for the upper half of the display is stored in the lower
     // bits of each byte.
-    ptr = &matrixbuff[1-backindex][y * WIDTH * (nPlanes - 1) + x]; // Base addr
+    ptr = &matrixbuff[1-backindex][y * WIDTH * nPackedPlanes + x]; // Base addr
 // FIXME: Adapt for nBuf > 2
     // Plane 0 is a tricky case -- its data is spread about,
     // stored in least two bits not used by the other planes.
@@ -950,7 +950,7 @@ uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
   } else {
     // Data for the lower half of the display is stored in the upper
     // bits, except for the plane 0 stuff, using 2 least bits.
-    ptr = &matrixbuff[1-backindex][(y - nRows) * WIDTH * (nPlanes - 1) + x];
+    ptr = &matrixbuff[1-backindex][(y - nRows) * WIDTH * nPackedPlanes + x];
 // FIXME: Adapt for nBuf > 2
     if (ptr[BYTES_PER_ROW] & B00000010) r |= 1;   // Plane 0 R: 32 bytes ahead, bit 1
     if (*ptr    & B00000001) g |= 1;   // Plane 0 G: bit 0
