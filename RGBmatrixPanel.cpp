@@ -861,17 +861,17 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
 // FIXME: Adapt for nBuf > 2
     // Plane 0 is a tricky case -- its data is spread about,
     // stored in least two bits not used by the other planes.
-    ptr=ptr+BYTES_PER_ROW*2*nPanels;
+    ptr=ptr+WIDTH*2;
     *ptr &= ~B00000011;            // Plane 0 R,G mask out in one op
     if(r & 1) *ptr |=  B00000001;  // Plane 0 R: 64 bytes ahead, bit 0
     if(g & 1) *ptr |=  B00000010;  // Plane 0 G: 64 bytes ahead, bit 1
-    ptr=ptr-BYTES_PER_ROW*nPanels;
+    ptr=ptr-WIDTH;
     if(b & 1) *ptr |=  B00000001;  // Plane 0 B: 32 bytes ahead, bit 0
     else      *ptr &= ~B00000001;  // Plane 0 B unset; mask out
     // The remaining three image planes are more normal-ish.
     // Data is stored in the high 6 bits so it can be quickly
     // copied to the DATAPORT register w/6 output lines.
-    ptr=ptr-BYTES_PER_ROW*nPanels;
+    ptr=ptr-WIDTH;
     for(; bit < limit; bit <<= 1) {
       *ptr &= ~B00011100;             // Mask out R,G,B in one op
       if(r & bit) *ptr |= B00000100;  // Plane N R: bit 2
@@ -885,8 +885,8 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
     ptr = &matrixbuff[backindex][(y - nRows) * WIDTH * nPackedPlanes + x];
 // FIXME: Adapt for nBuf > 2
     *ptr &= ~B00000011;               // Plane 0 G,B mask out in one op
-    if(r & 1)  ptr[BYTES_PER_ROW*nPanels] |=  B00000010; // Plane 0 R: 32 bytes ahead, bit 1
-    else       ptr[BYTES_PER_ROW*nPanels] &= ~B00000010; // Plane 0 R unset; mask out
+    if(r & 1)  ptr[WIDTH] |=  B00000010; // Plane 0 R: 32 bytes ahead, bit 1
+    else       ptr[WIDTH] &= ~B00000010; // Plane 0 R unset; mask out
     if(g & 1) *ptr     |=  B00000001; // Plane 0 G: bit 0
     if(b & 1) *ptr     |=  B00000010; // Plane 0 B: bit 1
     for(; bit < limit; bit <<= 1) {
@@ -935,9 +935,9 @@ uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
 // FIXME: Adapt for nBuf > 2
     // Plane 0 is a tricky case -- its data is spread about,
     // stored in least two bits not used by the other planes.
-    if (ptr[BYTES_PER_ROW*2] & B00000001) r |= 1;   // Plane 0 R: 64 bytes ahead, bit 0
-    if (ptr[BYTES_PER_ROW*2] & B00000010) g |= 1;   // Plane 0 G: 64 bytes ahead, bit 1
-    if (ptr[BYTES_PER_ROW] & B00000001) b |= 1;     // Plane 0 B: 32 bytes ahead, bit 0
+    if (ptr[WIDTH*2] & B00000001) r |= 1;   // Plane 0 R: 2*WIDTH bytes ahead, bit 0
+    if (ptr[WIDTH*2] & B00000010) g |= 1;   // Plane 0 G: 2*WIDTH bytes ahead, bit 1
+    if (ptr[WIDTH] & B00000001) b |= 1;     // Plane 0 B: WIDTH bytes ahead, bit 0
     // The remaining three image planes are more normal-ish.
     // Data is stored in the high 6 bits so it can be quickly
     // copied to the DATAPORT register w/6 output lines.
@@ -952,7 +952,7 @@ uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
     // bits, except for the plane 0 stuff, using 2 least bits.
     ptr = &matrixbuff[1-backindex][(y - nRows) * WIDTH * nPackedPlanes + x];
 // FIXME: Adapt for nBuf > 2
-    if (ptr[BYTES_PER_ROW] & B00000010) r |= 1;   // Plane 0 R: 32 bytes ahead, bit 1
+    if (ptr[WIDTH] & B00000010) r |= 1;   // Plane 0 R: WIDTH bytes ahead, bit 1
     if (*ptr    & B00000001) g |= 1;   // Plane 0 G: bit 0
     if (*ptr    & B00000010) b |= 1;   // Plane 0 B: bit 1
     for(; bit < limit; bit <<= 1) {
@@ -985,7 +985,7 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
     // For black or white, all bits in frame buffer will be identically
     // set or unset (regardless of weird bit packing), so it's OK to just
     // quickly memset the whole thing:
-    memset(matrixbuff[backindex], c, BYTES_PER_ROW * nRows * nPackedPlanes * nPanels);
+    memset(matrixbuff[backindex], c, WIDTH * nRows * nPackedPlanes );
   } else {
     // Otherwise, need to handle it the long way:
     Adafruit_GFX::fillScreen(c);
@@ -1034,7 +1034,7 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
 
     while(swapflag == true) delay(1); // wait for interrupt to clear it
     if(copy == true)
-      memcpy(matrixbuff[backindex], matrixbuff[1-backindex], BYTES_PER_ROW * nRows * nPackedPlanes * nPanels);
+      memcpy(matrixbuff[backindex], matrixbuff[1-backindex], WIDTH * nRows * nPackedPlanes );
 // TODO: Reduce busy wait - if copy is false, we could avoid this delay 
 //  However other update functions would need to check to be sure the backbuffer was okay to use
 //  (while swapflag is true, can not modify either buffer).
@@ -1639,11 +1639,8 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 #else     // Loopy version
 /*
-    // Calculating final value ahead saves 2 instructions per loop
     // This version was tested and does work
-    uint8_t iFinal = (BYTES_PER_ROW*nPanels); 
-
-    for(i=0; i<iFinal; i++)
+    for(i=0; i<WIDTH; i++)
     {
       * dataport = LEFT_SHIFT((ptr[i]), DATAPORTSHIFT);
       * sclkp = tick;
@@ -1651,7 +1648,7 @@ void RGBmatrixPanel::updateDisplay(void) {
     }
 */
 // For loop pointer, rather than indexing, saves 2 more instructions per loop
-    uint8_t *pFinal = ptr + (BYTES_PER_ROW*nPanels);
+    uint8_t *pFinal = ptr + WIDTH;
     for(; ptr<pFinal; ptr++)
     {
       * dataport = LEFT_SHIFT((ptr[i]), DATAPORTSHIFT);
@@ -1663,7 +1660,7 @@ void RGBmatrixPanel::updateDisplay(void) {
     }
 */
 #endif
-    buffptr += (BYTES_PER_ROW*nPanels);
+    buffptr += WIDTH;
 
 
   } else { // 920 ticks from TCNT1=0 (above) to end of function
@@ -1677,19 +1674,19 @@ void RGBmatrixPanel::updateDisplay(void) {
     // output for plane 0 is handled while plane 3 is being displayed...
     // because binary coded modulation is used (not PWM), that plane
     // has the longest display interval, so the extra work fits.
-    for(i=0; i<(BYTES_PER_ROW*nPanels); i++) {
+    for(i=0; i<WIDTH; i++) {
 #if defined(__AVR__)
       DATAPORT =
         ( ptr[i]    << 6)                   |
-        ((ptr[i+(BYTES_PER_ROW*nPanels)] << 4) & 0x30) |
-        ((ptr[i+(BYTES_PER_ROW*2*nPanels)] << 2) & 0x0C);
+        ((ptr[i+WIDTH] << 4) & 0x30) |
+        ((ptr[i+(WIDTH*2)] << 2) & 0x0C);
       SCLKPORT = tick;
       SCLKPORT = tock;
 #else
       * dataport =
         LEFT_SHIFT((( ptr[i]    << 6)                   |
-        ((ptr[i+(BYTES_PER_ROW*nPanels)] << 4) & 0x30) |
-        ((ptr[i+(BYTES_PER_ROW*2*nPanels)] << 2) & 0x0C)), DATAPORTSHIFT);
+        ((ptr[i+WIDTH] << 4) & 0x30) |
+        ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
       * sclkp = tick;
       * sclkp = tock;
 #endif
