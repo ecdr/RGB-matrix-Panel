@@ -378,7 +378,7 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   nPanels = pwidth;
 
   // Allocate and initialize matrix buffer:
-  unsigned int buffsize  = BYTES_PER_ROW * nRows * nPackedPlanes * nPanels;
+  unsigned int buffsize  = WIDTH * nRows * nPackedPlanes;
   unsigned int allocsize = (dbuf == true) ? (buffsize * nBuf) : buffsize;
   if(NULL == (matrixbuff[0] = (uint8_t *)malloc(allocsize))) return;
   memset(matrixbuff[0], 0, allocsize);
@@ -1097,7 +1097,7 @@ boolean RGBmatrixPanel::fading() {
 // back into the display using a pgm_read_byte() loop.
 void RGBmatrixPanel::dumpMatrix(void) {
 
-  int i, buffsize = BYTES_PER_ROW * nRows * nPackedPlanes * nPanels;
+  int i, buffsize = WIDTH * nRows * nPackedPlanes;
 
   Serial.print("// RGBmatrixPanel image, ");
   Serial.print(nPanels);
@@ -1138,7 +1138,7 @@ void RGBmatrixPanel::dumpMatrix(void) {
 int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 
   // Could do more sophisticated error handling - adjust for change in nPanels, nRows
-  if (imgsize != BYTES_PER_ROW * nRows * nPackedPlanes * nPanels)
+  if (imgsize != WIDTH * nRows * nPackedPlanes)
     return -1;
 #if defined(__AVR__)
 #warning Need to write this - use memcpy that uses pgm_read
