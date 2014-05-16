@@ -1111,6 +1111,9 @@ void RGBmatrixPanel::dumpMatrix(void) {
   Serial.print(nPanels);
   Serial.print( (nRows > 8) ? ", 32" : ", 16" );
   Serial.print(" row panels\n");
+  Serial.print("static const uint8_t imgplanes =");
+  Serial.print(nPlanes);
+  Serial.print(";\n");
   Serial.print("static const uint16_t imgsize =");
   Serial.print(buffsize);
   Serial.print(";\n");
