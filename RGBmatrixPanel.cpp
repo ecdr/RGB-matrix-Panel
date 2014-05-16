@@ -107,6 +107,11 @@ Revisions:
 #define portMaskedOutputRegister(port, mask) \
   ((volatile uint8_t *) (((uint32_t)portBASERegister(port)) + (GPIO_O_DATA + (((uint32_t)mask) << 2))))
 
+// True if a number indicates a valid pin
+#define PIN_OK(pin) (( pin < ((sizeof digital_pin_to_port)/(sizeof digital_pin_to_port[0]))) && \
+  (NOT_A_PIN != digital_pin_to_port[pin]))
+
+
 
 // Port/pin definitions for various launchpads
 // TODO: Could make data port configurable at run time 
@@ -366,7 +371,6 @@ static RGBmatrixPanel *activePanel = NULL;
 void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth) {
 
-  nRows = rows; // Number of multiplexed rows; actual height is 2X this
 // Error to not have any panels.  Should throw exception or something.
 // (Actually the compiler should catch this, but it doesn't seem to care if omit pwidth)
   if (pwidth == 0){
@@ -375,6 +379,15 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
 #endif
     pwidth = 1;
   }
+
+  ASSERT(PIN_OK(a));
+  ASSERT(PIN_OK(b));
+  ASSERT(PIN_OK(c));
+  ASSERT(PIN_OK(sclk));
+  ASSERT(PIN_OK(latch));
+  ASSERT(PIN_OK(oe));
+
+  nRows = rows; // Number of multiplexed rows; actual height is 2X this
   nPanels = pwidth;
 
   // Allocate and initialize matrix buffer:
@@ -463,6 +476,7 @@ RGBmatrixPanel::RGBmatrixPanel(
   Adafruit_GFX(BYTES_PER_ROW*pwidth, 32) {
 
   init(16, a, b, c, sclk, latch, oe, dbuf, pwidth);
+  ASSERT(PIN_OK(d));
 
   // Init a few extra 32x32-specific elements:
   _d        = d;
