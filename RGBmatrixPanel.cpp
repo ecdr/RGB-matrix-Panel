@@ -64,7 +64,9 @@ Revisions:
 
 
 // On Tiva, define BENCHMARK to measure TimerHandler time
-//#define BENCHMARK
+#define BENCHMARK
+
+#define DEBUG
 
 #if defined( BENCHMARK )
 #include "cyclecount.h"
@@ -365,6 +367,14 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth) {
 
   nRows = rows; // Number of multiplexed rows; actual height is 2X this
+// Error to not have any panels.  Should throw exception or something.
+// (Actually the compiler should catch this, but it doesn't seem to care if omit pwidth)
+  if (pwidth == 0){
+#if defined(DEBUG)
+    Serial.print("RGBmatrixPanel init - error, no panels");
+#endif
+    pwidth = 1;
+  }
   nPanels = pwidth;
 
   // Allocate and initialize matrix buffer:
@@ -1219,10 +1229,8 @@ void TmrHandler()
 
 #if defined(UNROLL_LOOP)
 
-// FIXME: These are just estimates based on ratios from Stellars LP
-//   Should measure values for Connected LP
-const uint16_t minRowTimePerPanel = 300;         // Ticks per panel for a row
-const uint16_t minRowTimeConst = 240;            // Overhead ticks
+const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
+const uint16_t minRowTimeConst = 265;            // Overhead ticks
 
 #else
 const uint16_t minRowTimePerPanel = 1610;        // Ticks per panel for a row
