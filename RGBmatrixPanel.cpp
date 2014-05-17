@@ -46,8 +46,6 @@ Revisions:
 #define pgm_read_byte( a ) (*(a))
 #endif
 
-// FIXME: Need to import real assert
-#define ASSERT(a)
 
 #if defined(__TIVA__)
 
@@ -110,8 +108,19 @@ Revisions:
   ((volatile uint8_t *) (((uint32_t)portBASERegister(port)) + (GPIO_O_DATA + (((uint32_t)mask) << 2))))
 
 // True if a number indicates a valid pin
-#define PIN_OK(pin) (( pin < (((sizeof) digital_pin_to_port)/((sizeof) digital_pin_to_port[0]))) && \
+/*
+#define PIN_OK(pin) (( pin < ((sizeof (digital_pin_to_port))/(sizeof (digital_pin_to_port[0])))) && \
   (NOT_A_PIN != digital_pin_to_port[pin]))
+*/
+/*
+FIXME: The compiler complains that
+
+libraries\RGBmatrixpanel\RGBmatrixPanel.cpp:395:3: error: invalid application of 'sizeof' to incomplete type 'const uint8_t [] {aka const unsigned char []}'
+
+However this works fine in eLua
+Is there some switch need to give the compiler to tell it to wise-up and get with the program?
+*/
+#define PIN_OK(pin) ( (NOT_A_PIN != digital_pin_to_port[pin]))
 
 
 
@@ -277,6 +286,14 @@ static const uint8_t nPlanes = 4;
 static const uint8_t nPackedPlanes = nPlanes - 1;  // 3 bytes holds 4 planes "packed"
 static const uint8_t BYTES_PER_ROW = 32;
 
+// FIXME: Need to import real assert
+#if defined(DEBUG)
+#define ASSERT(expr) if (!(expr)) {Serial.print("Error: assertion failure in "); \
+    Serial.print(__FILE__); Serial.print(", line"); Serial.println(__LINE__);}
+#else
+#define ASSERT(expr)
+#endif
+
 
 #if defined(__TIVA__)
 
@@ -376,18 +393,9 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
 // Error to not have any panels.  Should throw exception or something.
 // (Actually the compiler should catch this, but it doesn't seem to care if omit pwidth)
   if (pwidth == 0){
-#if defined(DEBUG)
-    Serial.print("RGBmatrixPanel init - error, no panels");
-#endif
     pwidth = 1;
+    // FIXME: Signal error somehow
   }
-
-  ASSERT(PIN_OK(a));
-  ASSERT(PIN_OK(b));
-  ASSERT(PIN_OK(c));
-  ASSERT(PIN_OK(sclk));
-  ASSERT(PIN_OK(latch));
-  ASSERT(PIN_OK(oe));
 
   nRows = rows; // Number of multiplexed rows; actual height is 2X this
   nPanels = pwidth;
@@ -521,6 +529,15 @@ void RGBmatrixPanel::begin(void) {
   Serial.begin(9600);
 #endif
 
+  ASSERT(WIDTH>0);
+// Didn't get any output when put in init
+  ASSERT(PIN_OK(_a));
+  ASSERT(PIN_OK(_b));
+  ASSERT(PIN_OK(_c));
+  ASSERT(PIN_OK(_sclk));
+  ASSERT(PIN_OK(_latch));
+  ASSERT(PIN_OK(_oe));
+
 /*
 #if defined(DEBUG)
 
@@ -590,6 +607,7 @@ if(nRows > 8) {
   pinMode(_b    , OUTPUT); *addrbport &= ~addrbpin; // Low
   pinMode(_c    , OUTPUT); *addrcport &= ~addrcpin; // Low
   if(nRows > 8) {
+    ASSERT(PIN_OK(_d));
     pinMode(_d  , OUTPUT); *addrdport &= ~addrdpin; // Low
   }
 
