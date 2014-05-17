@@ -117,6 +117,10 @@ class RGBmatrixPanel : public Adafruit_GFX {
   boolean
     fading();   // true if fade is in progress
 #endif
+#if defined(__TIVA__)
+  void
+    setDim(uint32_t time);
+#endif
 
   int8_t
     copyBuffer(uint8_t from, uint8_t to); // Duplicate contents of one buffer to another
@@ -153,6 +157,9 @@ class RGBmatrixPanel : public Adafruit_GFX {
   volatile uint8_t *sclkport;
   uint16_t         refreshFreq;
   volatile uint32_t rowtime;      // time to display one row
+
+  volatile uint32_t dimtime;
+  boolean dimwait;
 #endif
 
   // Counters/pointers for interrupt handler:
