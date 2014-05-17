@@ -46,6 +46,8 @@ Revisions:
 #define pgm_read_byte( a ) (*(a))
 #endif
 
+// FIXME: Need to import real assert
+#define ASSERT(a)
 
 #if defined(__TIVA__)
 
@@ -106,6 +108,11 @@ Revisions:
 
 #define portMaskedOutputRegister(port, mask) \
   ((volatile uint8_t *) (((uint32_t)portBASERegister(port)) + (GPIO_O_DATA + (((uint32_t)mask) << 2))))
+
+// True if a number indicates a valid pin
+#define PIN_OK(pin) (( pin < (((sizeof) digital_pin_to_port)/((sizeof) digital_pin_to_port[0]))) && \
+  (NOT_A_PIN != digital_pin_to_port[pin]))
+
 
 
 // Port/pin definitions for various launchpads
@@ -369,7 +376,6 @@ static RGBmatrixPanel *activePanel = NULL;
 void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth) {
 
-  nRows = rows; // Number of multiplexed rows; actual height is 2X this
 // Error to not have any panels.  Should throw exception or something.
 // (Actually the compiler should catch this, but it doesn't seem to care if omit pwidth)
   if (pwidth == 0){
@@ -378,6 +384,15 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
 #endif
     pwidth = 1;
   }
+
+  ASSERT(PIN_OK(a));
+  ASSERT(PIN_OK(b));
+  ASSERT(PIN_OK(c));
+  ASSERT(PIN_OK(sclk));
+  ASSERT(PIN_OK(latch));
+  ASSERT(PIN_OK(oe));
+
+  nRows = rows; // Number of multiplexed rows; actual height is 2X this
   nPanels = pwidth;
 
   // Allocate and initialize matrix buffer:
@@ -400,6 +415,8 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   // Look up port registers and pin masks ahead of time,
   // avoids many slow digitalWrite() calls later.
 #if defined(__TIVA__)
+  dimtime = 0;
+  dimwait = false;
 
 // Tiva Energia does not provide portOutputRegister macro
   sclkpin   = digitalPinToBitMask(sclk);
@@ -464,6 +481,7 @@ RGBmatrixPanel::RGBmatrixPanel(
   Adafruit_GFX(BYTES_PER_ROW*pwidth, 32) {
 
   init(16, a, b, c, sclk, latch, oe, dbuf, pwidth);
+  ASSERT(PIN_OK(d));
 
   // Init a few extra 32x32-specific elements:
   _d        = d;
@@ -701,7 +719,7 @@ uint16_t RGBmatrixPanel::Color444(uint8_t r, uint8_t g, uint8_t b) {
 // Demote 8/8/8 to Adafruit_GFX 5/6/5
 // If no gamma flag passed, assume linear color
 uint16_t RGBmatrixPanel::Color888(uint8_t r, uint8_t g, uint8_t b) {
-  return ((r & 0xF8) << 11) | ((g & 0xFC) << 5) | (b >> 3);
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
 
 // TODO: Seems it would be simpler to just use full 6-bit gamma output 
@@ -732,7 +750,7 @@ uint16_t RGBmatrixPanel::Color888(
 #endif
 
   } // else linear (uncorrected) color
-  return ((r & 0xF8) << 11) | ((g & 0xFC) << 5) | (b >> 3);
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
 
 // TODO: Color mapping extends a color by repeating the upper few bits of the color in the low bits.  
@@ -1106,6 +1124,7 @@ boolean RGBmatrixPanel::fading() {
 void RGBmatrixPanel::dumpMatrix(void) {
 
   int i, buffsize = WIDTH * nRows * nPackedPlanes;
+  uint row = 0, plane = 0;
 
   Serial.print("// RGBmatrixPanel image, ");
   Serial.print(nPanels);
@@ -1131,7 +1150,20 @@ void RGBmatrixPanel::dumpMatrix(void) {
     if(matrixbuff[backindex][i] < 0x10) Serial.print('0');
     Serial.print(matrixbuff[backindex][i],HEX);
     if(i < (buffsize - 1)) {
-      if((i & 7) == 7) Serial.print(",\n  ");
+//      if((i & ((nRows * WIDTH)-1)) == ((nRows * WIDTH)-1)) Serial.print(",\n\\ Plane\n  ");
+//      else 
+      if((i & (WIDTH-1)) == (WIDTH-1)) {
+        if (++plane >= nPackedPlanes){
+          row++;
+          plane = 0;
+        };
+        Serial.print(",\n\\\\ row ");
+        Serial.print(row);
+        Serial.print(" plane ");
+        Serial.print(plane);
+        Serial.print("\n  ");
+        }
+      else if((i & 7) == 7) Serial.print(",\n  ");
       else             Serial.print(',');
     }
   }
@@ -1164,40 +1196,9 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 }
 
 
-// -------------------- Interrupt handler stuff --------------------
-
+// -------------------- Refresh timing --------------------
 
 #if defined(__TIVA__)
-
-#if defined( BENCHMARK )
-
-// Number of times to print time taken by updateDisplay
-uint8_t nprint = 20;
-
-#endif
-
-
-void TmrHandler()
-{
-#if defined( BENCHMARK )
-  c_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // beginning of the tested code
-#endif
-
-  activePanel->updateDisplay();
-
-  MAP_TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
-
-#if defined( BENCHMARK )
-  c_stop = HWREG(DWT_BASE + DWT_O_CYCCNT);  // end of the tested code  
-
-  if (nprint > 0){
-    --nprint;
-    Serial.print("Tmh: ");
-    Serial.println(c_stop - c_start);
-    };
-#endif
-}
-
 
 // Minimum refresh timing
 // minRowTime =  minRowTimePerPanel * nPanels + minRowTimeConst
@@ -1276,18 +1277,6 @@ const uint16_t minRowTimeConst = 180;            // Overhead ticks
 #endif
 
 
-#else
-//#elif defined(__AVR__)
-
-ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
-  activePanel->updateDisplay();   // Call refresh func for active display
-  TIFR1 |= TOV1;                  // Clear Timer1 interrupt flag
-}
-
-#endif // __TIVA__
-
-
-#if defined(__TIVA__)
 
 // Caution: Blank the display before changing refresh
 // May introduce a visual glitch if redefine refresh rate while displaying something
@@ -1341,6 +1330,62 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
   Serial.println(refreshFreq);
 #endif
   return refreshFreq;
+}
+
+
+// Dimmer - set a delay between refreshes (with LEDs turned off)
+void RGBmatrixPanel::setDim(uint32_t time){
+// TODO: Should probably specify some minimum delay, allow time for 
+// clearing interrupt and return from interrupt
+  dimwait = false;  // Next interrupt will be a refresh, one after that will be a delay
+  dimtime = time;   // Setting dimtime != 0 enables the delay
+}
+
+#endif // __TIVA__
+
+
+// -------------------- Interrupt handler stuff --------------------
+
+
+#if defined(__TIVA__)
+
+#if defined( BENCHMARK )
+
+// Number of times to print time taken by updateDisplay
+uint8_t nprint = 20;
+
+#endif
+
+
+void TmrHandler()
+{
+
+#if defined( BENCHMARK )
+  c_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // beginning of the tested code
+#endif
+
+  activePanel->updateDisplay();
+
+  MAP_TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
+
+#if defined( BENCHMARK )
+  c_stop = HWREG(DWT_BASE + DWT_O_CYCCNT);  // end of the tested code  
+
+  if (nprint > 0){
+    --nprint;
+    Serial.print("Tmh: ");
+    Serial.println(c_stop - c_start);
+    };
+#endif
+}
+
+
+#else
+//#elif defined(__AVR__)
+
+ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
+  activePanel->updateDisplay();   // Call refresh func for active display
+  TIFR1 |= TOV1;                  // Clear Timer1 interrupt flag
 }
 
 #endif // __TIVA__
@@ -1409,6 +1454,23 @@ void RGBmatrixPanel::updateDisplay(void) {
   uint16_t duration;
 #endif
 
+
+#if defined(__TIVA__)
+  // Dimmer - Insert a delay with LEDs off between refreshes
+  if (dimtime){
+    if (dimwait){
+      // last time was a refresh, so this time we wait
+      dimwait = false;   // Next interrupt will not be a wait
+      *oeport  = oepin;  // Disable LED output during delay
+// TODO: should the latch be done now, or should that wait until really going to change addr
+
+      MAP_TimerLoadSet( TIMER_BASE, TIMER_A, dimtime );
+      MAP_TimerEnable( TIMER_BASE, TIMER_A );
+      return;
+    } else
+      dimwait = true;
+  }
+#endif
 
 #if defined(__TIVA__)
   *oeport  = oepin;  // Disable LED output during row/plane switchover

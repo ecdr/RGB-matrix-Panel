@@ -101,6 +101,10 @@ class RGBmatrixPanel : public Adafruit_GFX {
   boolean
     fading();
 #endif
+#if defined(__TIVA__)
+  void
+    setDim(uint32_t time);
+#endif
 
  private:
 
@@ -132,6 +136,9 @@ class RGBmatrixPanel : public Adafruit_GFX {
   volatile uint8_t *sclkport;
   uint16_t         refreshFreq;
   volatile uint32_t rowtime;
+
+  volatile uint32_t dimtime;
+  boolean dimwait;
 #endif
 
   // Counters/pointers for interrupt handler:
