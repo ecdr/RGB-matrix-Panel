@@ -46,6 +46,9 @@ Revisions:
 #define pgm_read_byte( a ) (*(a))
 #endif
 
+// FIXME: Need to import real assert
+#define ASSERT(a)
+
 #if defined(__TIVA__)
 
 #include "wiring_private.h"
