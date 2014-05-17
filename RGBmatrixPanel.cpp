@@ -46,7 +46,6 @@ Revisions:
 #define pgm_read_byte( a ) (*(a))
 #endif
 
-
 #if defined(__TIVA__)
 
 #include "wiring_private.h"
@@ -108,7 +107,7 @@ Revisions:
   ((volatile uint8_t *) (((uint32_t)portBASERegister(port)) + (GPIO_O_DATA + (((uint32_t)mask) << 2))))
 
 // True if a number indicates a valid pin
-#define PIN_OK(pin) (( pin < ((sizeof digital_pin_to_port)/(sizeof digital_pin_to_port[0]))) && \
+#define PIN_OK(pin) (( pin < (((sizeof) digital_pin_to_port)/((sizeof) digital_pin_to_port[0]))) && \
   (NOT_A_PIN != digital_pin_to_port[pin]))
 
 
@@ -714,7 +713,7 @@ uint16_t RGBmatrixPanel::Color444(uint8_t r, uint8_t g, uint8_t b) {
 // Demote 8/8/8 to Adafruit_GFX 5/6/5
 // If no gamma flag passed, assume linear color
 uint16_t RGBmatrixPanel::Color888(uint8_t r, uint8_t g, uint8_t b) {
-  return ((r & 0xF8) << 11) | ((g & 0xFC) << 5) | (b >> 3);
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
 
 // TODO: Seems it would be simpler to just use full 6-bit gamma output 
@@ -742,7 +741,7 @@ uint16_t RGBmatrixPanel::Color888(
 #endif
 */
   } // else linear (uncorrected) color
-  return ((r & 0xF8) << 11) | ((g & 0xFC) << 5) | (b >> 3);
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
 
 // TODO: Color mapping extends a color by repeating the upper few bits of the color in the low bits.  
@@ -1114,6 +1113,7 @@ boolean RGBmatrixPanel::fading() {
 void RGBmatrixPanel::dumpMatrix(void) {
 
   int i, buffsize = WIDTH * nRows * nPackedPlanes;
+  uint row = 0, plane = 0;
 
   Serial.print("// RGBmatrixPanel image, ");
   Serial.print(nPanels);
@@ -1136,7 +1136,20 @@ void RGBmatrixPanel::dumpMatrix(void) {
     if(matrixbuff[backindex][i] < 0x10) Serial.print('0');
     Serial.print(matrixbuff[backindex][i],HEX);
     if(i < (buffsize - 1)) {
-      if((i & 7) == 7) Serial.print(",\n  ");
+//      if((i & ((nRows * WIDTH)-1)) == ((nRows * WIDTH)-1)) Serial.print(",\n\\ Plane\n  ");
+//      else 
+      if((i & (WIDTH-1)) == (WIDTH-1)) {
+        if (++plane >= nPackedPlanes){
+          row++;
+          plane = 0;
+        };
+        Serial.print(",\n\\\\ row ");
+        Serial.print(row);
+        Serial.print(" plane ");
+        Serial.print(plane);
+        Serial.print("\n  ");
+        }
+      else if((i & 7) == 7) Serial.print(",\n  ");
       else             Serial.print(',');
     }
   }
