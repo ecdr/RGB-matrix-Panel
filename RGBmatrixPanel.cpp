@@ -1549,10 +1549,13 @@ void RGBmatrixPanel::updateDisplay(void) {
 //   FadeCnt^2 used on both sides (calculate once)
 //   Could cache 2*FadeLen - but just a bit shift, so may not be worth it
 
-          int16_t FadeCntSq = FadeCnt * FadeCnt;
+// Following expression has been tested and works to give linear fade
+//          int16_t FadeCntSq = FadeCnt * FadeCnt;
+//          if (abs(FadeCntSq - FadeNAccum ) > abs(FadeCntSq - FadeNAccum - (2 * FadeLen) )){
 
-          if (abs(FadeCntSq - FadeNAccum ) > abs(FadeCntSq - FadeNAccum - (2 * FadeLen) )){
-//          if (abs(FadeCntSq - FadeNAccum ) > FadeLen )){    // TODO: Something like this might also work
+// Following expression should yield the same result as above, with less calculation
+// TODO: Test to see that this gives same result
+          if (abs(FadeCnt * FadeCnt - FadeNAccum ) > FadeLen )){
 //    Show NextBuffer;
             buffptr = matrixbuff[backindex]; // Reset into back buffer
             FadeNAccum += 2 * FadeLen; // Update accumulated showing next // FadeNNext++
