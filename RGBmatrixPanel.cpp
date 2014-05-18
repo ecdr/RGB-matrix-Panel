@@ -283,7 +283,7 @@ Is there some switch need to give the compiler to tell it to wise-up and get wit
 
 
 static const uint8_t nPlanes = 4;
-static const uint8_t nPackedPlanes = nPlanes - 1;  // 3 bytes holds 4 planes "packed"
+static const uint8_t nPackedPlanes = (nPlanes - 1);  // 3 bytes holds 4 planes "packed"
 static const uint8_t BYTES_PER_ROW = 32;
 
 // FIXME: Need to import real assert
@@ -529,8 +529,8 @@ void RGBmatrixPanel::begin(void) {
   Serial.begin(9600);
 #endif
 
-  ASSERT(WIDTH>0);
-// Didn't get any output when put in init
+// Didn't get any output from ASSERTs when put in init
+  ASSERT(WIDTH == BYTES_PER_ROW * nPanels);
   ASSERT(PIN_OK(_a));
   ASSERT(PIN_OK(_b));
   ASSERT(PIN_OK(_c));
@@ -1024,6 +1024,7 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
     memset(matrixbuff[backindex], c, WIDTH * nRows * nPackedPlanes );
   } else {
     // Otherwise, need to handle it the long way:
+// TODO: Could fill one row, then copy that
     Adafruit_GFX::fillScreen(c);
   }
 }
