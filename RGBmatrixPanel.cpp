@@ -1735,7 +1735,7 @@ void RGBmatrixPanel::updateDisplay(void) {
     uint8_t *pFinal = ptr + WIDTH;
     for(; ptr<pFinal; ptr++)
     {
-      * dataport = LEFT_SHIFT((ptr[i]), DATAPORTSHIFT);
+      * dataport = LEFT_SHIFT((*ptr), DATAPORTSHIFT);
       * sclkp = tick;
       * sclkp = tock;
 //      DATAPORT = LEFT_SHIFT((*ptr), DATAPORTSHIFT);;
