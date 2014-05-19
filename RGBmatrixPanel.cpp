@@ -1167,6 +1167,8 @@ void RGBmatrixPanel::dumpMatrix(void) {
         };
         Serial.print(",\n\\\\ row ");
         Serial.print(row);
+        Serial.print(" , ");
+        Serial.print(row + nRows);
         Serial.print(" plane ");
         Serial.print(plane);
         Serial.print("\n  ");
@@ -1452,8 +1454,8 @@ void RGBmatrixPanel::updateDisplay(void) {
 #if defined(__TIVA__)
   uint32_t duration;
   volatile uint8_t * dataport = &DATAPORT;
-  volatile uint8_t * sclkp = &SCLKPORT;
- 
+  volatile uint8_t * sclkp = sclkport;
+
 #else
   uint16_t t;
   uint16_t duration;
