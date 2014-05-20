@@ -75,6 +75,11 @@ Revisions:
 // Define UNROLL_LOOP to speed up display by linearizing the inner loop
 #define UNROLL_LOOP
 
+// Slow down the clock pulse (use slightly less efficient code)
+// TODO: If this works, see if needed UNROLL_LOOP vs not, Tiva LP vs. Connected LP
+#define SLOW_CLOCK
+
+
 // TODO: Clean up (or remove) code for UNROLL_LOOP not defined
 
 // Energia does not define portOutputRegister(port) for Tiva
@@ -1557,7 +1562,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 // Following expression should yield the same result as above, with less calculation
 // TODO: Test to see that this gives same result
-          if (abs(FadeCnt * FadeCnt - FadeNAccum ) > FadeLen )){
+          if (abs(FadeCnt * FadeCnt - FadeNAccum ) > FadeLen ){
 //    Show NextBuffer;
             buffptr = matrixbuff[backindex]; // Reset into back buffer
             FadeNAccum += 2 * FadeLen; // Update accumulated showing next // FadeNNext++
@@ -1682,14 +1687,22 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 #else				// Code for non AVR (i.e. Due and ARM based systems)
 
+#ifdef SLOW_CLOCK
+
+#define pew DATAPORT = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); SCLKPORT = tick; SCLKPORT = tock;
+
+#else
+
 // For sclkport, dataport, local variables easier for the compiler to access/optimize
 // (Might be able to do it with the dataport variable in "this" instead?)
 // Makes the inner "loop" 4 instructions, a load and 3 stores
 //   (+1 instruction if a shift is needed)
 
-#define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; * sclkp = tock;
+// FIXME: This may make the clock pulse too short for the panel?  
+// (May depend on processor clock speed - e.g. Connected LP vs. Stellaris LP)
 
-//#define pew DATAPORT = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); SCLKPORT = tick; SCLKPORT = tock;
+#define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; * sclkp = tock;
+#endif
 
 
 // Possible improvement might be if could read a word,
@@ -1737,14 +1750,16 @@ void RGBmatrixPanel::updateDisplay(void) {
     uint8_t *pFinal = ptr + WIDTH;
     for(; ptr<pFinal; ptr++)
     {
+#ifdef SLOW_CLOCK
+      DATAPORT = LEFT_SHIFT((*ptr), DATAPORTSHIFT);;
+      SCLKPORT = tick;
+      SCLKPORT = tock;
+#else
       * dataport = LEFT_SHIFT((*ptr), DATAPORTSHIFT);
       * sclkp = tick;
       * sclkp = tock;
-//      DATAPORT = LEFT_SHIFT((*ptr), DATAPORTSHIFT);;
-//      SCLKPORT = tick;
-//      SCLKPORT = tock;
+#endif
     }
-*/
 #endif
     buffptr += WIDTH;
 
@@ -1769,12 +1784,21 @@ void RGBmatrixPanel::updateDisplay(void) {
       SCLKPORT = tick;
       SCLKPORT = tock;
 #else
+#ifdef SLOW_CLOCK
+      DATAPORT =
+        LEFT_SHIFT((( ptr[i]    << 6)                   |
+        ((ptr[i+WIDTH] << 4) & 0x30) |
+        ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
+      SCLKPORT = tick;
+      SCLKPORT = tock;
+#else      
       * dataport =
         LEFT_SHIFT((( ptr[i]    << 6)                   |
         ((ptr[i+WIDTH] << 4) & 0x30) |
         ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
       * sclkp = tick;
       * sclkp = tock;
+#endif
 #endif
     } 
   }
