@@ -1707,15 +1707,36 @@ void RGBmatrixPanel::updateDisplay(void) {
 // At a guess, clock speed about 100ns might be reasonable starting point for experiment?
 //   That would be just over 12 cycles at 120mHz, or 8 cycles at 80 mHz
 //
+// Other data points:
+//   This forum thread
+//   http://forums.adafruit.com/viewtopic.php?f=47&t=26130&start=0
+//   Says 25MHz may be recomended maximum for some of the parts, with 50MHz absolute max
+//     One user with FPGA reports success at 40MHz, with problems above that.
+// 
+// There might be requirements for particular parts of the clock 
+//   (e.g. clock needs to be high for so many ns).
+//   The current unrolled code has the clock high for about 1 instruction cycle, 
+//   and low for about 3 cycles.  
+//   (So on connected LP the clock is high for about 8.3 ns, and low for about 24 ns
+//    Whereas a 25MHz clock evenly divided would be high for 20ns,
+//     and a 50MHz clock would be high for 10 ns
+//
 // On the Stellaris LP the unrolled loop version takes about 6 cycles per item, 
 //   The loopy version about 35 cycles per item
 //   So would expect the unrolled version to be slightly too fast if aiming for 8 cycles
-//     (One of the versions using non-local variables might be about right, or add a couple of noops)
+//     (One of the versions using non-local variables might be about right, 
+//      or add a couple of noops?)
 // 
 // On the connected LP may need to add a bit more padding
 //
 // Try padding in different locations (e.g. between tick and tock vs around data output.
-// 
+//
+// Although noop is not guaranteed to take time, this still might be useful 
+// for trying to insert extra delays.
+// __attribute__( ( always_inline ) ) __STATIC_INLINE void __NOP(void)
+//{
+//  __ASM volatile ("nop");
+//}
 
 #ifdef SLOW_CLOCK
 
