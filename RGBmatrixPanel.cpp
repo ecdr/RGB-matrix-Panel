@@ -1248,6 +1248,8 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 
 
 // TODO: Reameasure and update minRowTime if make major changes to timer service routine
+// FIXME: Need to measure the loop timing values for Connected LP, and for Stellaris LP
+// FIXME: Measure values for unroll_loop once get it working
 
 // TODO: Timing does not include shift - adjust if DATAPORTSHIFT != 0
 
@@ -1260,6 +1262,7 @@ const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
 const uint16_t minRowTimeConst = 265;            // Overhead ticks
 
 #else
+
 const uint16_t minRowTimePerPanel = 1610;        // Ticks per panel for a row
 const uint16_t minRowTimeConst = 270;            // Overhead ticks
 
@@ -1687,6 +1690,33 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 #else				// Code for non AVR (i.e. Due and ARM based systems)
 
+// FIXME: This may send data too fast for the panel 
+// (May depend on processor clock speed - e.g. Connected LP vs. Stellaris LP)
+// 
+// TODO: Gather what information available on timing constraints.
+// 
+// Raspberry Pi driver - Says takes 3.4 uSec to clock out the data
+//   (i.e. 106ns per data item)
+//   However code says clock high for >256ns, then 
+//     low for >256ns before output data, >256 ns after output data
+//     So one data item would take 768 ns to put out, and 32 would be 24.5 uSec
+//
+// FPGA driver has a clock divider that goes from 50mHz clock to 10mHz clock
+//   (50mHz would be 20ns per clock, 10 mHz would be 100ns per clock)
+//
+// At a guess, clock speed about 100ns might be reasonable starting point for experiment?
+//   That would be just over 12 cycles at 120mHz, or 8 cycles at 80 mHz
+//
+// On the Stellaris LP the unrolled loop version takes about 6 cycles per item, 
+//   The loopy version about 35 cycles per item
+//   So would expect the unrolled version to be slightly too fast if aiming for 8 cycles
+//     (One of the versions using non-local variables might be about right, or add a couple of noops)
+// 
+// On the connected LP may need to add a bit more padding
+//
+// Try padding in different locations (e.g. between tick and tock vs around data output.
+// 
+
 #ifdef SLOW_CLOCK
 
 #define pew DATAPORT = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); SCLKPORT = tick; SCLKPORT = tock;
@@ -1698,10 +1728,10 @@ void RGBmatrixPanel::updateDisplay(void) {
 // Makes the inner "loop" 4 instructions, a load and 3 stores
 //   (+1 instruction if a shift is needed)
 
-// FIXME: This may make the clock pulse too short for the panel?  
-// (May depend on processor clock speed - e.g. Connected LP vs. Stellaris LP)
+
 
 #define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; * sclkp = tock;
+
 #endif
 
 
