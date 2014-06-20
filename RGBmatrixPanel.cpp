@@ -1704,26 +1704,27 @@ void RGBmatrixPanel::updateDisplay(void) {
 // FPGA driver has a clock divider that goes from 50mHz clock to 10mHz clock
 //   (50mHz would be 20ns per clock, 10 mHz would be 100ns per clock)
 //
-// At a guess, clock speed about 100ns might be reasonable starting point for experiment?
-//   That would be just over 12 cycles at 120mHz, or 8 cycles at 80 mHz
-//
-// Other data points:
-//   This forum thread
+// This forum thread
 //   http://forums.adafruit.com/viewtopic.php?f=47&t=26130&start=0
 //   Says 25MHz may be recomended maximum for some of the parts, with 50MHz absolute max
 //     One user with FPGA reports success at 40MHz, with problems above that.
 // 
+// At a guess, clock speed about 40ns (25mHz) might be reasonable starting point for experiment?
+//   That would be 5 cycles at 120mHz, or 3.2 cycles at 80 mHz
+//   (Might be able to push it to 20ns (50mHz)?)
+//
 // There might be requirements for particular parts of the clock 
 //   (e.g. clock needs to be high for so many ns).
-//   The current unrolled code has the clock high for about 1 instruction cycle, 
+//   The unrolled code has the clock high for about 1 instruction cycle, 
 //   and low for about 3 cycles.  
 //   (So on connected LP the clock is high for about 8.3 ns, and low for about 24 ns
 //    Whereas a 25MHz clock evenly divided would be high for 20ns,
 //     and a 50MHz clock would be high for 10 ns
 //
+//  TODO: Check the following comment - it may be talking about old versions
 // On the Stellaris LP the unrolled loop version takes about 6 cycles per item, 
 //   The loopy version about 35 cycles per item
-//   So would expect the unrolled version to be slightly too fast if aiming for 8 cycles
+//   So would expect the unrolled version to be slightly too fast 
 //     (One of the versions using non-local variables might be about right, 
 //      or add a couple of noops?)
 // 
@@ -1731,7 +1732,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 //
 // Try padding in different locations (e.g. between tick and tock vs around data output.
 //
-// Although noop is not guaranteed to take time, this still might be useful 
+// Although noop is not guaranteed to take time, it still might be useful 
 // for trying to insert extra delays.
 // __attribute__( ( always_inline ) ) __STATIC_INLINE void __NOP(void)
 //{
