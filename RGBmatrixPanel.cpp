@@ -76,11 +76,18 @@ Revisions:
 #define UNROLL_LOOP
 
 // Slow down the clock pulse (use slightly less efficient code)
-// TODO: If this works, see if needed UNROLL_LOOP vs not, Tiva LP vs. Connected LP
-#define SLOW_CLOCK
+//#define SLOW_CLOCK
+
+// TODO: Try inserting various numbers of NO Ops in the inner loop until it works
+#define NOP1
+//#define NOP2
+
+// TODO: See how much extra time needed, 
+//   compare loop unrolled with extra operations to looping version without SLOW_CLOCK
 
 
 // TODO: Clean up (or remove) code for UNROLL_LOOP not defined
+
 
 // Energia does not define portOutputRegister(port) for Tiva
 // So make up own version, portMaskedOutputRegister(port, mask)
@@ -1456,6 +1463,13 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // counter variables change between past/present/future tense in mid-
 // function...hopefully tenses are sufficiently commented.
 
+#define __ASM asm
+
+__attribute__( ( always_inline ) ) static inline void __NOP(void)
+{
+  __ASM volatile ("nop");
+}
+
 
 void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, *ptr;
@@ -1730,18 +1744,27 @@ void RGBmatrixPanel::updateDisplay(void) {
 // 
 // On the connected LP may need to add a bit more padding
 //
-// Try padding in different locations (e.g. between tick and tock vs around data output.
+// Try padding in different locations in pew macro (e.g. between tick and tock vs around data output.
 //
 // Although noop is not guaranteed to take time, it still might be useful 
 // for trying to insert extra delays.
-// __attribute__( ( always_inline ) ) __STATIC_INLINE void __NOP(void)
-//{
-//  __ASM volatile ("nop");
-//}
+
+
 
 #ifdef SLOW_CLOCK
 
 #define pew DATAPORT = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); SCLKPORT = tick; SCLKPORT = tock;
+// This version takes 7 instructions per item
+// Works for Connected LP and 2 panels
+/* 
+    ldrb	r7, [r5, #1]
+    strb.w	r7, [r6, #1008]	; 0x3f0
+    ldr	r6, [r4, #88]	; 0x58
+    strb	r2, [r6, #0]
+    ldr	r7, [r4, #88]	; 0x58
+    strb	r3, [r7, #0]
+    ldr	r6, [r1, #4]
+    */
 
 #else
 
@@ -1750,16 +1773,35 @@ void RGBmatrixPanel::updateDisplay(void) {
 // Makes the inner "loop" 4 instructions, a load and 3 stores
 //   (+1 instruction if a shift is needed)
 
+#ifdef NOP1
 
+#define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; __NOP(); * sclkp = tock;
+/* 4 instructions plus one pad (pad might keep clock high for extra 8 ns)
+
+ldrb	r0, [r6, #1]
+strb	r0, [r7, #0]
+strb	r2, [r5, #0]
+nop
+strb	r3, [r5, #0]
+*/
+    
+#elif defined(NOP2)
+
+#define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); __NOP(); * sclkp = tick; __NOP(); * sclkp = tock;
+// Trying with 2 pads (one while clock low, one while high)
+
+#else
 
 #define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; * sclkp = tock;
 
+#endif
 #endif
 
 
 // Possible improvement might be if could read a word,
 // then shift it to output 4 successive bytes.
 // TODO: Try this, see if it improves performance
+// However, may not be much point since already running too fast (at least on connected LP)
 //
 // uint32_t * ptr;
 // t = *ptr++; *dataport = t; *dataport = t>>8; * dataport = t>>16; ...
