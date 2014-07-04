@@ -1,0 +1,44 @@
+#######################################
+# Syntax Coloring Map for RGBmatrixPanel
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+RGBmatrixPanel	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+Color333	KEYWORD2
+Color444	KEYWORD2
+
+Color888	KEYWORD2
+ColorHSV	KEYWORD2
+
+drawPixel	KEYWORD2
+getPixel	KEYWORD2
+fillScreen	KEYWORD2
+dumpMatrix	KEYWORD2
+copyBuffer	KEYWORD2
+frontBuffer	KEYWORD2
+backBuffer	KEYWORD2
+buffer	KEYWORD2
+swapBuffers	KEYWORD2
+drawRect	KEYWORD2
+drawLine	KEYWORD2
+setDraw	KEYWORD2
+setNext	KEYWORD2
+getDraw	KEYWORD2
+getNext	KEYWORD2
+getFront	KEYWORD2
+
+swapFade	KEYWORD2
+setRefresh	KEYWORD2
+fading	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
