@@ -18,8 +18,9 @@
 // Define build control macros: __TIVA__ and __ARM__
 // FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
 // Just a temporary patch - until find the proper macro 
+// Listing known processors is not robust, new processors keep coming out
 // There is a macro for MSP430 - __MSP430_CPU__
-// Is there a macro for C2000?
+// TODO: Is there a macro for C2000?
 
 #if defined(ENERGIA)
 
@@ -37,7 +38,7 @@
 
 #else
 
-#error "**** Unrecognized processor ****"
+#error "**** Unrecognized processor in Energia ****"
 
 #endif
 
@@ -47,8 +48,9 @@
 // define FADE to include support for fading between displays
 #define FADE
 
-// FIXME: Number of buffers
+// FIXME: Number of buffers - add interface to set?
 const uint8_t nBuf = 2;
+
 
 class RGBmatrixPanel : public Adafruit_GFX {
 
@@ -89,8 +91,8 @@ class RGBmatrixPanel : public Adafruit_GFX {
     loadBuffer(uint8_t *img, uint16_t imgsize);
   uint8_t
     setDraw(uint8_t back),
-    setNext(uint8_t next),
-    setNext(void),
+    setNext(uint8_t next),  // Select buffer that will be displayed next (by swap)
+    setNext(void),          // Select drawing buffer as next
     getDraw(void),
     getNext(void),
     getFront(void);
@@ -123,7 +125,9 @@ class RGBmatrixPanel : public Adafruit_GFX {
 #endif
 
   int8_t
-    copyBuffer(uint8_t from, uint8_t to); // Duplicate contents of one buffer to another
+    copyBuffer(uint8_t from, uint8_t to), // Duplicate contents of one buffer to another
+    copyBuffer(uint8_t from),
+    copyBuffer(void);
 
  private:
 

@@ -35,11 +35,14 @@ BSD license, all text above must be included in any redistribution.
 Revisions:
     getPixel, by RobF42 - Rob Fugina
     Multiple display daisychain, by protonmaster - Phillip Burgess
-    TI Stellaris/Tiva Launchpad support, by Michael Hanson
+    TI Stellaris/Tiva Launchpad support, by ecdr - Michael Hanson
 
-- Tiva version allows more port configuration from user code (faster to use
-  port variables rather than constants).  Does not need inline assembly
-  language (carefully selected c code sufficient).
+- Tiva version:
+  Works with Energia.
+  More port configuration from user code (faster to use port variables rather than constants). Does not need inline assembly language (carefully selected c code sufficient).
+
+  Handle multiple buffers.
+
 */
 
 #include "RGBmatrixPanel.h"
@@ -328,8 +331,9 @@ static const uint8_t BYTES_PER_ROW = 32;
 
 #if defined(__TIVA__)
 
-static const uint16_t defaultRefreshFreq = 100; // Cycles per second 
-  // (200 should work for 1 16 row panel)
+static const uint16_t defaultRefreshFreq = 100; // Cycles per second
+// See refresh section below for constraints
+
 //const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
 
 #endif
@@ -366,15 +370,14 @@ static const uint16_t defaultRefreshFreq = 100; // Cycles per second
 
 //#define TIMER_CLK F_CPU
 
-
 #endif
 
 
 /*
-Given name of a timer, assemble names of the various associated constants.
-  BASE(TIMER0) =>  TIMER0_BASE
-  SYSCTL_PERIPH_TIMER0
-  INT_TIMER0A
+Given name of a timer, assemble names of the various associated Tivaware constants.
+  BASE(TIMER0)   => TIMER0_BASE
+  SYSCTL(TIMER0) => SYSCTL_PERIPH_TIMER0
+  INTA(TIMER0)   => INT_TIMER0A
 */
 
 // Auxiliary macros (to get substitution to happen correctly)
@@ -399,6 +402,7 @@ Given name of a timer, assemble names of the various associated constants.
 void TmrHandler(void);
 
 #endif
+
 
 #if !defined( DATAPORTSHIFT )
 #define DATAPORTSHIFT 0
@@ -531,7 +535,6 @@ RGBmatrixPanel::RGBmatrixPanel(
   Adafruit_GFX(BYTES_PER_ROW*pwidth, 32) {
 
   init(16, a, b, c, sclk, latch, oe, dbuf, pwidth);
-  ASSERT(PIN_OK(d));
 
   // Init a few extra 32x32-specific elements:
   _d        = d;
@@ -574,7 +577,7 @@ void RGBmatrixPanel::begin(void) {
   Serial.begin(9600);
 #endif
 
-// Didn't get any output from ASSERTs when put in init
+// Check these here because didn't get any output from ASSERTs when put in init
   ASSERT(WIDTH == BYTES_PER_ROW * nPanels);
   ASSERT(PIN_OK(_a));
   ASSERT(PIN_OK(_b));
@@ -1189,9 +1192,20 @@ int8_t RGBmatrixPanel::copyBuffer(uint8_t from, uint8_t to){
     return -1;
   else if (to > nBuf)
     return -1;
-  memcpy(matrixbuff[to], matrixbuff[from], BYTES_PER_ROW * nRows * nPackedPlanes * nPanels);
+  memcpy(matrixbuff[to], matrixbuff[from], WIDTH * nRows * nPackedPlanes );
   return 0;
 }
+
+// If omit to buffer, then copy to draw buffer
+int8_t RGBmatrixPanel::copyBuffer(uint8_t from){
+  return copyBuffer( from, backindex);
+}
+
+// If omit both, then copy displayed buffer to draw buffer
+int8_t RGBmatrixPanel::copyBuffer(void){
+  return copyBuffer( frontindex, backindex);
+}
+
 
 #if defined(FADE)
 // Fade between front and next buffers
@@ -1251,6 +1265,7 @@ boolean RGBmatrixPanel::fading() {
 
 #endif
 
+// Dumps page drawing on (would it be better to do display page?)
 void RGBmatrixPanel::dumpMatrix(void){
   dumpMatrix(backindex);
 }
