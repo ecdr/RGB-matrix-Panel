@@ -1285,9 +1285,10 @@ const uint16_t minRowTimeConst = 160;            // Overhead ticks
 #else
 const uint16_t minRowTimePerPanel = 1150;        // Ticks per panel for a row
 const uint16_t minRowTimeConst = 180;            // Overhead ticks
+// minRowTime = 1148 * nPanels + 176 = 1324
+
 #endif // UNROLL_LOOP
 
-// minRowTime = 1148 * nPanels + 176 = 1324
 
 #elif defined(__TM4C129XNCZAD__)
 
@@ -1332,7 +1333,10 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 #endif
 
   // Approximate sanity check (try to keep from making refresh rate too high)
-  if (rowtimetemp < minRowTimePerPanel * nPanels + minRowTimeConst){  
+  // Typecast gets the compiler to shut up.
+  //  All the constituents are unsigned, and there is no way this could come out with
+  //  a negative result, but the compiler complains about comparison between signed and unsigned
+  if (rowtimetemp < (uint32_t) minRowTimePerPanel * nPanels + minRowTimeConst){
     rowtime = minRowTimePerPanel * nPanels + minRowTimeConst;
 
 #if defined(DEBUG)
