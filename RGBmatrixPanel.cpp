@@ -47,6 +47,10 @@ Revisions:
 #endif
 
 
+// define DEBUG to enable debugging messages on serial console
+#define DEBUG
+
+
 #if defined(__TIVA__)
 
 #include "wiring_private.h"
@@ -63,38 +67,37 @@ Revisions:
 #include "driverlib/timer.h"
 
 
-// On Tiva, define BENCHMARK to measure TimerHandler time
+// On Tiva, define BENCHMARK to measure TimerHandler time (may work on other ARM)
 #define BENCHMARK
-
-#define DEBUG
 
 #if defined( BENCHMARK )
 #include "cyclecount.h"
 #endif
 
-// Define UNROLL_LOOP to speed up display by linearizing the inner loop
+
+// Display refresh loop optimization controls
+
+// Define UNROLL_LOOP to speed up display refresh by linearizing the inner loop
 #define UNROLL_LOOP
 
 // Slow down the clock pulse (use less efficient code)
 //#define SLOW_CLOCK
 
-
-// Add extra NOP during clock pulse (slow down signal) - 
-// need on TM4C1294, suspect may not need on TM4C123x
+// Add extra NOP during clock pulse (slow down signal a little)
+// extra NOP needed on TM4C1294, suspect may not need on TM4C123x
+// TODO: Test on TM4C123x - see if need the extra NOP
 #define NOP1
 
 
 // TODO: See how much extra time needed, 
 //   compare loop unrolled with extra operations to looping version without SLOW_CLOCK
-
-
 // TODO: Clean up (or remove) code for UNROLL_LOOP not defined
 
 
-// Energia does not define portOutputRegister(port) for Tiva
-// So make up own version, portMaskedOutputRegister(port, mask)
-// include port mask to avoid read modify write
-// can just write to the address, without changing other pins
+// Energia does not define portOutputRegister(port) for Tiva, so make up replacement. 
+// portMaskedOutputRegister(port, mask)
+// include port mask so do not need read, modify, write
+// can just write to the address, and it will not change other pins
 
 // For reference:
 //  void digitalWrite(uint8_t pin, uint8_t val) =
@@ -123,6 +126,7 @@ Revisions:
 
 // True if a number indicates a valid pin
 /*
+// FIXME: Add range checks.  
 #define PIN_OK(pin) (( pin < ((sizeof (digital_pin_to_port))/(sizeof (digital_pin_to_port[0])))) && \
   (NOT_A_PIN != digital_pin_to_port[pin]))
 */
@@ -131,8 +135,9 @@ FIXME: The compiler complains that
 
 libraries\RGBmatrixpanel\RGBmatrixPanel.cpp:395:3: error: invalid application of 'sizeof' to incomplete type 'const uint8_t [] {aka const unsigned char []}'
 
-However this works fine in eLua
-Is there some switch need to give the compiler to tell it to wise-up and get with the program?
+sizeof an array doesn't work in C++ (unlike C)
+Tried various incantations which are supposed to do this in C++, 
+but none of them work in Energia
 */
 #define PIN_OK(pin) ( (NOT_A_PIN != digital_pin_to_port[pin]))
 
@@ -149,7 +154,8 @@ Is there some switch need to give the compiler to tell it to wise-up and get wit
 #elif defined(__TM4C1294NCPDT__)
 // Tiva Connected Launchpad
 
-// Candidates for data port: 
+// Candidates for data port:
+//   (have enough pins on booster pack connector without conflicting functions) 
 //   PortE (BP1), PortK (BP2), or PortL (BP1) (pins 0-5)
 
 #define DATAPORTMASK  B11111100
@@ -164,13 +170,13 @@ Is there some switch need to give the compiler to tell it to wise-up and get wit
 //#define DATAPORTMASK  B00111111
 // If leave DATAPORTSHIFT undefined there will be no shifting
 
-// Some ARM processors (e.g. SAM) have more than 8 pins per port
-// Therefore more likely to want to shift the pins on those processors
+// Some ARM processors (e.g. SAM) have more than 8 pins per port,
+// therefore more likely to want to shift the pins on those processors.
 // So DATAPORTSHIFT is defined as a left shift, 
 // even though right (negative) shifts are the only useful ones on Tiva
 
 
-// On Tiva, defining SCLKPORT as a constant slows down refresh code
+// On Tiva (unlike AVR), defining SCLKPORT as a constant slows down refresh code,
 // instead sclkport is derived from sclk pin.
 //#define SCLKPORT      (*portDATARegister(PM))
 
@@ -179,7 +185,7 @@ Is there some switch need to give the compiler to tell it to wise-up and get wit
 // Stellaris or Tiva Launchpad
 
 // Data port should be PA or PB, 
-// PA: Do not use 0,1 - console Uart
+// PA: Do not use pins 0,1 - console Uart
 // PB: use caution in other pin assignments, 
 //     since PB6 and PB7 are connected to PD0 and PD1
 
@@ -193,8 +199,8 @@ Is there some switch need to give the compiler to tell it to wise-up and get wit
 //#define DATAPORTMASK B01111110
 //#define DATAPORTSHIFT -1
 
-// On Tiva, defining SCLKPORT as a constant slows down refresh code
-// sclkport is derived from sclk pin. 
+// On Tiva (unlike AVR), defining SCLKPORT as a constant slows down refresh code,
+// instead sclkport is derived from sclk pin.
 //#define SCLKPORT      (*portDATARegister(PB))
 
 #else
@@ -210,16 +216,17 @@ Is there some switch need to give the compiler to tell it to wise-up and get wit
 // Timer 4A is used by Tone
 // Timer 5 is used by Energia time tracking
 
+// Launchpad: Energia analog write uses regular timer 0-3, and wide timer 0-3, 6, 7
+//     Thus wide timers 4 and 5 appear to be available.
+// Connected LP: Energia analog write uses timers 0-5 (so 6 and 7 should be available)
+
 // Energia doesn't use all the timers, maybe better to just grab one not used
 //   WTIMER4 or WTIMER5 on LP, TIMER6 or TIMER7 on Connected LP
-
-// Launchpad: uses regular timer 0-3, wide timer 0-3, 6, 7
-//     Thus wide timers 4 and 5 appear to be available.
-// Connected LP: Energia uses timers 0-5 (so 6 and 7 should be available?)
+//   Or could select timer that does PWM for a pin that is otherwise in use.
+//     (For instance pins used for by RGBMatrix)
 
 //  TODO: Check Energia timer use for timers 4 and 5 on Connected LP
-//    Seems strange that, on Connected LP, Timers 4 and 5 are used both by tone/Energia and by PWM??
-//   Could select timer that does PWM for a pin that is otherwise in use.
+//    Seems strange that, on Connected LP, Timers 4 and 5 are used both by tone and by PWM??
 
 // TODO: Make timer selectable by user code
 
@@ -228,7 +235,7 @@ Is there some switch need to give the compiler to tell it to wise-up and get wit
 
 #define TIMER TIMER6
 
-#else
+#elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
 
 #define TIMER WTIMER4
 
@@ -237,6 +244,9 @@ Is there some switch need to give the compiler to tell it to wise-up and get wit
 // For wide timer, uses timer A
 
 // TODO: could adapt code to allow use of timer B of wide timer
+#else
+
+#warning "Unrecognized Tiva processor, timer not defined"
 
 #endif
 
@@ -300,19 +310,12 @@ static const uint8_t nPlanes = 4;
 static const uint8_t nPackedPlanes = (nPlanes - 1);  // 3 bytes holds 4 planes "packed"
 static const uint8_t BYTES_PER_ROW = 32;
 
-// FIXME: Need to import real assert
-#if defined(DEBUG)
-#define ASSERT(expr) if (!(expr)) {Serial.print("Error: assertion failure in "); \
-    Serial.print(__FILE__); Serial.print(", line"); Serial.println(__LINE__);}
-#else
-#define ASSERT(expr)
-#endif
-
 
 #if defined(__TIVA__)
 
 static const uint16_t defaultRefreshFreq = 100; // Cycles per second 
-  // (200 should work for 1 16 row panel)
+// (200 should work for 1 16 row panel)
+
 //const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
 
 #endif
@@ -341,7 +344,6 @@ static const uint16_t defaultRefreshFreq = 100; // Cycles per second
 // But Energia does not use Tivaware 2.1 at this point
 
 //#define TIMER_CLK F_CPU
-
 
 #endif
 
@@ -383,6 +385,15 @@ void TmrHandler(void);
 // Shift value left by shift bits  If shift is negative then uses a right shift.
 // (The compiler put out some more complicated code when given a constant negative shift.)
 #define LEFT_SHIFT(value, shift) ((shift < 0) ? (value) >> - (shift) : ((value) << (shift)))
+
+
+// FIXME: Need to import real assert
+#if defined(DEBUG)
+#define ASSERT(expr) if (!(expr)) {Serial.print("Error: assertion failure in "); \
+    Serial.print(__FILE__); Serial.print(", line"); Serial.println(__LINE__);}
+#else
+#define ASSERT(expr)
+#endif
 
 
 // Todo: Allow multiple displays (share data and address, separate OE)

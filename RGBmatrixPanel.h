@@ -10,17 +10,30 @@
 #endif
 
 
-//#define DEBUG
+// Control whether to include fade support (not much point on AVR - too slow for PWM fade)
+#if !defined(__AVR__)
+#define FADE
+#endif
+
+
+const uint8_t nBuf = 2;
+
 
 
 // FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
-// Just a temporary patch - until find the proper macro 
-// There is a macro for MSP430 - __MSP430_CPU__
-// Is there a macro for C2000?
+// __arm__ - GCC any ARM processor, but that probably applies to any ARM (e.g. Tiva, CC3200, SAM)
+// __AVR__ - Atmel AVR
+//
+// __MSP430_CPU__ - TI MSP430
+// Is there a macro for the TI CC3200?
+//   (Since it is ARM might be able to run the panel, but uses different libraries so might not be easy port)
+// Is there a macro for TI C2000 launchpad?
+//
+// Just a temporary patch - until find the proper macro (if there is one)
 
 #if defined(ENERGIA)
 
-//#if !defined(__MSP430_CPU__)
+#if defined(__arm__)
 
 #if defined(__TM4C129XNCZAD__) || defined(__TM4C1294NCPDT__) || defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
 
@@ -28,24 +41,23 @@
 #define __TIVA__
 #endif
 
-#ifndef __ARM__
-#define __ARM__
+#else
+
+#error "**** Unrecognized ARM processor ****"
+
 #endif
 
 #else
 
-#error "**** Unrecognized processor ****"
+#error "**** Unsupported processor ****"
 
 #endif
 
 #endif // ENERGIA
 
 
-#define FADE
-
 #include "Adafruit_GFX.h"
 
-const uint8_t nBuf = 2;
 
 class RGBmatrixPanel : public Adafruit_GFX {
 
