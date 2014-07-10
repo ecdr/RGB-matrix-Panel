@@ -75,12 +75,14 @@ Revisions:
 // Define UNROLL_LOOP to speed up display by linearizing the inner loop
 #define UNROLL_LOOP
 
-// Slow down the clock pulse (use slightly less efficient code)
+// Slow down the clock pulse (use less efficient code)
 //#define SLOW_CLOCK
 
-// TODO: Try inserting various numbers of NO Ops in the inner loop until it works
+
+// Add extra NOP during clock pulse (slow down signal) - 
+// need on TM4C1294, suspect may not need on TM4C123x
 #define NOP1
-//#define NOP2
+
 
 // TODO: See how much extra time needed, 
 //   compare loop unrolled with extra operations to looping version without SLOW_CLOCK
@@ -1891,6 +1893,13 @@ strb	r3, [r5, #0]
         ((ptr[i+WIDTH] << 4) & 0x30) |
         ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
       * sclkp = tick;
+#ifdef NOP1
+// FIXME: Values greater than 1/2 scale result in shadows on next line - 
+//  That would be while plane 3 is being displayed.
+//  Could it be too fast clocking on plane 0? (which is clocked out while plane 3 is displayed)
+//  TODO: If NOP fixes it, then should be able to re-roll the loop to put useful operation here
+      __NOP();
+#endif
       * sclkp = tock;
 #endif
 #endif
