@@ -90,12 +90,21 @@ Revisions:
 // Define UNROLL_LOOP to speed up display by linearizing the inner loop
 #define UNROLL_LOOP
 
-// Slow down the clock pulse (use slightly less efficient code)
-// TODO: If this works, see if needed UNROLL_LOOP vs not, Tiva LP vs. Connected LP
-#define SLOW_CLOCK
+// Slow down the clock pulse (use less efficient code)
+//#define SLOW_CLOCK
+
+
+// Add extra NOP during clock pulse (slow down signal) - 
+// need on TM4C1294, suspect may not need on TM4C123x
+#define NOP1
+
+
+// TODO: See how much extra time needed, 
+//   compare loop unrolled with extra operations to looping version without SLOW_CLOCK
 
 
 // TODO: Clean up (or remove) code for UNROLL_LOOP not defined
+
 
 // Energia does not define portOutputRegister(port) for Tiva
 // So make up own version, portMaskedOutputRegister(port, mask)
@@ -1501,13 +1510,20 @@ uint16_t RGBmatrixPanel::getRefresh() {
   return refreshFreq;
 }
   
+
+// minimum delay, allow time for clearing interrupt and return from interrupt
+#define DIM_TIME_MIN  20
+// TODO: Figure out what this should be - this was set arbitrarily
+
+
 // Dimmer - set a delay between refreshes (with LEDs turned off)
 void RGBmatrixPanel::setDim(uint32_t time){
-// TODO: Should probably specify some minimum delay, allow time for 
-// clearing interrupt and return from interrupt
+  if (time < DIM_TIME_MIN)
+    return;
   dimwait = false;  // Next interrupt will be a refresh, one after that will be a delay
   dimtime = time;   // Setting dimtime != 0 enables the delay
 }
+
 
 #endif // __TIVA__
 
@@ -1609,7 +1625,17 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // counter variables change between past/present/future tense in mid-
 // function...hopefully tenses are sufficiently commented.
 
+
 #define SWAP_T(A, B, T) {T swap_tmp; swap_tmp = A; A = B; B = swap_tmp;}
+
+
+#define __ASM asm
+
+__attribute__( ( always_inline ) ) static inline void __NOP(void)
+{
+  __ASM volatile ("nop");
+}
+
 
 void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, *ptr;
@@ -1862,43 +1888,53 @@ void RGBmatrixPanel::updateDisplay(void) {
 // FPGA driver has a clock divider that goes from 50mHz clock to 10mHz clock
 //   (50mHz would be 20ns per clock, 10 mHz would be 100ns per clock)
 //
-// At a guess, clock speed about 100ns might be reasonable starting point for experiment?
-//   That would be just over 12 cycles at 120mHz, or 8 cycles at 80 mHz
-//
-// Other data points:
-//   This forum thread
+// This forum thread
 //   http://forums.adafruit.com/viewtopic.php?f=47&t=26130&start=0
 //   Says 25MHz may be recomended maximum for some of the parts, with 50MHz absolute max
 //     One user with FPGA reports success at 40MHz, with problems above that.
 // 
+// At a guess, clock speed about 40ns (25mHz) might be reasonable starting point for experiment?
+//   That would be 5 cycles at 120mHz, or 3.2 cycles at 80 mHz
+//   (Might be able to push it to 20ns (50mHz)?)
+//
 // There might be requirements for particular parts of the clock 
 //   (e.g. clock needs to be high for so many ns).
-//   The current unrolled code has the clock high for about 1 instruction cycle, 
+//   The unrolled code has the clock high for about 1 instruction cycle, 
 //   and low for about 3 cycles.  
 //   (So on connected LP the clock is high for about 8.3 ns, and low for about 24 ns
 //    Whereas a 25MHz clock evenly divided would be high for 20ns,
 //     and a 50MHz clock would be high for 10 ns
 //
+//  TODO: Check the following comment - it may be talking about old versions
 // On the Stellaris LP the unrolled loop version takes about 6 cycles per item, 
 //   The loopy version about 35 cycles per item
-//   So would expect the unrolled version to be slightly too fast if aiming for 8 cycles
+//   So would expect the unrolled version to be slightly too fast 
 //     (One of the versions using non-local variables might be about right, 
 //      or add a couple of noops?)
 // 
 // On the connected LP may need to add a bit more padding
 //
-// Try padding in different locations (e.g. between tick and tock vs around data output.
+// Try padding in different locations in pew macro (e.g. between tick and tock vs around data output.
 //
-// Although noop is not guaranteed to take time, this still might be useful 
+// Although noop is not guaranteed to take time, it still might be useful 
 // for trying to insert extra delays.
-// __attribute__( ( always_inline ) ) __STATIC_INLINE void __NOP(void)
-//{
-//  __ASM volatile ("nop");
-//}
+
+
 
 #ifdef SLOW_CLOCK
 
 #define pew DATAPORT = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); SCLKPORT = tick; SCLKPORT = tock;
+// This version takes 7 instructions per item
+// Works for Connected LP and 2 panels
+/* 
+    ldrb	r7, [r5, #1]
+    strb.w	r7, [r6, #1008]	; 0x3f0
+    ldr	r6, [r4, #88]	; 0x58
+    strb	r2, [r6, #0]
+    ldr	r7, [r4, #88]	; 0x58
+    strb	r3, [r7, #0]
+    ldr	r6, [r1, #4]
+    */
 
 #else
 
@@ -1907,16 +1943,31 @@ void RGBmatrixPanel::updateDisplay(void) {
 // Makes the inner "loop" 4 instructions, a load and 3 stores
 //   (+1 instruction if a shift is needed)
 
+// Extra no op is needed on the TM4C1294 because it is a little too fast for the panel.
+#ifdef NOP1
 
+#define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; __NOP(); * sclkp = tock;
+/* 4 instructions plus one pad (pad might keep clock high for extra 8 ns)
+
+ldrb	r0, [r6, #1]
+strb	r0, [r7, #0]
+strb	r2, [r5, #0]
+nop
+strb	r3, [r5, #0]
+*/
+  
+#else
 
 #define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; * sclkp = tock;
 
+#endif
 #endif
 
 
 // Possible improvement might be if could read a word,
 // then shift it to output 4 successive bytes.
 // TODO: Try this, see if it improves performance
+// However, may not be much point since already running too fast (at least on connected LP)
 //
 // uint32_t * ptr;
 // t = *ptr++; *dataport = t; *dataport = t>>8; * dataport = t>>16; ...
@@ -2006,6 +2057,13 @@ void RGBmatrixPanel::updateDisplay(void) {
         ((ptr[i+WIDTH] << 4) & 0x30) |
         ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
       * sclkp = tick;
+#ifdef NOP1
+// FIXME: Values greater than 1/2 scale result in shadows on next line - 
+//  That would be while plane 3 is being displayed.
+//  Could it be too fast clocking on plane 0? (which is clocked out while plane 3 is displayed)
+//  TODO: If NOP fixes it, then should be able to re-roll the loop to put useful operation here
+      __NOP();
+#endif
       * sclkp = tock;
 #endif
 #endif
