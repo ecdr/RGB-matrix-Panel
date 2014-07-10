@@ -1258,7 +1258,6 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 
 // TODO: Reameasure and update minRowTime if make major changes to timer service routine
 // FIXME: Need to measure the loop timing values for Connected LP, and for Stellaris LP
-// FIXME: Measure values for unroll_loop once get it working
 
 // TODO: Timing does not include shift - adjust if DATAPORTSHIFT != 0
 
@@ -1267,8 +1266,17 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 
 #if defined(UNROLL_LOOP)
 
-const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
-const uint16_t minRowTimeConst = 265;            // Overhead ticks
+// For version with 1 NOP, x16 panels
+//const uint16_t minRowTimePerPanel = 156;         // Ticks per panel for a row
+//const uint16_t minRowTimeConst = 350;            // Overhead ticks
+
+// For version with 1 NOP, x32 panels
+const uint16_t minRowTimePerPanel = 180;         // Ticks per panel for a row
+const uint16_t minRowTimeConst = 290;            // Overhead ticks
+
+// Was working with numbers below for 2 x32 panels, with 1 NOP
+//const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
+//const uint16_t minRowTimeConst = 265;            // Overhead ticks
 
 #else
 
@@ -1281,6 +1289,8 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 // For Stellaris Launchpad (80 MHz clock)
 
 #if defined(UNROLL_LOOP)
+
+// Based on version without NOP
 const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
 const uint16_t minRowTimeConst = 160;            // Overhead ticks
 
