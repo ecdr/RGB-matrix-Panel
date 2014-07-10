@@ -47,10 +47,6 @@ Revisions:
 #endif
 
 
-// define DEBUG to enable debugging messages on serial console
-#define DEBUG
-
-
 #if defined(__TIVA__)
 
 #include "wiring_private.h"
@@ -66,6 +62,12 @@ Revisions:
 #include "inc/hw_timer.h"
 #include "driverlib/timer.h"
 
+
+// -------------------- Configuration --------------------
+
+
+// define DEBUG to enable debugging messages on serial console
+#define DEBUG
 
 // On Tiva, define BENCHMARK to measure TimerHandler time (may work on other ARM)
 #define BENCHMARK
@@ -88,58 +90,6 @@ Revisions:
 // TODO: Test on TM4C123x - see if need the extra NOP
 #define NOP1
 
-
-// TODO: See how much extra time needed, 
-//   compare loop unrolled with extra operations to looping version without SLOW_CLOCK
-// TODO: Clean up (or remove) code for UNROLL_LOOP not defined
-
-
-// Energia does not define portOutputRegister(port) for Tiva, so make up replacement. 
-// portMaskedOutputRegister(port, mask)
-// include port mask so do not need read, modify, write
-// can just write to the address, and it will not change other pins
-
-// For reference:
-//  void digitalWrite(uint8_t pin, uint8_t val) =
-//  HWREG(portBASERegister(digitalPinToPort(pin)) + (GPIO_O_DATA + (digitalPinToBitMask(pin) << 2))) = val ? 0xFF : 0;
-//  HWREGB should work instead (since all ports are 8 bits max)
-//                                     0  
-//#define HWREG(x)   (*((volatile uint32_t *)(x)))
-//#define HWREGB(x)  (*((volatile uint8_t  *)(x)))
-
-// TODO: Consider bitband version, for 1 bit control lines
-// BITBAND 
-/*
-//#define HWREGBITB(x, b)                                                       \
-//        HWREGB(((uint32_t)(x) & 0xF0000000) | 0x02000000 |                    \
-//               (((uint32_t)(x) & 0x000FFFFF) << 5) | ((b) << 2))
-*/
-
-// Caution - be careful of adding masks to pointer types.
-// Cast the portBASERegister back to uint32_t before add offset
-// Otherwise it will do a clandestine left shift 2 on the mask
-// Alternative would be to make use of that left shift, 
-// but then need a big note explaining the occult behavior
-
-#define portMaskedOutputRegister(port, mask) \
-  ((volatile uint8_t *) (((uint32_t)portBASERegister(port)) + (GPIO_O_DATA + (((uint32_t)mask) << 2))))
-
-// True if a number indicates a valid pin
-/*
-// FIXME: Add range checks.  
-#define PIN_OK(pin) (( pin < ((sizeof (digital_pin_to_port))/(sizeof (digital_pin_to_port[0])))) && \
-  (NOT_A_PIN != digital_pin_to_port[pin]))
-*/
-/*
-FIXME: The compiler complains that
-
-libraries\RGBmatrixpanel\RGBmatrixPanel.cpp:395:3: error: invalid application of 'sizeof' to incomplete type 'const uint8_t [] {aka const unsigned char []}'
-
-sizeof an array doesn't work in C++ (unlike C)
-Tried various incantations which are supposed to do this in C++, 
-but none of them work in Energia
-*/
-#define PIN_OK(pin) ( (NOT_A_PIN != digital_pin_to_port[pin]))
 
 
 
@@ -314,14 +264,68 @@ static const uint8_t BYTES_PER_ROW = 32;
 #if defined(__TIVA__)
 
 static const uint16_t defaultRefreshFreq = 100; // Cycles per second 
-// (200 should work for 1 16 row panel)
-
+  // (200 should work for 1 16 row panel)
 //const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
 
 #endif
 
 
+// -------------------- Utility macros --------------------
+
 #if defined(__TIVA__)
+
+
+// TODO: See how much extra time needed, 
+//   compare loop unrolled with extra operations to looping version without SLOW_CLOCK
+// TODO: Clean up (or remove) code for UNROLL_LOOP not defined
+
+
+// Energia does not define portOutputRegister(port) for Tiva, so make up replacement. 
+// portMaskedOutputRegister(port, mask)
+// include port mask so do not need read, modify, write
+// can just write to the address, and it will not change other pins
+
+// For reference:
+//  void digitalWrite(uint8_t pin, uint8_t val) =
+//  HWREG(portBASERegister(digitalPinToPort(pin)) + (GPIO_O_DATA + (digitalPinToBitMask(pin) << 2))) = val ? 0xFF : 0;
+//  HWREGB should work instead (since all ports are 8 bits max)
+//                                     0  
+//#define HWREG(x)   (*((volatile uint32_t *)(x)))
+//#define HWREGB(x)  (*((volatile uint8_t  *)(x)))
+
+// TODO: Consider bitband version, for 1 bit control lines
+// BITBAND 
+/*
+//#define HWREGBITB(x, b)                                                       \
+//        HWREGB(((uint32_t)(x) & 0xF0000000) | 0x02000000 |                    \
+//               (((uint32_t)(x) & 0x000FFFFF) << 5) | ((b) << 2))
+*/
+
+// Caution - be careful of adding masks to pointer types.
+// Cast the portBASERegister back to uint32_t before add offset
+// Otherwise it will do a clandestine left shift 2 on the mask
+// Alternative would be to make use of that left shift, 
+// but then need a big note explaining the occult behavior
+
+#define portMaskedOutputRegister(port, mask) \
+  ((volatile uint8_t *) (((uint32_t)portBASERegister(port)) + (GPIO_O_DATA + (((uint32_t)mask) << 2))))
+
+// True if a number indicates a valid pin
+/*
+// FIXME: Add range checks.  
+#define PIN_OK(pin) (( pin < ((sizeof (digital_pin_to_port))/(sizeof (digital_pin_to_port[0])))) && \
+  (NOT_A_PIN != digital_pin_to_port[pin]))
+*/
+/*
+FIXME: The compiler complains that
+
+libraries\RGBmatrixpanel\RGBmatrixPanel.cpp:395:3: error: invalid application of 'sizeof' to incomplete type 'const uint8_t [] {aka const unsigned char []}'
+
+sizeof an array doesn't work in C++ (unlike C)
+Tried various incantations which are supposed to do this in C++, 
+but none of them work in Energia
+*/
+#define PIN_OK(pin) ( (NOT_A_PIN != digital_pin_to_port[pin]))
 
 
 // Use variable for sclkport
