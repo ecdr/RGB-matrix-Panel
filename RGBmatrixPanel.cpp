@@ -1777,6 +1777,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 // Makes the inner "loop" 4 instructions, a load and 3 stores
 //   (+1 instruction if a shift is needed)
 
+// Extra no op is needed on the TM4C1294 because it is a little too fast for the panel.
 #ifdef NOP1
 
 #define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; __NOP(); * sclkp = tock;
@@ -1788,12 +1789,7 @@ strb	r2, [r5, #0]
 nop
 strb	r3, [r5, #0]
 */
-    
-#elif defined(NOP2)
-
-#define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); __NOP(); * sclkp = tick; __NOP(); * sclkp = tock;
-// Trying with 2 pads (one while clock low, one while high)
-
+  
 #else
 
 #define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; * sclkp = tock;
