@@ -1361,13 +1361,18 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 }
 
 
+// minimum delay, allow time for clearing interrupt and return from interrupt
+#define DIM_TIME_MIN  20
+// TODO: Figure out what this should be - this was set arbitrarily
+
 // Dimmer - set a delay between refreshes (with LEDs turned off)
 void RGBmatrixPanel::setDim(uint32_t time){
-// TODO: Should probably specify some minimum delay, allow time for 
-// clearing interrupt and return from interrupt
+  if (time < DIM_TIME_MIN)
+    return;
   dimwait = false;  // Next interrupt will be a refresh, one after that will be a delay
   dimtime = time;   // Setting dimtime != 0 enables the delay
 }
+
 
 #endif // __TIVA__
 
