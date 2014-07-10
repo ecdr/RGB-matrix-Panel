@@ -1186,6 +1186,12 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
 //  (just part is from the old, and part is from the new))
 
     while(swapflag == true) delay(1); // wait for interrupt to clear it
+// Maintain backwards compatability - 
+//   Formerly were always drawing on the back buffer
+//   So now if were drawing on the next buffer, make draw on new next buffer
+    if (backindex == frontindex)
+      backindex = nextindex;
+
     if(copy == true)
       memcpy(matrixbuff[nextindex], matrixbuff[frontindex], WIDTH * nRows * nPackedPlanes );
 
@@ -1509,7 +1515,6 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 uint16_t RGBmatrixPanel::getRefresh() {
   return refreshFreq;
 }
-  
 
 // minimum delay, allow time for clearing interrupt and return from interrupt
 #define DIM_TIME_MIN  20
