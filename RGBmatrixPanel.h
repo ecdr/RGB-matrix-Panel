@@ -139,8 +139,8 @@ class RGBmatrixPanel : public Adafruit_GFX {
     _sclk, _latch, _oe, _a, _b, _c, _d;
 
 #if defined(FADE)
-  volatile uint16_t FadeCnt, FadeLen; 
-  volatile int16_t FadeNAccum; // replaces FadeNNext, 
+  volatile uint16_t FadeLen; 
+  volatile int32_t FadeNAccum, FadeCnt;
   boolean copyflag;
 #endif
 

@@ -1136,7 +1136,7 @@ uint8_t RGBmatrixPanel::swapFade(uint16_t tfade, boolean copy) {
   else {
     FadeCnt = 0;        // How many cycles have occured in this fade
 //    FadeNNext = 0;    // How many times has the next frame been shown
-    FadeNAccum = 0;
+    FadeNAccum = 0;     // Sum of 2*FadeNNext over course of fade
     copyflag = copy;    // reminder to do copy at end
     // Start the fade
 
@@ -1597,8 +1597,16 @@ void RGBmatrixPanel::updateDisplay(void) {
         }
         else {  // Calculate which buffer to show this time
 
+//  Fade by image flipping:
+//  Does a linear interpolation between the two images.
+//  What it should show is an image that is a certain percent FrontBuffer and a certain % next.
+//  Use the ammount of time spent showing FrontBuffer vs NextBuffer to approximate that percent
+//  For the next interval, display whichever one will bring displayed percent closer to
+//    the current target percent.
+
 // Need to test following expression 
-//  (derived from calculating error differences and a bunch of algebra, checked in a spreadsheet so think okay)
+//  (derived from calculating error differences and a bunch of algebra, 
+//   checked in a spreadsheet so think okay)
 
 //
 // if (abs(FadeCnt ^ 2 - 2 * FadeLen * FadeNNext) > abs(FadeCnt ^ 2 - 2 * FadeLen * (FadeNNext + 1)))
@@ -1610,11 +1618,13 @@ void RGBmatrixPanel::updateDisplay(void) {
 //   Could cache 2*FadeLen - but just a bit shift, so may not be worth it
 
 // Following expression has been tested and works to give linear fade
-//          int16_t FadeCntSq = FadeCnt * FadeCnt;
+//          int32_t FadeCntSq = FadeCnt * FadeCnt;
 //          if (abs(FadeCntSq - FadeNAccum ) > abs(FadeCntSq - FadeNAccum - (2 * FadeLen) )){
 
 // Following expression should yield the same result as above, with less calculation
 // TODO: Test to see that this gives same result
+
+// TODO: Would it be more efficient to keep FadeLen as a uint32_t also?
           if (abs(FadeCnt * FadeCnt - FadeNAccum ) > FadeLen ){
 //    Show NextBuffer;
             buffptr = matrixbuff[backindex]; // Reset into back buffer
