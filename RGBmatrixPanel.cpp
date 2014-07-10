@@ -46,8 +46,6 @@ Revisions:
 #define pgm_read_byte( a ) (*(a))
 #endif
 
-// FIXME: Need to import real assert
-#define ASSERT(a)
 
 #if defined(__TIVA__)
 
@@ -77,7 +75,21 @@ Revisions:
 // Define UNROLL_LOOP to speed up display by linearizing the inner loop
 #define UNROLL_LOOP
 
+// Slow down the clock pulse (use less efficient code)
+//#define SLOW_CLOCK
+
+
+// Add extra NOP during clock pulse (slow down signal) - 
+// need on TM4C1294, suspect may not need on TM4C123x
+#define NOP1
+
+
+// TODO: See how much extra time needed, 
+//   compare loop unrolled with extra operations to looping version without SLOW_CLOCK
+
+
 // TODO: Clean up (or remove) code for UNROLL_LOOP not defined
+
 
 // Energia does not define portOutputRegister(port) for Tiva
 // So make up own version, portMaskedOutputRegister(port, mask)
@@ -110,8 +122,19 @@ Revisions:
   ((volatile uint8_t *) (((uint32_t)portBASERegister(port)) + (GPIO_O_DATA + (((uint32_t)mask) << 2))))
 
 // True if a number indicates a valid pin
-#define PIN_OK(pin) (( pin < (((sizeof) digital_pin_to_port)/((sizeof) digital_pin_to_port[0]))) && \
+/*
+#define PIN_OK(pin) (( pin < ((sizeof (digital_pin_to_port))/(sizeof (digital_pin_to_port[0])))) && \
   (NOT_A_PIN != digital_pin_to_port[pin]))
+*/
+/*
+FIXME: The compiler complains that
+
+libraries\RGBmatrixpanel\RGBmatrixPanel.cpp:395:3: error: invalid application of 'sizeof' to incomplete type 'const uint8_t [] {aka const unsigned char []}'
+
+However this works fine in eLua
+Is there some switch need to give the compiler to tell it to wise-up and get with the program?
+*/
+#define PIN_OK(pin) ( (NOT_A_PIN != digital_pin_to_port[pin]))
 
 
 
@@ -277,8 +300,16 @@ Revisions:
 #define nPlanes 5
 //static const uint8_t nPlanes = 4;
 
-static const uint8_t nPackedPlanes = nPlanes - 1;  // 3 bytes holds 4 planes "packed"
+static const uint8_t nPackedPlanes = (nPlanes - 1);  // 3 bytes holds 4 planes "packed"
 static const uint8_t BYTES_PER_ROW = 32;
+
+// FIXME: Need to import real assert
+#if defined(DEBUG)
+#define ASSERT(expr) if (!(expr)) {Serial.print("Error: assertion failure in "); \
+    Serial.print(__FILE__); Serial.print(", line"); Serial.println(__LINE__);}
+#else
+#define ASSERT(expr)
+#endif
 
 
 #if defined(__TIVA__)
@@ -379,18 +410,9 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
 // Error to not have any panels.  Should throw exception or something.
 // (Actually the compiler should catch this, but it doesn't seem to care if omit pwidth)
   if (pwidth == 0){
-#if defined(DEBUG)
-    Serial.print("RGBmatrixPanel init - error, no panels");
-#endif
     pwidth = 1;
+    // FIXME: Signal error somehow
   }
-
-  ASSERT(PIN_OK(a));
-  ASSERT(PIN_OK(b));
-  ASSERT(PIN_OK(c));
-  ASSERT(PIN_OK(sclk));
-  ASSERT(PIN_OK(latch));
-  ASSERT(PIN_OK(oe));
 
   nRows = rows; // Number of multiplexed rows; actual height is 2X this
   nPanels = pwidth;
@@ -524,6 +546,15 @@ void RGBmatrixPanel::begin(void) {
   Serial.begin(9600);
 #endif
 
+// Didn't get any output from ASSERTs when put in init
+  ASSERT(WIDTH == BYTES_PER_ROW * nPanels);
+  ASSERT(PIN_OK(_a));
+  ASSERT(PIN_OK(_b));
+  ASSERT(PIN_OK(_c));
+  ASSERT(PIN_OK(_sclk));
+  ASSERT(PIN_OK(_latch));
+  ASSERT(PIN_OK(_oe));
+
 /*
 #if defined(DEBUG)
 
@@ -593,6 +624,7 @@ if(nRows > 8) {
   pinMode(_b    , OUTPUT); *addrbport &= ~addrbpin; // Low
   pinMode(_c    , OUTPUT); *addrcport &= ~addrcpin; // Low
   if(nRows > 8) {
+    ASSERT(PIN_OK(_d));
     pinMode(_d  , OUTPUT); *addrdport &= ~addrdpin; // Low
   }
 
@@ -1014,6 +1046,7 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
     memset(matrixbuff[backindex], c, WIDTH * nRows * nPackedPlanes );
   } else {
     // Otherwise, need to handle it the long way:
+// TODO: Could fill one row, then copy that
     Adafruit_GFX::fillScreen(c);
   }
 }
@@ -1159,6 +1192,8 @@ void RGBmatrixPanel::dumpMatrix(void) {
         };
         Serial.print(",\n\\\\ row ");
         Serial.print(row);
+        Serial.print(" , ");
+        Serial.print(row + nRows);
         Serial.print(" plane ");
         Serial.print(plane);
         Serial.print("\n  ");
@@ -1235,6 +1270,7 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 
 
 // TODO: Reameasure and update minRowTime if make major changes to timer service routine
+// FIXME: Need to measure the loop timing values for Connected LP, and for Stellaris LP
 
 // TODO: Timing does not include shift - adjust if DATAPORTSHIFT != 0
 
@@ -1243,10 +1279,20 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 
 #if defined(UNROLL_LOOP)
 
-const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
-const uint16_t minRowTimeConst = 265;            // Overhead ticks
+// For version with 1 NOP, x16 panels
+//const uint16_t minRowTimePerPanel = 156;         // Ticks per panel for a row
+//const uint16_t minRowTimeConst = 350;            // Overhead ticks
+
+// For version with 1 NOP, x32 panels
+const uint16_t minRowTimePerPanel = 180;         // Ticks per panel for a row
+const uint16_t minRowTimeConst = 290;            // Overhead ticks
+
+// Was working with numbers below for 2 x32 panels, with 1 NOP
+//const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
+//const uint16_t minRowTimeConst = 265;            // Overhead ticks
 
 #else
+
 const uint16_t minRowTimePerPanel = 1610;        // Ticks per panel for a row
 const uint16_t minRowTimeConst = 270;            // Overhead ticks
 
@@ -1256,15 +1302,18 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 // For Stellaris Launchpad (80 MHz clock)
 
 #if defined(UNROLL_LOOP)
+
+// Based on version without NOP
 const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
 const uint16_t minRowTimeConst = 160;            // Overhead ticks
 
 #else
 const uint16_t minRowTimePerPanel = 1150;        // Ticks per panel for a row
 const uint16_t minRowTimeConst = 180;            // Overhead ticks
+// minRowTime = 1148 * nPanels + 176 = 1324
+
 #endif // UNROLL_LOOP
 
-// minRowTime = 1148 * nPanels + 176 = 1324
 
 #elif defined(__TM4C129XNCZAD__)
 
@@ -1310,7 +1359,10 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 #endif
 
   // Approximate sanity check (try to keep from making refresh rate too high)
-  if (rowtimetemp < minRowTimePerPanel * nPanels + minRowTimeConst){  
+  // Typecast gets the compiler to shut up.
+  //  All the constituents are unsigned, and there is no way this could come out with
+  //  a negative result, but the compiler complains about comparison between signed and unsigned
+  if (rowtimetemp < (uint32_t) minRowTimePerPanel * nPanels + minRowTimeConst){
     rowtime = minRowTimePerPanel * nPanels + minRowTimeConst;
 
 #if defined(DEBUG)
@@ -1333,13 +1385,18 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 }
 
 
+// minimum delay, allow time for clearing interrupt and return from interrupt
+#define DIM_TIME_MIN  20
+// TODO: Figure out what this should be - this was set arbitrarily
+
 // Dimmer - set a delay between refreshes (with LEDs turned off)
 void RGBmatrixPanel::setDim(uint32_t time){
-// TODO: Should probably specify some minimum delay, allow time for 
-// clearing interrupt and return from interrupt
+  if (time < DIM_TIME_MIN)
+    return;
   dimwait = false;  // Next interrupt will be a refresh, one after that will be a delay
   dimtime = time;   // Setting dimtime != 0 enables the delay
 }
+
 
 #endif // __TIVA__
 
@@ -1441,14 +1498,21 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // counter variables change between past/present/future tense in mid-
 // function...hopefully tenses are sufficiently commented.
 
+#define __ASM asm
+
+__attribute__( ( always_inline ) ) static inline void __NOP(void)
+{
+  __ASM volatile ("nop");
+}
+
 
 void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, *ptr;
 #if defined(__TIVA__)
   uint32_t duration;
   volatile uint8_t * dataport = &DATAPORT;
-  volatile uint8_t * sclkp = &SCLKPORT;
- 
+  volatile uint8_t * sclkp = sclkport;
+
 #else
   uint16_t t;
   uint16_t duration;
@@ -1544,10 +1608,13 @@ void RGBmatrixPanel::updateDisplay(void) {
 //   FadeCnt^2 used on both sides (calculate once)
 //   Could cache 2*FadeLen - but just a bit shift, so may not be worth it
 
-          int16_t FadeCntSq = FadeCnt * FadeCnt;
+// Following expression has been tested and works to give linear fade
+//          int16_t FadeCntSq = FadeCnt * FadeCnt;
+//          if (abs(FadeCntSq - FadeNAccum ) > abs(FadeCntSq - FadeNAccum - (2 * FadeLen) )){
 
-          if (abs(FadeCntSq - FadeNAccum ) > abs(FadeCntSq - FadeNAccum - (2 * FadeLen) )){
-//          if (abs(FadeCntSq - FadeNAccum ) > FadeLen )){    // TODO: Something like this might also work
+// Following expression should yield the same result as above, with less calculation
+// TODO: Test to see that this gives same result
+          if (abs(FadeCnt * FadeCnt - FadeNAccum ) > FadeLen ){
 //    Show NextBuffer;
             buffptr = matrixbuff[backindex]; // Reset into back buffer
             FadeNAccum += 2 * FadeLen; // Update accumulated showing next // FadeNNext++
@@ -1672,19 +1739,100 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 #else				// Code for non AVR (i.e. Due and ARM based systems)
 
+// FIXME: This may send data too fast for the panel 
+// (May depend on processor clock speed - e.g. Connected LP vs. Stellaris LP)
+// 
+// TODO: Gather what information available on timing constraints.
+// 
+// Raspberry Pi driver - Says takes 3.4 uSec to clock out the data
+//   (i.e. 106ns per data item)
+//   However code says clock high for >256ns, then 
+//     low for >256ns before output data, >256 ns after output data
+//     So one data item would take 768 ns to put out, and 32 would be 24.5 uSec
+//
+// FPGA driver has a clock divider that goes from 50mHz clock to 10mHz clock
+//   (50mHz would be 20ns per clock, 10 mHz would be 100ns per clock)
+//
+// This forum thread
+//   http://forums.adafruit.com/viewtopic.php?f=47&t=26130&start=0
+//   Says 25MHz may be recomended maximum for some of the parts, with 50MHz absolute max
+//     One user with FPGA reports success at 40MHz, with problems above that.
+// 
+// At a guess, clock speed about 40ns (25mHz) might be reasonable starting point for experiment?
+//   That would be 5 cycles at 120mHz, or 3.2 cycles at 80 mHz
+//   (Might be able to push it to 20ns (50mHz)?)
+//
+// There might be requirements for particular parts of the clock 
+//   (e.g. clock needs to be high for so many ns).
+//   The unrolled code has the clock high for about 1 instruction cycle, 
+//   and low for about 3 cycles.  
+//   (So on connected LP the clock is high for about 8.3 ns, and low for about 24 ns
+//    Whereas a 25MHz clock evenly divided would be high for 20ns,
+//     and a 50MHz clock would be high for 10 ns
+//
+//  TODO: Check the following comment - it may be talking about old versions
+// On the Stellaris LP the unrolled loop version takes about 6 cycles per item, 
+//   The loopy version about 35 cycles per item
+//   So would expect the unrolled version to be slightly too fast 
+//     (One of the versions using non-local variables might be about right, 
+//      or add a couple of noops?)
+// 
+// On the connected LP may need to add a bit more padding
+//
+// Try padding in different locations in pew macro (e.g. between tick and tock vs around data output.
+//
+// Although noop is not guaranteed to take time, it still might be useful 
+// for trying to insert extra delays.
+
+
+
+#ifdef SLOW_CLOCK
+
+#define pew DATAPORT = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); SCLKPORT = tick; SCLKPORT = tock;
+// This version takes 7 instructions per item
+// Works for Connected LP and 2 panels
+/* 
+    ldrb	r7, [r5, #1]
+    strb.w	r7, [r6, #1008]	; 0x3f0
+    ldr	r6, [r4, #88]	; 0x58
+    strb	r2, [r6, #0]
+    ldr	r7, [r4, #88]	; 0x58
+    strb	r3, [r7, #0]
+    ldr	r6, [r1, #4]
+    */
+
+#else
+
 // For sclkport, dataport, local variables easier for the compiler to access/optimize
 // (Might be able to do it with the dataport variable in "this" instead?)
 // Makes the inner "loop" 4 instructions, a load and 3 stores
 //   (+1 instruction if a shift is needed)
 
+// Extra no op is needed on the TM4C1294 because it is a little too fast for the panel.
+#ifdef NOP1
+
+#define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; __NOP(); * sclkp = tock;
+/* 4 instructions plus one pad (pad might keep clock high for extra 8 ns)
+
+ldrb	r0, [r6, #1]
+strb	r0, [r7, #0]
+strb	r2, [r5, #0]
+nop
+strb	r3, [r5, #0]
+*/
+  
+#else
+
 #define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; * sclkp = tock;
 
-//#define pew DATAPORT = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); SCLKPORT = tick; SCLKPORT = tock;
+#endif
+#endif
 
 
 // Possible improvement might be if could read a word,
 // then shift it to output 4 successive bytes.
 // TODO: Try this, see if it improves performance
+// However, may not be much point since already running too fast (at least on connected LP)
 //
 // uint32_t * ptr;
 // t = *ptr++; *dataport = t; *dataport = t>>8; * dataport = t>>16; ...
@@ -1727,14 +1875,16 @@ void RGBmatrixPanel::updateDisplay(void) {
     uint8_t *pFinal = ptr + WIDTH;
     for(; ptr<pFinal; ptr++)
     {
-      * dataport = LEFT_SHIFT((ptr[i]), DATAPORTSHIFT);
+#ifdef SLOW_CLOCK
+      DATAPORT = LEFT_SHIFT((*ptr), DATAPORTSHIFT);;
+      SCLKPORT = tick;
+      SCLKPORT = tock;
+#else
+      * dataport = LEFT_SHIFT((*ptr), DATAPORTSHIFT);
       * sclkp = tick;
       * sclkp = tock;
-//      DATAPORT = LEFT_SHIFT((*ptr), DATAPORTSHIFT);;
-//      SCLKPORT = tick;
-//      SCLKPORT = tock;
+#endif
     }
-*/
 #endif
     buffptr += WIDTH;
 
@@ -1759,12 +1909,28 @@ void RGBmatrixPanel::updateDisplay(void) {
       SCLKPORT = tick;
       SCLKPORT = tock;
 #else
+#ifdef SLOW_CLOCK
+      DATAPORT =
+        LEFT_SHIFT((( ptr[i]    << 6)                   |
+        ((ptr[i+WIDTH] << 4) & 0x30) |
+        ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
+      SCLKPORT = tick;
+      SCLKPORT = tock;
+#else      
       * dataport =
         LEFT_SHIFT((( ptr[i]    << 6)                   |
         ((ptr[i+WIDTH] << 4) & 0x30) |
         ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
       * sclkp = tick;
+#ifdef NOP1
+// FIXME: Values greater than 1/2 scale result in shadows on next line - 
+//  That would be while plane 3 is being displayed.
+//  Could it be too fast clocking on plane 0? (which is clocked out while plane 3 is displayed)
+//  TODO: If NOP fixes it, then should be able to re-roll the loop to put useful operation here
+      __NOP();
+#endif
       * sclkp = tock;
+#endif
 #endif
     } 
   }
