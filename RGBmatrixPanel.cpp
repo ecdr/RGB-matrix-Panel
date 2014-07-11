@@ -1232,12 +1232,25 @@ int8_t RGBmatrixPanel::copyBuffer(void){
 // Todo: change tfade unit from refresh cycles to time
 
 // Fade is done by PWM between front and next buffers
-uint8_t RGBmatrixPanel::swapFade(uint16_t tfade, boolean copy) {
+uint8_t RGBmatrixPanel::swapFade(uint16_t tfade) {
+  return swapFade(nextindex, tfade, false);
+}
+
+// If only give 2 arguments - not sure which ones they should be 
+//   (tfade and copy, or tfade and nextPage)
+
+#define PAGE_OK(page) (page < nBuf)
+
+
+uint8_t RGBmatrixPanel::swapFade(uint8_t nextPage, uint16_t tfade, boolean copy) {
 
 #if defined(DEBUG)
   Serial.print("swapFade");
 #endif
 
+  if(!PAGE_OK(setNext(nextPage)))
+    return 1;
+  
   if (0 != FadeLen) {
     if (0 == tfade){  // Setting tfade = 0 cancels fade in progress
 // FIXME: Consider whether this may cause glitches (e.g. if need to wait until end of frame)

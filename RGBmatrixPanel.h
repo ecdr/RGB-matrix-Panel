@@ -85,6 +85,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
     fillScreen(uint16_t c),   // fill current drawing buffer with color c
     updateDisplay(void),      // TODO: Why is updateDisplay public?
     swapBuffers(boolean copy = false),  // Display next buffer
+    // swapBuffers(uint8_t nextPage, boolean copy),
     dumpMatrix(void),
     dumpMatrix(uint8_t buf);
   int8_t
@@ -115,7 +116,8 @@ class RGBmatrixPanel : public Adafruit_GFX {
     getRefresh();                // Return refresh frequency
 #if defined(FADE)
   uint8_t
-    swapFade(uint16_t tfade, boolean copy = false);
+    swapFade(uint16_t tfade),    // Fade to next, no copy
+    swapFade(uint8_t nextPage, uint16_t tfade, boolean copy);
   boolean
     fading();   // true if fade is in progress
 #endif
