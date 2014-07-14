@@ -82,14 +82,20 @@ Revisions:
 // Define UNROLL_LOOP to speed up display refresh by linearizing the inner loop
 #define UNROLL_LOOP
 
+// Processor can put out data too fast for the display - various ways of slowing it down
+// (Use only one of following)
+
 // Slow down the clock pulse (use less efficient code)
 //#define SLOW_CLOCK
 
-// Add extra NOP during clock pulse (slow down signal a little)
+// Add extra NOP during clock pulse (slow down data output a little)
 // extra NOP needed on TM4C1294, suspect may not need on TM4C123x
 // TODO: Test on TM4C123x - see if need the extra NOP
-#define NOP1
+// #define SLOW_NOP1
 
+// TODO: Test Alternative version - rearrange instructions may eliminate need for NOP
+//#define REROLL
+#define REROLL_B
 
 
 
@@ -163,8 +169,9 @@ Revisions:
 // Timer selection
 
 // Note: 
-// Timer 4A is used by Tone
 // Timer 5 is used by Energia time tracking
+// Timer 2A is used by Servo library
+// Timer 4A is used by Tone library
 
 // Launchpad: Energia analog write uses regular timer 0-3, and wide timer 0-3, 6, 7
 //     Thus wide timers 4 and 5 appear to be available.
@@ -173,7 +180,7 @@ Revisions:
 // Energia doesn't use all the timers, maybe better to just grab one not used
 //   WTIMER4 or WTIMER5 on LP, TIMER6 or TIMER7 on Connected LP
 //   Or could select timer that does PWM for a pin that is otherwise in use.
-//     (For instance pins used for by RGBMatrix)
+//     (For instance, pins used for RGBMatrix)
 
 //  TODO: Check Energia timer use for timers 4 and 5 on Connected LP
 //    Seems strange that, on Connected LP, Timers 4 and 5 are used both by tone and by PWM??
@@ -257,6 +264,7 @@ Revisions:
 
 
 static const uint8_t nPlanes = 4;
+// Will not work for nPlanes < 4 (would need fixing to not do packing)
 static const uint8_t nPackedPlanes = (nPlanes - 1);  // 3 bytes holds 4 planes "packed"
 static const uint8_t BYTES_PER_ROW = 32;
 
@@ -1390,6 +1398,10 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 #define DIM_TIME_MIN  20
 // TODO: Figure out what this should be - this was set arbitrarily
 
+// Turn off LEDs for about 4x time (clock ticks) per refresh cycle
+//  e.g. if time = 2xrowtime should cut the time the LEDs are on in half 
+//   (and reduce refresh rate to about half)
+
 // Dimmer - set a delay between refreshes (with LEDs turned off)
 void RGBmatrixPanel::setDim(uint32_t time){
   if (time < DIM_TIME_MIN)
@@ -1792,7 +1804,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 //
 // Try padding in different locations in pew macro (e.g. between tick and tock vs around data output.
 //
-// Although noop is not guaranteed to take time, it still might be useful 
+// Although no op is not guaranteed to take time, it still might be useful 
 // for trying to insert extra delays.
 
 
@@ -1804,35 +1816,94 @@ void RGBmatrixPanel::updateDisplay(void) {
 // Works for Connected LP and 2 panels
 /* 
     ldrb	r7, [r5, #1]
-    strb.w	r7, [r6, #1008]	; 0x3f0
-    ldr	r6, [r4, #88]	; 0x58
-    strb	r2, [r6, #0]
-    ldr	r7, [r4, #88]	; 0x58
-    strb	r3, [r7, #0]
+    strb.w	r7, [r6, #1008]
+    ldr	r6, [r4, #88]       ; tick
+    strb	r2, [r6, #0]      ;  "
+    ldr	r7, [r4, #88]       ; tock
+    strb	r3, [r7, #0]      ;  "
     ldr	r6, [r1, #4]
-    */
+*/
 
 #else
 
-// For sclkport, dataport, local variables easier for the compiler to access/optimize
+// For sclkport, dataport - local variables easier for the compiler to access/optimize
 // (Might be able to do it with the dataport variable in "this" instead?)
-// Makes the inner "loop" 4 instructions, a load and 3 stores
-//   (+1 instruction if a shift is needed)
 
-// Extra no op is needed on the TM4C1294 because it is a little too fast for the panel.
-#ifdef NOP1
+// However, need instruction between clock toggle instructions on the TM4C1294 
+// because it is a little too fast for the panel.
+// Use a NOP
+#ifdef SLOW_NOP1
 
 #define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; __NOP(); * sclkp = tock;
 /* 4 instructions plus one pad (pad might keep clock high for extra 8 ns)
 
 ldrb	r0, [r6, #1]
 strb	r0, [r7, #0]
-strb	r2, [r5, #0]
+strb	r2, [r5, #0]  ; tick
 nop
-strb	r3, [r5, #0]
+strb	r3, [r5, #0]  ; tock
 */
   
+#elif defined(REROLL)
+
+/* TODO: test this.
+Rearrange instructions to try to eliminate NOP - fetch next value while clocking out last value.
+
+ldrb	r0, [r6, #1]  ; Setup
+
+
+strb	r0, [r7, #0]  ; Output value
+strb	r2, [r5, #0]  ; tick
+ldrb	r0, [r6, #2]  ; Load value for next time around
+strb	r3, [r5, #0]  ; tock
+...
+*/
+
+uint8_t temp;
+
+#define PREP temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT);
+
+#define pew *dataport = temp; * sclkp = tick; \
+  temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tock;
+
+// *** CAUTION: This does one more *ptr++ than the regular version
+// so it leaves ptr pointing beyond the end of the data area
+// At the moment this is not a problem since ptr is not used after
+// However it reads 1 beyond the end of data - not good.
+//  Could - add an extra buffer bit at end of last buffer
+
+#elif defined(REROLL_B)
+
+uint8_t temp;
+
+//  Different rearrangement
+// Read first, then tock, then output data, then tick
+//  So the first tock will be ignored (since clock should already be tocked)
+//  Means need to add extra tock at end to finish
+// TODO: test
+
+#define pew \
+  temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tock; \
+  *dataport = temp; * sclkp = tick;
+
+//  Then, rather than needing prep, need an extra tock at the end
+
+// TODO: Probably do not need the NOP (because of loop overhead)
+#define FINISHUP   __NOP(); * sclkp = tock;
+
 #else
+
+// Basic fast version - 
+// Makes the inner "loop" 4 instructions, a load and 3 stores
+//   (+1 instruction if a shift is needed)
+
+/* 
+ldrb	r0, [r6, #1]
+strb	r0, [r7, #0]
+strb	r2, [r5, #0]    ; tick
+strb	r3, [r5, #0]    ; tock
+...
+*/
 
 #define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; * sclkp = tock;
 
@@ -1862,7 +1933,11 @@ strb	r3, [r5, #0]
 
 #if defined( UNROLL_LOOP )
     uint8_t panelcount;
-  
+
+#if defined( PREP )    
+    PREP
+#endif
+
     for (panelcount = 0; panelcount < nPanels; panelcount++)
     {
     	// Loop is unrolled for speed:
@@ -1871,6 +1946,10 @@ strb	r3, [r5, #0]
       pew pew pew pew pew pew pew pew
       pew pew pew pew pew pew pew pew
     } 
+
+#if defined( FINISHUP )
+    FINISHUP
+#endif
 
 #else     // Loopy version
 /*
@@ -1893,6 +1972,8 @@ strb	r3, [r5, #0]
 #else
       * dataport = LEFT_SHIFT((*ptr), DATAPORTSHIFT);
       * sclkp = tick;
+// FIXME: Not sure if this might need an extra instruction on Connected LP
+//   (either NOP, or do code rearrangement)
       * sclkp = tock;
 #endif
     }
@@ -1933,11 +2014,14 @@ strb	r3, [r5, #0]
         ((ptr[i+WIDTH] << 4) & 0x30) |
         ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
       * sclkp = tick;
-#ifdef NOP1
-// FIXME: Values greater than 1/2 scale result in shadows on next line - 
+#ifdef SLOW_NOP1
+// FIXME: Color values greater than 1/2 scale result in shadows on next line - 
 //  That would be while plane 3 is being displayed.
 //  Could it be too fast clocking on plane 0? (which is clocked out while plane 3 is displayed)
+      __NOP();
+#elif defined(REROLL) || defined(REROLL_B)
 //  TODO: If NOP fixes it, then should be able to re-roll the loop to put useful operation here
+//   to replace the NOP
       __NOP();
 #endif
       * sclkp = tock;
