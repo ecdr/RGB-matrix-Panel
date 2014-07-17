@@ -173,12 +173,12 @@ Revisions:
 // Timer 2A is used by Servo library
 // Timer 4A is used by Tone library
 
-// Launchpad: Energia analog write uses regular timer 0-3, and wide timer 0-3, 6, 7
+// Stellaris Launchpad: Energia analog write uses regular timer 0-3, and wide timer 0-3, 6, 7
 //     Thus wide timers 4 and 5 appear to be available.
 // Connected LP: Energia analog write uses timers 0-5 (so 6 and 7 should be available)
 
 // Energia doesn't use all the timers, maybe better to just grab one not used
-//   WTIMER4 or WTIMER5 on LP, TIMER6 or TIMER7 on Connected LP
+//   WTIMER4 or WTIMER5 on Stellaris LP, TIMER6 or TIMER7 on Connected LP
 //   Or could select timer that does PWM for a pin that is otherwise in use.
 //     (For instance, pins used for RGBMatrix)
 
@@ -272,7 +272,7 @@ static const uint8_t BYTES_PER_ROW = 32;
 #if defined(__TIVA__)
 
 static const uint16_t defaultRefreshFreq = 100; // Cycles per second 
-  // (200 should work for 1 16 row panel)
+
 //const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
 
 #endif
@@ -1253,7 +1253,7 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 //   It also needs to be long enough that planes with extra processing
 //     will still fit when done with the appropriate multiplier
 //     e.g. if use fancy coding for the 4th plane, 
-//     then handling that must take less than minRowTime << 3 
+//     then handling that must take less than minRowTime << 3 (assuming nPanels is 4)
 //
 // Can measure by setting BENCHMARK, and checking serial output
 //   BENCHMARK result does not include interrupt overhead to call timer handler
@@ -1289,6 +1289,7 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 
 #if defined(UNROLL_LOOP)
 
+#if defined( SLOW_NOP1 )
 // For version with 1 NOP, x16 panels
 //const uint16_t minRowTimePerPanel = 156;         // Ticks per panel for a row
 //const uint16_t minRowTimeConst = 350;            // Overhead ticks
@@ -1297,9 +1298,14 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 const uint16_t minRowTimePerPanel = 180;         // Ticks per panel for a row
 const uint16_t minRowTimeConst = 290;            // Overhead ticks
 
-// Was working with numbers below for 2 x32 panels, with 1 NOP
-//const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
-//const uint16_t minRowTimeConst = 265;            // Overhead ticks
+//#elif defined( REROLL ) || defined ( REROLL_B )
+#else
+
+// Was working with numbers below for 2 x32 panels (with 1 NOP)
+const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
+const uint16_t minRowTimeConst = 265;            // Overhead ticks
+
+#endif
 
 #else
 
@@ -1538,7 +1544,7 @@ void RGBmatrixPanel::updateDisplay(void) {
     if (dimwait){
       // last time was a refresh, so this time we wait
       dimwait = false;   // Next interrupt will not be a wait
-      *oeport  = oepin;  // Disable LED output during delay
+      *oeport  = 0xFF;  // Disable LED output during delay
 // TODO: should the latch be done now, or should that wait until really going to change addr
 
       MAP_TimerLoadSet( TIMER_BASE, TIMER_A, dimtime );
@@ -1549,9 +1555,19 @@ void RGBmatrixPanel::updateDisplay(void) {
   }
 #endif
 
+// TODO: Comment below about latching when latch rises may be wrong? - 
+// Octoscroller said latch happens on falling edge of latch (i.e. this is get ready to latch)
+// On SmartMatrix it does a lot of DMA transfers triggered on latch falling, 
+//    which suggests that is not when the data gets latched, since start changing data then
+
+
+// TODO: Could move this closer to where latch is turned on again.
+//  oe Has to be off when change address and when latch
+//  but probably doesn't have to be off for calculating delay or updating timer
+//  (unless there is some minimum time involved).
 #if defined(__TIVA__)
-  *oeport  = oepin;  // Disable LED output during row/plane switchover
-  *latport = latpin; // Latch data loaded during *prior* interrupt
+  *oeport  = 0xFF;  // Disable LED output during row/plane switchover
+  *latport = 0xFF;  // Latch data loaded during *prior* interrupt
 #else
   *oeport  |= oepin;  // Disable LED output during row/plane switchover
   *latport |= latpin; // Latch data loaded during *prior* interrupt
@@ -1563,19 +1579,19 @@ void RGBmatrixPanel::updateDisplay(void) {
 #endif
 */
 
+  // Calculate time to next interrupt BEFORE incrementing plane #.
+  // This is because duration is the display time for the data loaded
+  // on the PRIOR interrupt.  
 #if defined(__TIVA__)
   duration = rowtime << plane;
 
 #else
-  // Calculate time to next interrupt BEFORE incrementing plane #.
-  // This is because duration is the display time for the data loaded
-  // on the PRIOR interrupt.  CALLOVERHEAD is subtracted from the
-  // result because that time is implicit between the timer overflow
-  // (interrupt triggered) and the initial LEDs-off line at the start
-  // of this method.
+  // CALLOVERHEAD is subtracted from the result because that time is 
+  // implicit between the timer overflow (interrupt triggered) and 
+  // the initial LEDs-off line at the start of this method.
   t = (nRows > 8) ? LOOPTIME : (LOOPTIME * 2);
   // FIXME: adjust for number of panels (maybe * nPanels )
-  // TODO: Why is t longer for 32x32 than for 32x16?
+  // TODO: Why is t longer for 32x16 than for 32x32?
   duration = ((t + CALLOVERHEAD * 2) << plane) - CALLOVERHEAD;
 #endif
 
@@ -1707,7 +1723,11 @@ void RGBmatrixPanel::updateDisplay(void) {
   TCNT1     = 0;        // Restart interrupt timer
 #endif
 
+// FIXME: Check other drivers - should latch be lowered while output is still disabled?
+//  In raspi version, latch is lowered while output enable is high
+//   (latch set and immediately cleared, suggesting no minimum high time)
 
+// TODO: Could try swapping (put latch down first) to see if it helps any with ghosts (e.g. at end of line)
 #if defined(__TIVA__)
   *oeport  = 0;  // Re-enable output
   *latport = 0;  // Latch down
@@ -1738,7 +1758,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 
     // Planes 1-3 copy bytes directly from RAM to PORT without unpacking.
     // The least 2 bits (used for plane 0 data) are presumed masked out
-    // by the port direction bits.
+    // by the port direction bits (on Tiva they are masked by port mask).
 
 #if defined(__AVR__)
     // A tiny bit of inline assembly is used; compiler doesn't pick
@@ -1762,9 +1782,6 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 #else				// Code for non AVR (i.e. Due and ARM based systems)
 
-// FIXME: This may send data too fast for the panel 
-// (May depend on processor clock speed - e.g. Connected LP vs. Stellaris LP)
-// 
 // TODO: Gather what information available on timing constraints.
 // 
 // Raspberry Pi driver - Says takes 3.4 uSec to clock out the data
@@ -1779,7 +1796,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 // This forum thread
 //   http://forums.adafruit.com/viewtopic.php?f=47&t=26130&start=0
 //   Says 25MHz may be recomended maximum for some of the parts, with 50MHz absolute max
-//     One user with FPGA reports success at 40MHz, with problems above that.
+//     One user with FPGA reports success at 40MHz (25ns), with problems above that.
 // 
 // At a guess, clock speed about 40ns (25mHz) might be reasonable starting point for experiment?
 //   That would be 5 cycles at 120mHz, or 3.2 cycles at 80 mHz
@@ -1787,25 +1804,18 @@ void RGBmatrixPanel::updateDisplay(void) {
 //
 // There might be requirements for particular parts of the clock 
 //   (e.g. clock needs to be high for so many ns).
-//   The unrolled code has the clock high for about 1 instruction cycle, 
-//   and low for about 3 cycles.  
-//   (So on connected LP the clock is high for about 8.3 ns, and low for about 24 ns
-//    Whereas a 25MHz clock evenly divided would be high for 20ns,
+//   The initial unrolled code - gives messed up display
+//      has the clock high for about 1 instruction cycle, and low for about 3 cycles.
+//   (So on connected LP the clock is high for about 8.3 ns, and low for about 24 ns)
+//     
+//   Adding one NOP while clock high fixes the display. (5 cycles at 120 mHz)
+//     (NOP while clock low does not fix the problem)
+//
+//    A 25MHz clock evenly divided would be high for 20ns,
 //     and a 50MHz clock would be high for 10 ns
 //
-//  TODO: Check the following comment - it may be talking about old versions
-// On the Stellaris LP the unrolled loop version takes about 6 cycles per item, 
-//   The loopy version about 35 cycles per item
-//   So would expect the unrolled version to be slightly too fast 
-//     (One of the versions using non-local variables might be about right, 
-//      or add a couple of noops?)
-// 
-// On the connected LP may need to add a bit more padding
-//
-// Try padding in different locations in pew macro (e.g. between tick and tock vs around data output.
-//
-// Although no op is not guaranteed to take time, it still might be useful 
-// for trying to insert extra delays.
+// Although no-op is not guaranteed to take time, it still might be useful 
+//   for trying to insert extra delays.
 
 
 
@@ -1827,18 +1837,18 @@ void RGBmatrixPanel::updateDisplay(void) {
 #else
 
 // For sclkport, dataport - local variables easier for the compiler to access/optimize
-// (Might be able to do it with the dataport variable in "this" instead?)
+// TODO: Might be able to do it with the dataport variable in "this" instead?
 
-// However, need instruction between clock toggle instructions on the TM4C1294 
-// because it is a little too fast for the panel.
+// However, need instruction between clock toggle instructions on the TM4C1294,
+// otherwise it is a little too fast for the panel.
 // Use a NOP
 #ifdef SLOW_NOP1
 
 #define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; __NOP(); * sclkp = tock;
 /* 4 instructions plus one pad (pad might keep clock high for extra 8 ns)
 
-ldrb	r0, [r6, #1]
-strb	r0, [r7, #0]
+ldrb	r0, [r6, #1]  ; Load value
+strb	r0, [r7, #0]  ; Output value
 strb	r2, [r5, #0]  ; tick
 nop
 strb	r3, [r5, #0]  ; tock
@@ -1847,7 +1857,7 @@ strb	r3, [r5, #0]  ; tock
 #elif defined(REROLL)
 
 /* TODO: test this.
-Rearrange instructions to try to eliminate NOP - fetch next value while clocking out last value.
+Rearrange instructions try eliminating NOP - fetch next value while clocking out last value.
 
 ldrb	r0, [r6, #1]  ; Setup
 
@@ -1876,11 +1886,19 @@ uint8_t temp;
 
 uint8_t temp;
 
+// TODO: test
 //  Different rearrangement
 // Read first, then tock, then output data, then tick
 //  So the first tock will be ignored (since clock should already be tocked)
 //  Means need to add extra tock at end to finish
-// TODO: test
+
+/*
+ldrb	r0, [r6, #2]  ; Load value
+strb	r3, [r5, #0]  ; tock
+strb	r0, [r7, #0]  ; Output value
+strb	r2, [r5, #0]  ; tick
+...
+*/
 
 #define pew \
   temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tock; \
@@ -1896,6 +1914,8 @@ uint8_t temp;
 // Basic fast version - 
 // Makes the inner "loop" 4 instructions, a load and 3 stores
 //   (+1 instruction if a shift is needed)
+
+// Too fast at 120 MHz (TM4C129x), may be okay on TM4C123x
 
 /* 
 ldrb	r0, [r6, #1]
@@ -1961,8 +1981,8 @@ strb	r3, [r5, #0]    ; tock
       * sclkp = tock;
     }
 */
-// For loop pointer, rather than indexing, saves 2 more instructions per loop
-    uint8_t *pFinal = ptr + WIDTH;
+// Using for loop pointer, rather than indexing, saves 2 more instructions per loop
+    uint8_t *pFinal = ptr + WIDTH;  // Avoid recalculation in loop
     for(; ptr<pFinal; ptr++)
     {
 #ifdef SLOW_CLOCK
@@ -1972,8 +1992,8 @@ strb	r3, [r5, #0]    ; tock
 #else
       * dataport = LEFT_SHIFT((*ptr), DATAPORTSHIFT);
       * sclkp = tick;
-// FIXME: Not sure if this might need an extra instruction on Connected LP
-//   (either NOP, or do code rearrangement)
+// FIXME: This might need an extra instruction on Connected LP
+//   (either NOP, or do code rearrangement as in REROLL)
       * sclkp = tock;
 #endif
     }
@@ -1984,7 +2004,7 @@ strb	r3, [r5, #0]    ; tock
   } else { // 920 ticks from TCNT1=0 (above) to end of function
 
     // Planes 1-3 (handled above) formatted their data "in place,"
-    // their layout matching that out the output PORT register (where
+    // their layout matching that of the output PORT register (where
     // 6 bits correspond to output data lines), maximizing throughput
     // as no conversion or unpacking is needed.  Plane 0 then takes up
     // the slack, with all its data packed into the 2 least bits not
