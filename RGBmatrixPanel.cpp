@@ -1559,7 +1559,8 @@ void RGBmatrixPanel::updateDisplay(void) {
 // Octoscroller said latch happens on falling edge of latch (i.e. this is get ready to latch)
 // On SmartMatrix it does a lot of DMA transfers triggered on latch falling, 
 //    which suggests that is not when the data gets latched, since start changing data then
-
+// Below in address prep it says "about to latch now" so think it is when latch goes low
+// Moved the comment to where latch is lowered (think that is correct place for it).
 
 // TODO: Could move this closer to where latch is turned on again.
 //  oe Has to be off when change address and when latch
@@ -1567,10 +1568,10 @@ void RGBmatrixPanel::updateDisplay(void) {
 //  (unless there is some minimum time involved).
 #if defined(__TIVA__)
   *oeport  = 0xFF;  // Disable LED output during row/plane switchover
-  *latport = 0xFF;  // Latch data loaded during *prior* interrupt
+  *latport = 0xFF;
 #else
   *oeport  |= oepin;  // Disable LED output during row/plane switchover
-  *latport |= latpin; // Latch data loaded during *prior* interrupt
+  *latport |= latpin;
 #endif
 
 /*
@@ -1729,11 +1730,11 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 // TODO: Could try swapping (put latch down first) to see if it helps any with ghosts (e.g. at end of line)
 #if defined(__TIVA__)
+  *latport = 0;  // Latch data loaded during *prior* interrupt
   *oeport  = 0;  // Re-enable output
-  *latport = 0;  // Latch down
 #else
+  *latport &= ~latpin;   // Latch data loaded during *prior* interrupt
   *oeport  &= ~oepin;   // Re-enable output
-  *latport &= ~latpin;  // Latch down
 #endif 
 
 #if !defined(__TIVA__)
