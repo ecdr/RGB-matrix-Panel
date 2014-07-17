@@ -1284,6 +1284,9 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 
 // TODO: Timing does not include shift - adjust if DATAPORTSHIFT != 0
 
+// TODO: take off the safety check and see how high can push refresh before it fails
+//  (compare real min time to what calculated here)
+
 #if defined(__TM4C1294NCPDT__)
 // Connected Launchpad (120 MHz clock)
 
@@ -1301,9 +1304,11 @@ const uint16_t minRowTimeConst = 290;            // Overhead ticks
 //#elif defined( REROLL ) || defined ( REROLL_B )
 #else
 
+const uint16_t minRowTimePerPanel = 263;         // Ticks per panel for a row
+const uint16_t minRowTimeConst = 210;            // Overhead ticks
 // Was working with numbers below for 2 x32 panels (with 1 NOP)
-const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
-const uint16_t minRowTimeConst = 265;            // Overhead ticks
+//const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
+//const uint16_t minRowTimeConst = 265;            // Overhead ticks
 
 #endif
 
@@ -1430,6 +1435,9 @@ void RGBmatrixPanel::setDim(uint32_t time){
 // Number of times to print time taken by updateDisplay
 uint8_t nprint = 20;
 
+// Benchmark time for preamble (just before display loop)
+uint32_t c_loop = 0;
+
 #endif
 
 
@@ -1449,8 +1457,10 @@ void TmrHandler()
 
   if (nprint > 0){
     --nprint;
-    Serial.print("Tmh: ");
-    Serial.println(c_stop - c_start);
+    Serial.print("Tmh: const ");
+    Serial.print(c_loop - c_start); // Display leadin time (all except loop)
+    Serial.print(", all ");
+    Serial.println(c_stop - c_start); // Display refresh time
     };
 #endif
 }
@@ -1753,6 +1763,10 @@ void RGBmatrixPanel::updateDisplay(void) {
   // Tiva uses masking, so do not worry about changing other pins.
   static const uint8_t tick = 0xFF;
   static const uint8_t tock = 0;
+#endif
+
+#if defined(BENCHMARK)
+  c_loop = HWREG(DWT_BASE + DWT_O_CYCCNT);
 #endif
 
   if(plane > 0) { // 188 ticks from TCNT1=0 (above) to end of function
