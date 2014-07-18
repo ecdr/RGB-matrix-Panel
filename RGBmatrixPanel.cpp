@@ -366,7 +366,9 @@ void RGBmatrixPanel::begin(void) {
 #if defined(DEBUG) || defined( BENCHMARK )
 // FIXME: Should check if Serial already begun, and only begin if not
 //   Don't see a call in the reference to test this, have to check the code
-  Serial.begin(9600);
+#if defined(DBUG_CON_SPEED)
+  Serial.begin(DBUG_CON_SPEED);
+#endif  
 #endif
 
 // Didn't get any output from ASSERTs when put in init
