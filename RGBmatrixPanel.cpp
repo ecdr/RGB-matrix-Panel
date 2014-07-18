@@ -238,6 +238,16 @@ uint32_t c_tmr_handler_end = 0;
 
 uint32_t c_tmr_handler_start_old = 0;
 
+#if defined(BENCHMARK_OE)
+// Timing for OE - oeon / (oeoff + oeonn) gives duty cycle
+// TODO: Finish this - need way to get output
+
+boolean oeflag = false;
+uint64_t oeon = 0;
+uint64_t oeoff = 0;
+uint32_t c_tmr_oeoff = 0, c_tmr_oeon = 0;
+#endif
+
 #endif
 
 
@@ -570,6 +580,13 @@ void RGBmatrixPanel::stop(void) {
 // TODO: Should probably send all 0's to the panel
 
   *oeport    |= oepin;     // High (disable output)
+#if defined(BENCHMARK_OE)
+  c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
+  if (oeflag){
+    oeflag = false;
+    oeon += c_tmr_oeoff - c_tmr_oeon;
+    }
+#endif
 
   activePanel = NULL;
 }
@@ -1377,6 +1394,15 @@ void RGBmatrixPanel::updateDisplay(void) {
       // last time was a refresh, so this time we wait
       dimwait = false;   // Next interrupt will not be a wait
       *oeport  = 0xFF;  // Disable LED output during delay
+
+#if defined(BENCHMARK_OE)
+  c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
+  if (oeflag){
+    oeflag = false;
+    oeon += c_tmr_oeoff - c_tmr_oeon;
+    }
+#endif
+
 // TODO: should the latch be done now, or should that wait until really going to change addr
 
       MAP_TimerLoadSet( TIMER_BASE, TIMER_A, dimtime );
@@ -1400,6 +1426,13 @@ void RGBmatrixPanel::updateDisplay(void) {
 //  (unless there is some minimum time involved).
 #if defined(__TIVA__)
   *oeport  = 0xFF;  // Disable LED output during row/plane switchover
+#if defined(BENCHMARK_OE)
+  c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
+  if (oeflag){
+    oeflag = false;
+    oeon += c_tmr_oeoff - c_tmr_oeon;
+    }
+#endif
   *latport = 0xFF;
 #else
   *oeport  |= oepin;  // Disable LED output during row/plane switchover
@@ -1563,6 +1596,13 @@ void RGBmatrixPanel::updateDisplay(void) {
 // TODO: Could try swapping (put latch down first) to see if it helps any with ghosts (e.g. at end of line)
 #if defined(__TIVA__)
   *latport = 0;  // Latch data loaded during *prior* interrupt
+#if defined(BENCHMARK_OE)
+  if (!oeflag){
+    c_tmr_oeon = HWREG(DWT_BASE + DWT_O_CYCCNT);
+    oeflag = true;
+    oeoff += c_tmr_oeon - c_tmr_oeoff;
+    }
+#endif
   *oeport  = 0;  // Re-enable output
 #else
   *latport &= ~latpin;   // Latch data loaded during *prior* interrupt

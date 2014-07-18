@@ -60,6 +60,7 @@ Configuration - settings that need to be done at compile time.
 // On Tiva, define BENCHMARK to measure TimerHandler time (may work on other ARM)
 #if !defined(__AVR__)
 #define BENCHMARK
+#define BENCHMARK_OE
 #endif
 
 
