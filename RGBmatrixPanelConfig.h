@@ -8,6 +8,46 @@ Configuration - settings that need to be done at compile time.
 #ifndef RGBmatrixPanelConfig_h
 #define RGBmatrixPanelConfig_h
 
+
+
+// FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
+// __arm__ - GCC any ARM processor, but that probably applies to any ARM (e.g. Tiva, CC3200, SAM)
+// __AVR__ - Atmel AVR
+//
+// __MSP430_CPU__ - TI MSP430
+// Is there a macro for the TI CC3200?
+//   (Since it is ARM might be able to run the panel, but uses different libraries so might not be easy port)
+// Is there a macro for TI C2000 launchpad?
+//
+// Just a temporary patch - until find the proper macro (if there is one)
+
+#if defined(ENERGIA)
+
+#if defined(__arm__)
+
+#ifndef __TIVA__
+
+#if defined(__TM4C129XNCZAD__) || defined(__TM4C1294NCPDT__) || defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
+
+#define __TIVA__
+
+#else
+
+#error "**** Unrecognized ARM processor ****"
+
+#endif
+
+#endif //__TIVA__
+
+#else
+
+#error "**** Unsupported processor ****"
+
+#endif
+
+#endif // ENERGIA
+
+
 // -------------------- Configuration --------------------
 
 
