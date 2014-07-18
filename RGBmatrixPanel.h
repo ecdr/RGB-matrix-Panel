@@ -28,17 +28,19 @@ RGBmatrixPanel library for 16x32 and 32x32 RGB LED matrix panels.
 
 #if defined(__arm__)
 
+#ifndef __TIVA__
+
 #if defined(__TM4C129XNCZAD__) || defined(__TM4C1294NCPDT__) || defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
 
-#ifndef __TIVA__
 #define __TIVA__
-#endif
 
 #else
 
 #error "**** Unrecognized ARM processor ****"
 
 #endif
+
+#endif //__TIVA__
 
 #else
 
