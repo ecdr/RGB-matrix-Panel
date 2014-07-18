@@ -1,3 +1,9 @@
+/*
+RGBmatrixPanel library for 16x32 and 32x32 RGB LED matrix panels.
+
+Configuration - settings that need to be done at compile time.
+*/
+
 
 #ifndef RGBmatrixPanelConfig_h
 #define RGBmatrixPanelConfig_h
@@ -11,9 +17,6 @@
 // On Tiva, define BENCHMARK to measure TimerHandler time (may work on other ARM)
 #define BENCHMARK
 
-#if defined( BENCHMARK )
-#include "cyclecount.h"
-#endif
 
 
 // Display refresh loop optimization controls
@@ -36,7 +39,7 @@
 //#define REROLL
 #define REROLL_B
 
-
+#if defined(__TIVA__)
 
 // Port/pin definitions for various launchpads
 // TODO: Could make data port configurable at run time 
@@ -209,5 +212,15 @@ static const uint16_t defaultRefreshFreq = 100; // Cycles per second
 //const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
 
 #endif
+
+
+
+// Control whether to include fade support (not much point on AVR - too slow for PWM fade)
+#if !defined(__AVR__)
+#define FADE
+#endif
+
+const uint8_t nBuf = 2;
+
 
 #endif

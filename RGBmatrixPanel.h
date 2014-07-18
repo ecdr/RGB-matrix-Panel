@@ -1,3 +1,6 @@
+/*
+RGBmatrixPanel library for 16x32 and 32x32 RGB LED matrix panels.
+*/
 
 #ifndef RGBmatrixPanel_h
 #define RGBmatrixPanel_h
@@ -8,16 +11,6 @@
  #include "WProgram.h"
  #include "pins_arduino.h"
 #endif
-
-
-// Control whether to include fade support (not much point on AVR - too slow for PWM fade)
-#if !defined(__AVR__)
-#define FADE
-#endif
-
-
-const uint8_t nBuf = 2;
-
 
 
 // FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
@@ -57,6 +50,8 @@ const uint8_t nBuf = 2;
 
 
 #include "Adafruit_GFX.h"
+#include "RGBmatrixPanelConfig.h"
+
 
 
 class RGBmatrixPanel : public Adafruit_GFX {
