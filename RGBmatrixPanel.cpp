@@ -193,6 +193,7 @@ void TmrHandler(void);
 
 #endif
 
+
 #if !defined( DATAPORTSHIFT )
 #define DATAPORTSHIFT 0
 #endif
@@ -222,6 +223,22 @@ void TmrHandler(void);
 // stop() method should perhaps be added...assuming multiple instances
 // are even an actual need.
 static RGBmatrixPanel *activePanel = NULL;
+
+// -------------------- Benchmark  --------------------
+
+#if defined( BENCHMARK )
+
+// Number of times to print time taken by updateDisplay
+uint8_t nprint = 20;
+
+// Timing points
+uint32_t c_tmr_handler_start = 0;
+uint32_t c_tmr_handler_loop = 0;  // Benchmark time for preamble (just before display loop)
+uint32_t c_tmr_handler_end = 0;
+
+uint32_t c_tmr_handler_start_old = 0;
+
+#endif
 
 
 // -------------------- Constructors  --------------------
@@ -373,6 +390,10 @@ void RGBmatrixPanel::begin(void) {
 
 // Didn't get any output from ASSERTs when put in init
   ASSERT(WIDTH == BYTES_PER_ROW * nPanels);
+// FIXME: This assertion fails (1x32 row panel) - ?????
+//F:\Programming\energia-0101E0012-windows\energia-0101E0012\hardware\lm4f\libraries\RGBmatrixpanel\RGBmatrixPanel.cpp, line547
+// If leave the number of panels implicit, then this assertion fails
+// Should default to 1, but see what really get
   ASSERT(PIN_OK(_a));
   ASSERT(PIN_OK(_b));
   ASSERT(PIN_OK(_c));
@@ -463,7 +484,10 @@ if(nRows > 8) {
   DATAPORT = 0;
 #endif  
 
+
 // Timer setup
+
+
 #if defined(BENCHMARK)
   EnableTiming();
 #endif
@@ -504,7 +528,12 @@ if(nRows > 8) {
   MAP_TimerIntEnable( TIMER_BASE, TIMER_TIMA_TIMEOUT );
 
   MAP_TimerLoadSet( TIMER_BASE, TIMER_A, rowtime );  // Dummy initial interrupt period
-  
+
+//#if defined( BENCHMARK )
+// May not need this - EnableTiming zeros the time count, so not too far off
+//  c_tmr_handler_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // Initial setup for timing between ISR
+//#endif
+
   MAP_TimerEnable( TIMER_BASE, TIMER_A );
 
 #if defined(DEBUG)
@@ -1208,16 +1237,16 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 #define DIM_TIME_MIN  20
 // TODO: Figure out what this should be - this was set arbitrarily
 
-// Turn off LEDs for about 4x time (clock ticks) per refresh cycle
-//  e.g. if time = 2xrowtime should cut the time the LEDs are on in half 
+// Turn off LEDs for about 4x dtime (clock ticks) per refresh cycle
+//  e.g. if dtime = 2xrowtime should cut the time the LEDs are on in half 
 //   (and reduce refresh rate to about half)
 
 // Dimmer - set a delay between refreshes (with LEDs turned off)
-void RGBmatrixPanel::setDim(uint32_t time){
-  if (time < DIM_TIME_MIN)
+void RGBmatrixPanel::setDim(uint32_t dtime){
+  if (dtime < DIM_TIME_MIN)
     return;
   dimwait = false;  // Next interrupt will be a refresh, one after that will be a delay
-  dimtime = time;   // Setting dimtime != 0 enables the delay
+  dimtime = dtime;  // Setting dimtime != 0 enables the delay
 }
 
 
@@ -1229,22 +1258,13 @@ void RGBmatrixPanel::setDim(uint32_t time){
 
 #if defined(__TIVA__)
 
-#if defined( BENCHMARK )
-
-// Number of times to print time taken by updateDisplay
-uint8_t nprint = 20;
-
-// Benchmark time for preamble (just before display loop)
-uint32_t c_loop = 0;
-
-#endif
-
 
 void TmrHandler()
 {
 
 #if defined( BENCHMARK )
-  c_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // beginning of the tested code
+  c_tmr_handler_start_old = c_tmr_handler_start;        // Time since last int
+  c_tmr_handler_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // beginning of the tested code
 #endif
 
   activePanel->updateDisplay();
@@ -1252,14 +1272,17 @@ void TmrHandler()
   MAP_TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
 
 #if defined( BENCHMARK )
-  c_stop = HWREG(DWT_BASE + DWT_O_CYCCNT);  // end of the tested code  
+  c_tmr_handler_end = HWREG(DWT_BASE + DWT_O_CYCCNT);  // end of the tested code  
 
+// FIXME: Printing should be in main program, not in int handler  
   if (nprint > 0){
     --nprint;
-    Serial.print("Tmh: const ");
-    Serial.print(c_loop - c_start); // Display leadin time (all except loop)
-    Serial.print(", all ");
-    Serial.println(c_stop - c_start); // Display refresh time
+    Serial.print("TMR: ISR:");
+    Serial.print(c_tmr_handler_end - c_tmr_handler_start); // Display refresh time
+    Serial.print(", const: ");
+    Serial.print(c_tmr_handler_loop - c_tmr_handler_start); // Display leadin time (all except loop)
+    Serial.print(", period: ");
+    Serial.println(c_tmr_handler_start - c_tmr_handler_start_old); // Display refresh time
     };
 #endif
 }
@@ -1565,7 +1588,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 #endif
 
 #if defined(BENCHMARK)
-  c_loop = HWREG(DWT_BASE + DWT_O_CYCCNT);
+  c_tmr_handler_loop = HWREG(DWT_BASE + DWT_O_CYCCNT);
 #endif
 
   if(plane > 0) { // 188 ticks from TCNT1=0 (above) to end of function

@@ -58,8 +58,9 @@ Configuration - settings that need to be done at compile time.
 #define DBUG_CON_SPEED  9600
 
 // On Tiva, define BENCHMARK to measure TimerHandler time (may work on other ARM)
+#if !defined(__AVR__)
 #define BENCHMARK
-
+#endif
 
 
 // Display refresh loop optimization controls
