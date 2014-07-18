@@ -32,6 +32,8 @@ Written by Limor Fried/Ladyada & Phil Burgess/PaintYourDragon for
 Adafruit Industries.
 BSD license, all text above must be included in any redistribution.
 
+Version 1.x, 18 July 2014
+
 Revisions:
     getPixel, by RobF42 - Rob Fugina
     daisychain displays, by protonmaster - Phillip Burgess
@@ -42,6 +44,7 @@ Revisions:
 #include "RGBmatrixPanelConfig.h"
 
 #include "gamma.h"
+
 
 
 #if !defined(__AVR__)
@@ -65,6 +68,11 @@ Revisions:
 #include "driverlib/timer.h"
 
 
+#if defined( BENCHMARK )
+#include "cyclecount.h"
+#endif
+
+#endif
 
 static const uint8_t nPlanes = 4;
 // Will not work for nPlanes < 4 (would need fixing to not do packing)
