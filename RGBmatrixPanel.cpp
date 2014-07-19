@@ -1146,6 +1146,11 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 #if defined(__TM4C1294NCPDT__)
 // Connected Launchpad (120 MHz clock)
 
+// Time between beginning of ISR and timer set instruction (approx)
+// TODO: Need to estimate values for offset
+#define TIMER_SET_OFFSET 0
+
+
 #if defined(UNROLL_LOOP)
 
 #if defined( SLOW_NOP1 )
@@ -1177,6 +1182,10 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 
 #elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
 // For Stellaris Launchpad (80 MHz clock)
+
+// Time between beginning of ISR and timer set instruction (approx)
+// Fails if 120 (measure says 150, so must not be allowing enough for the loop after)
+#define TIMER_SET_OFFSET 100
 
 #if defined(UNROLL_LOOP)
 
@@ -1289,7 +1298,8 @@ void TmrHandler()
 
   activePanel->updateDisplay();
 
-  MAP_TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
+// For speed avoid using MAP_ version
+  TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
 
 #if defined( BENCHMARK )
   c_tmr_handler_end = HWREG(DWT_BASE + DWT_O_CYCCNT);  // end of the tested code  
@@ -1405,7 +1415,7 @@ void RGBmatrixPanel::updateDisplay(void) {
   if (oeflag){
     oeflag = false;
     oeon_time = c_tmr_oeoff - c_tmr_oeon;
-    oeon += oeon_time;
+//    oeon += oeon_time;
     }
 #endif
 
@@ -1425,7 +1435,7 @@ void RGBmatrixPanel::updateDisplay(void) {
   // This is because duration is the display time for the data loaded
   // on the PRIOR interrupt.  
 #if defined(__TIVA__)
-  duration = rowtime << plane;
+  duration = (rowtime << plane) - TIMER_SET_OFFSET;
   
 #else
   // CALLOVERHEAD is subtracted from the result because that time is 
@@ -1457,7 +1467,7 @@ void RGBmatrixPanel::updateDisplay(void) {
   if (oeflag){
     oeflag = false;
     oeon_time = c_tmr_oeoff - c_tmr_oeon;
-    oeon += oeon_time;
+//    oeon += oeon_time;
     }
 #endif
   *latport = 0xFF;
@@ -1592,7 +1602,7 @@ void RGBmatrixPanel::updateDisplay(void) {
     c_tmr_oeon = HWREG(DWT_BASE + DWT_O_CYCCNT);
     oeflag = true;
     oeoff_time = c_tmr_oeon - c_tmr_oeoff;
-    oeoff += oeoff_time;
+//    oeoff += oeoff_time;
     }
 #endif
   *oeport  = 0;  // Re-enable output
@@ -1617,14 +1627,14 @@ void RGBmatrixPanel::updateDisplay(void) {
 #endif
 */
 // BENCHMARK - together these two calls take about 60 cycles (Stellaris)
-// TODO: Compare to RAM versions for speed
+//   MAP_ version takes 8 more cycles than non-MAP version on Stellaris LP
 
 //  MAP_TimerDisable( timerBase, timerAB );
-  MAP_TimerLoadSet( TIMER_BASE, TIMER_A, duration );
+  TimerLoadSet( TIMER_BASE, TIMER_A, duration );
 #if defined(BENCHMARK)
   c_tmr_handler_tset = HWREG(DWT_BASE + DWT_O_CYCCNT);
-#endif  
-  MAP_TimerEnable( TIMER_BASE, TIMER_A );
+#endif
+  TimerEnable( TIMER_BASE, TIMER_A );
 
 #else
   ICR1      = duration; // Set interval for next interrupt
