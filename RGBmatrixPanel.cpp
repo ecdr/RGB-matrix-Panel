@@ -232,23 +232,23 @@ static RGBmatrixPanel *activePanel = NULL;
 //uint16_t nprint = 20;
 
 // Timing points
-uint32_t c_tmr_handler_start = 0;
-uint32_t c_tmr_handler_tset = 0;  // Where set delay to next ISR
-uint32_t c_tmr_handler_loop = 0;  // Benchmark time for preamble (just before display loop)
-uint32_t c_tmr_handler_end = 0;
+volatile uint32_t c_tmr_handler_start = 0;
+volatile uint32_t c_tmr_handler_tset = 0;  // Where set delay to next ISR
+volatile uint32_t c_tmr_handler_loop = 0;  // Benchmark time for preamble (just before display loop)
+volatile uint32_t c_tmr_handler_end = 0;
 
-uint32_t c_tmr_handler_start_old = 0;
+volatile uint32_t c_tmr_handler_start_old = 0;
 
 #if defined(BENCHMARK_OE)
 // Timing for OE - oeon / (oeoff + oeonn) gives duty cycle
 
-uint32_t oeon_time = 0;
-uint32_t oeoff_time = 0;
+volatile uint32_t oeon_time = 0;
+volatile uint32_t oeoff_time = 0;
 
-boolean oeflag = false;
-uint64_t oeon = 0;
-uint64_t oeoff = 0;
-uint32_t c_tmr_oeoff = 0, c_tmr_oeon = 0;
+volatile boolean oeflag = false;
+volatile uint64_t oeon = 0;
+volatile uint64_t oeoff = 0;
+volatile uint32_t c_tmr_oeoff = 0, c_tmr_oeon = 0;
 #endif
 
 #endif
@@ -1616,6 +1616,9 @@ void RGBmatrixPanel::updateDisplay(void) {
     Serial.println(duration);
 #endif
 */
+// BENCHMARK - together these two calls take about 60 cycles (Stellaris)
+// TODO: Compare to RAM versions for speed
+
 //  MAP_TimerDisable( timerBase, timerAB );
   MAP_TimerLoadSet( TIMER_BASE, TIMER_A, duration );
 #if defined(BENCHMARK)
