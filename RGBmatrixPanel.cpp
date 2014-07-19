@@ -1421,6 +1421,22 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 #endif
 
+  // Calculate time to next interrupt BEFORE incrementing plane #.
+  // This is because duration is the display time for the data loaded
+  // on the PRIOR interrupt.  
+#if defined(__TIVA__)
+  duration = rowtime << plane;
+  
+#else
+  // CALLOVERHEAD is subtracted from the result because that time is 
+  // implicit between the timer overflow (interrupt triggered) and 
+  // the initial LEDs-off line at the start of this method.
+  t = (nRows > 8) ? LOOPTIME : (LOOPTIME * 2);
+  // FIXME: adjust for number of panels (maybe * nPanels )
+  // TODO: Why is t longer for 32x16 than for 32x32?
+  duration = ((t + CALLOVERHEAD * 2) << plane) - CALLOVERHEAD;
+#endif
+
 // TODO: Comment below about latching when latch rises may be wrong? - 
 // Octoscroller said latch happens on falling edge of latch (i.e. this is get ready to latch)
 // On SmartMatrix it does a lot of DMA transfers triggered on latch falling, 
@@ -1455,22 +1471,6 @@ void RGBmatrixPanel::updateDisplay(void) {
   Serial.print(plane);
 #endif
 */
-
-  // Calculate time to next interrupt BEFORE incrementing plane #.
-  // This is because duration is the display time for the data loaded
-  // on the PRIOR interrupt.  
-#if defined(__TIVA__)
-  duration = rowtime << plane;
-  
-#else
-  // CALLOVERHEAD is subtracted from the result because that time is 
-  // implicit between the timer overflow (interrupt triggered) and 
-  // the initial LEDs-off line at the start of this method.
-  t = (nRows > 8) ? LOOPTIME : (LOOPTIME * 2);
-  // FIXME: adjust for number of panels (maybe * nPanels )
-  // TODO: Why is t longer for 32x16 than for 32x32?
-  duration = ((t + CALLOVERHEAD * 2) << plane) - CALLOVERHEAD;
-#endif
 
   // Borrowing a technique here from Ray's Logic:
   // www.rayslogic.com/propeller/Programming/AdafruitRGB/AdafruitRGB.htm
@@ -1577,6 +1577,31 @@ void RGBmatrixPanel::updateDisplay(void) {
 #endif
   }
 
+// FIXME: Check other drivers - should latch be lowered while output is still disabled?
+//  In raspi version, latch is lowered while output enable is high
+//   (latch set and immediately cleared, suggesting no minimum high time)
+
+// TODO: Could try swapping (put latch down first) to see if it helps any with ghosts (e.g. at end of line)
+#if defined(__TIVA__)
+  *latport = 0;  // Latch data loaded during *prior* interrupt
+  
+// Beginning of display timing
+  
+#if defined(BENCHMARK_OE)
+  if (!oeflag){
+    c_tmr_oeon = HWREG(DWT_BASE + DWT_O_CYCCNT);
+    oeflag = true;
+    oeoff_time = c_tmr_oeon - c_tmr_oeoff;
+    oeoff += oeoff_time;
+    }
+#endif
+  *oeport  = 0;  // Re-enable output
+#else
+  *latport &= ~latpin;   // Latch data loaded during *prior* interrupt
+  *oeport  &= ~oepin;   // Re-enable output
+#endif
+
+
   // buffptr, being 'volatile' type, doesn't take well to optimization.
   // A local register copy can speed some things up:
   ptr = (uint8_t *)buffptr;
@@ -1603,29 +1628,6 @@ void RGBmatrixPanel::updateDisplay(void) {
   TCNT1     = 0;        // Restart interrupt timer
 #endif
 
-// FIXME: Check other drivers - should latch be lowered while output is still disabled?
-//  In raspi version, latch is lowered while output enable is high
-//   (latch set and immediately cleared, suggesting no minimum high time)
-
-// TODO: Could try swapping (put latch down first) to see if it helps any with ghosts (e.g. at end of line)
-#if defined(__TIVA__)
-  *latport = 0;  // Latch data loaded during *prior* interrupt
-  
-// Beginning of display timing
-  
-#if defined(BENCHMARK_OE)
-  if (!oeflag){
-    c_tmr_oeon = HWREG(DWT_BASE + DWT_O_CYCCNT);
-    oeflag = true;
-    oeoff_time = c_tmr_oeon - c_tmr_oeoff;
-    oeoff += oeoff_time;
-    }
-#endif
-  *oeport  = 0;  // Re-enable output
-#else
-  *latport &= ~latpin;   // Latch data loaded during *prior* interrupt
-  *oeport  &= ~oepin;   // Re-enable output
-#endif
 
 #if !defined(__TIVA__)
   // Record current state of SCLKPORT register, as well as a second
