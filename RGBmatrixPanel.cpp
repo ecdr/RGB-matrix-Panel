@@ -229,10 +229,11 @@ static RGBmatrixPanel *activePanel = NULL;
 #if defined( BENCHMARK )
 
 // Number of times to print time taken by updateDisplay
-uint8_t nprint = 20;
+//uint16_t nprint = 20;
 
 // Timing points
 uint32_t c_tmr_handler_start = 0;
+uint32_t c_tmr_handler_tset = 0;  // Where set delay to next ISR
 uint32_t c_tmr_handler_loop = 0;  // Benchmark time for preamble (just before display loop)
 uint32_t c_tmr_handler_end = 0;
 
@@ -240,7 +241,9 @@ uint32_t c_tmr_handler_start_old = 0;
 
 #if defined(BENCHMARK_OE)
 // Timing for OE - oeon / (oeoff + oeonn) gives duty cycle
-// TODO: Finish this - need way to get output
+
+uint32_t oeon_time = 0;
+uint32_t oeoff_time = 0;
 
 boolean oeflag = false;
 uint64_t oeon = 0;
@@ -1292,7 +1295,7 @@ void TmrHandler()
   c_tmr_handler_end = HWREG(DWT_BASE + DWT_O_CYCCNT);  // end of the tested code  
 
 // FIXME: Printing should be in main program, not in int handler  
-  if (nprint > 0){
+/*  if (nprint > 0){
     --nprint;
     Serial.print("TMR: ISR:");
     Serial.print(c_tmr_handler_end - c_tmr_handler_start); // Display refresh time
@@ -1300,7 +1303,7 @@ void TmrHandler()
     Serial.print(c_tmr_handler_loop - c_tmr_handler_start); // Display leadin time (all except loop)
     Serial.print(", period: ");
     Serial.println(c_tmr_handler_start - c_tmr_handler_start_old); // Display refresh time
-    };
+    }; */
 #endif
 }
 
@@ -1388,6 +1391,8 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 
 #if defined(__TIVA__)
+#if defined(DIMMER)
+
   // Dimmer - Insert a delay with LEDs off between refreshes
   if (dimtime){
     if (dimwait){
@@ -1399,7 +1404,8 @@ void RGBmatrixPanel::updateDisplay(void) {
   c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
   if (oeflag){
     oeflag = false;
-    oeon += c_tmr_oeoff - c_tmr_oeon;
+    oeon_time = c_tmr_oeoff - c_tmr_oeon;
+    oeon += oeon_time;
     }
 #endif
 
@@ -1411,6 +1417,8 @@ void RGBmatrixPanel::updateDisplay(void) {
     } else
       dimwait = true;
   }
+#endif
+
 #endif
 
 // TODO: Comment below about latching when latch rises may be wrong? - 
@@ -1426,11 +1434,14 @@ void RGBmatrixPanel::updateDisplay(void) {
 //  (unless there is some minimum time involved).
 #if defined(__TIVA__)
   *oeport  = 0xFF;  // Disable LED output during row/plane switchover
+
+// End of display timing  
 #if defined(BENCHMARK_OE)
   c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
   if (oeflag){
     oeflag = false;
-    oeon += c_tmr_oeoff - c_tmr_oeon;
+    oeon_time = c_tmr_oeoff - c_tmr_oeon;
+    oeon += oeon_time;
     }
 #endif
   *latport = 0xFF;
@@ -1450,7 +1461,7 @@ void RGBmatrixPanel::updateDisplay(void) {
   // on the PRIOR interrupt.  
 #if defined(__TIVA__)
   duration = rowtime << plane;
-
+  
 #else
   // CALLOVERHEAD is subtracted from the result because that time is 
   // implicit between the timer overflow (interrupt triggered) and 
@@ -1582,6 +1593,9 @@ void RGBmatrixPanel::updateDisplay(void) {
 */
 //  MAP_TimerDisable( timerBase, timerAB );
   MAP_TimerLoadSet( TIMER_BASE, TIMER_A, duration );
+#if defined(BENCHMARK)
+  c_tmr_handler_tset = HWREG(DWT_BASE + DWT_O_CYCCNT);
+#endif  
   MAP_TimerEnable( TIMER_BASE, TIMER_A );
 
 #else
@@ -1596,18 +1610,22 @@ void RGBmatrixPanel::updateDisplay(void) {
 // TODO: Could try swapping (put latch down first) to see if it helps any with ghosts (e.g. at end of line)
 #if defined(__TIVA__)
   *latport = 0;  // Latch data loaded during *prior* interrupt
+  
+// Beginning of display timing
+  
 #if defined(BENCHMARK_OE)
   if (!oeflag){
     c_tmr_oeon = HWREG(DWT_BASE + DWT_O_CYCCNT);
     oeflag = true;
-    oeoff += c_tmr_oeon - c_tmr_oeoff;
+    oeoff_time = c_tmr_oeon - c_tmr_oeoff;
+    oeoff += oeoff_time;
     }
 #endif
   *oeport  = 0;  // Re-enable output
 #else
   *latport &= ~latpin;   // Latch data loaded during *prior* interrupt
   *oeport  &= ~oepin;   // Re-enable output
-#endif 
+#endif
 
 #if !defined(__TIVA__)
   // Record current state of SCLKPORT register, as well as a second
