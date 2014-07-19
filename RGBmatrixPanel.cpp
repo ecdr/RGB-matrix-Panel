@@ -1298,22 +1298,11 @@ void TmrHandler()
 
   activePanel->updateDisplay();
 
-// For speed avoid using MAP_ version
+// MAP_ version of library call takes longer
   TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
 
 #if defined( BENCHMARK )
   c_tmr_handler_end = HWREG(DWT_BASE + DWT_O_CYCCNT);  // end of the tested code  
-
-// FIXME: Printing should be in main program, not in int handler  
-/*  if (nprint > 0){
-    --nprint;
-    Serial.print("TMR: ISR:");
-    Serial.print(c_tmr_handler_end - c_tmr_handler_start); // Display refresh time
-    Serial.print(", const: ");
-    Serial.print(c_tmr_handler_loop - c_tmr_handler_start); // Display leadin time (all except loop)
-    Serial.print(", period: ");
-    Serial.println(c_tmr_handler_start - c_tmr_handler_start_old); // Display refresh time
-    }; */
 #endif
 }
 
@@ -1449,8 +1438,6 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 // TODO: Comment below about latching when latch rises may be wrong? - 
 // Octoscroller said latch happens on falling edge of latch (i.e. this is get ready to latch)
-// On SmartMatrix it does a lot of DMA transfers triggered on latch falling, 
-//    which suggests that is not when the data gets latched, since start changing data then
 // Below in address prep it says "about to latch now" so think it is when latch goes low
 // Moved the comment to where latch is lowered (think that is correct place for it).
 
@@ -1475,12 +1462,6 @@ void RGBmatrixPanel::updateDisplay(void) {
   *oeport  |= oepin;  // Disable LED output during row/plane switchover
   *latport |= latpin;
 #endif
-
-/*
-#if defined(DEBUG)
-  Serial.print(plane);
-#endif
-*/
 
   // Borrowing a technique here from Ray's Logic:
   // www.rayslogic.com/propeller/Programming/AdafruitRGB/AdafruitRGB.htm
@@ -1556,12 +1537,7 @@ void RGBmatrixPanel::updateDisplay(void) {
         buffptr = matrixbuff[1-backindex]; // Reset into front buffer
     }
   } else if(plane == 1) {
-/*
-#if defined(DEBUG)
-    Serial.print("P1R");
-    Serial.print(row);
-#endif
-*/
+
     // Plane 0 was loaded on prior interrupt invocation and is about to
     // latch now, so update the row address lines before we do that:
 #if defined(__TIVA__)
@@ -1590,13 +1566,14 @@ void RGBmatrixPanel::updateDisplay(void) {
 // FIXME: Check other drivers - should latch be lowered while output is still disabled?
 //  In raspi version, latch is lowered while output enable is high
 //   (latch set and immediately cleared, suggesting no minimum high time)
+//  I changed it so latch set to 0 before re-enable output 
+// Changed to put latch down first
+// TODO: Test, see if it works; see if it helps any with ghosts (e.g. at end of line).
 
-// TODO: Could try swapping (put latch down first) to see if it helps any with ghosts (e.g. at end of line)
 #if defined(__TIVA__)
   *latport = 0;  // Latch data loaded during *prior* interrupt
   
 // Beginning of display timing
-  
 #if defined(BENCHMARK_OE)
   if (!oeflag){
     c_tmr_oeon = HWREG(DWT_BASE + DWT_O_CYCCNT);
@@ -1626,8 +1603,9 @@ void RGBmatrixPanel::updateDisplay(void) {
     Serial.println(duration);
 #endif
 */
-// BENCHMARK - together these two calls take about 60 cycles (Stellaris)
-//   MAP_ version takes 8 more cycles than non-MAP version on Stellaris LP
+
+// BENCHMARK - together the two timer calls take about 60 cycles (Stellaris) (MAP_ version)
+//   Non-MAP_ version takes 8 cycles less MAP version on Stellaris LP
 
 //  MAP_TimerDisable( timerBase, timerAB );
   TimerLoadSet( TIMER_BASE, TIMER_A, duration );
