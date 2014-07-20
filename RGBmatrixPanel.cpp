@@ -74,7 +74,10 @@ Revisions:
 
 #endif
 
-static const uint8_t nPlanes = 4;
+// Unfortunately, can not do conditional compliation based on constant
+#define nPlanes 5
+//static const uint8_t nPlanes = 4;
+
 // Will not work for nPlanes < 4 (would need fixing to not do packing)
 static const uint8_t nPackedPlanes = (nPlanes - 1);  // 3 bytes holds 4 planes "packed"
 static const uint8_t BYTES_PER_ROW = 32;
