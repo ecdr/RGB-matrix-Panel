@@ -268,4 +268,12 @@ static const uint16_t defaultRefreshFreq = 100; // Cycles per second
 const uint8_t nBuf = 2;
 
 
+// Number of bits per color per pixel
+// Will not work for nPlanes < 4 (would need fixing to not do packing)
+
+// Use macro since, unfortunately, can not do conditional compliation based on constant
+#define nPlanes 5
+//const uint8_t nPlanes = 4;
+
+
 #endif
