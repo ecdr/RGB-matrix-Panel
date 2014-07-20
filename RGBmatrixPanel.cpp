@@ -1148,7 +1148,8 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 
 // Time between beginning of ISR and timer set instruction (approx)
 // TODO: Need to estimate values for offset
-#define TIMER_SET_OFFSET 0
+//  Estimate limit about 280 (with bench code), works at 150 (1 x32 panel), works at 200 (2x32)
+#define TIMER_SET_OFFSET 200
 
 
 #if defined(UNROLL_LOOP)
@@ -1165,8 +1166,8 @@ const uint16_t minRowTimeConst = 290;            // Overhead ticks
 //#elif defined( REROLL ) || defined ( REROLL_B )
 #else
 
-const uint16_t minRowTimePerPanel = 263;         // Ticks per panel for a row
-const uint16_t minRowTimeConst = 210;            // Overhead ticks
+const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
+const uint16_t minRowTimeConst = 310;            // Overhead ticks
 // Was working with numbers below for 2 x32 panels (with 1 NOP)
 //const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
 //const uint16_t minRowTimeConst = 265;            // Overhead ticks
