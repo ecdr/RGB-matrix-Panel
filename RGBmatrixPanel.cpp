@@ -37,7 +37,15 @@ Version 1.x, 18 July 2014
 Revisions:
     getPixel, by RobF42 - Rob Fugina
     daisychain displays, by protonmaster - Phillip Burgess
-    Tiva Launchpad support, 
+    TI Stellaris/Tiva Launchpad support, by ecdr - Michael Hanson
+
+- Tiva version:
+  Works with Energia.
+  More port configuration from user code (faster to use port variables rather than constants). Does not need inline assembly language (carefully selected c code sufficient).
+
+  User selectable refresh rate.
+  Add fade between immages.
+
 */
 
 #include "RGBmatrixPanel.h"
@@ -1474,13 +1482,27 @@ void RGBmatrixPanel::updateDisplay(void) {
 
   if(++plane >= nPlanes) {      // Advance plane counter.  Maxed out?
     plane = 0;                  // Yes, reset to plane 0, and
+#if defined(SWAP_AT_END_ROW)
+// Do swap when finish drawing all the planes in a row, rather than waiting until end of screen.
+// Means not guaranteed to fully display a screen if do two swaps in succession
+// But also means swapbuffer much faster
+    if(swapflag == true) {    // Swap front/back buffers if requested
+      backindex = 1 - backindex;
+      swapflag  = false;
+    // Change to reading from front buffer, but using current row
+      buffptr = matrixbuff[1-backindex] + (buffptr-matrixbuff[backindex]);
+// Should be the same as buffptr = matrixbuff[1-backindex] + row * WIDTH;
+    }
+#endif
     if(++row >= nRows) {        // advance row counter.  Maxed out?
       row     = 0;              // Yes, reset row counter, then...
+#if !defined(SWAP_AT_END_ROW)
       if(swapflag == true) {    // Swap front/back buffers if requested
         backindex = 1 - backindex;
         swapflag  = false;
         buffptr = matrixbuff[1-backindex]; // Reset into front buffer
       }
+#endif
 #if defined(FADE)
       else if(FadeLen) {
         if (++FadeCnt == FadeLen){  // Fade done, swap the buffers

@@ -84,6 +84,19 @@ Configuration - settings that need to be done at compile time.
 //#define REROLL
 #define REROLL_B
 
+
+// TODO: Test swap at end of row
+// swapbuffer - wait until end of row, rather than waiting until end of screen
+// Comments in original code said - To avoid 'tearing' display, actual swap takes place 
+// at the end of a complete screen refresh cycle.
+// However usually tearing problems result from interlace or changing immages while
+// part way through displaying a row (so pixel gets part of value from old image and part from new).
+// Since for this screen we display all the contents of one row before moving to the next
+// it should suffice to swap buffers once completed displaying a row.
+// Leaving this undefined makes swaps happen at end of screen (slower).
+//#define SWAP_AT_END_ROW
+
+
 #if defined(__TIVA__)
 
 // Port/pin definitions for various launchpads
