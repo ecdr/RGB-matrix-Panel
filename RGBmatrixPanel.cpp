@@ -1174,11 +1174,13 @@ const uint16_t minRowTimeConst = 290;            // Overhead ticks
 //#elif defined( REROLL ) || defined ( REROLL_B )
 #else
 
-const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
-const uint16_t minRowTimeConst = 310;            // Overhead ticks
+// TODO: Recheck these values - 
+//  Going back to faster refresh values, which worked before.
+//const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
+//const uint16_t minRowTimeConst = 310;            // Overhead ticks
 // Was working with numbers below for 2 x32 panels (with 1 NOP)
-//const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
-//const uint16_t minRowTimeConst = 265;            // Overhead ticks
+const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
+const uint16_t minRowTimeConst = 265;            // Overhead ticks
 
 #endif
 
@@ -1704,11 +1706,14 @@ void RGBmatrixPanel::updateDisplay(void) {
 // FPGA driver has a clock divider that goes from 50mHz clock to 10mHz clock
 //   (50mHz would be 20ns per clock, 10 mHz would be 100ns per clock)
 //
+// Octoscroller says 10 MHz seems to be highest reliable clock
+//   However, note that they are driving 4 panels in series.
+//
 // This forum thread
 //   http://forums.adafruit.com/viewtopic.php?f=47&t=26130&start=0
 //   Says 25MHz may be recomended maximum for some of the parts, with 50MHz absolute max
 //     One user with FPGA reports success at 40MHz (25ns), with problems above that.
-// 
+//
 // At a guess, clock speed about 40ns (25mHz) might be reasonable starting point for experiment?
 //   That would be 5 cycles at 120mHz, or 3.2 cycles at 80 mHz
 //   (Might be able to push it to 20ns (50mHz)?)
@@ -1725,9 +1730,12 @@ void RGBmatrixPanel::updateDisplay(void) {
 //    A 25MHz clock evenly divided would be high for 20ns,
 //     and a 50MHz clock would be high for 10 ns
 //
+// Octoscroller says that the data is shifted on falling edge of clock.
+//   (Looks like it leaves clock high, whereas Adafruit code leaves clock low).
+//
+
 // Although no-op is not guaranteed to take time, it still might be useful 
 //   for trying to insert extra delays.
-
 
 
 #ifdef SLOW_CLOCK

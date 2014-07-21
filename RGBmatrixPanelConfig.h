@@ -59,8 +59,8 @@ Configuration - settings that need to be done at compile time.
 
 // On Tiva, define BENCHMARK to measure TimerHandler time (may work on other ARM)
 #if !defined(__AVR__)
-#define BENCHMARK
-#define BENCHMARK_OE
+//#define BENCHMARK
+//#define BENCHMARK_OE
 #endif
 
 
@@ -80,7 +80,8 @@ Configuration - settings that need to be done at compile time.
 // TODO: Test on TM4C123x - see if need the extra NOP
 // #define SLOW_NOP1
 
-// TODO: Test Alternative version - rearrange instructions may eliminate need for NOP
+// Rearranging instructions eliminates need for the NOP
+// TODO: REROLL and REROLL_B both work - remove extra version
 //#define REROLL
 #define REROLL_B
 
