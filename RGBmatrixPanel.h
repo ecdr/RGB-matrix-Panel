@@ -53,10 +53,12 @@ class RGBmatrixPanel : public Adafruit_GFX {
     updateDisplay(void),      // TODO: Why is updateDisplay public?
     swapBuffers(boolean copy = false),  // Display next buffer
     // swapBuffers(uint8_t nextPage, boolean copy),
+
     dumpMatrix(void),
     dumpMatrix(uint8_t buf);
   int8_t
     loadBuffer(uint8_t *img, uint16_t imgsize);
+
   uint8_t
     setDraw(uint8_t back),
     setNext(uint8_t next),  // Select buffer that will be displayed next (by swap)
@@ -64,10 +66,14 @@ class RGBmatrixPanel : public Adafruit_GFX {
     getDraw(void),
     getNext(void),
     getFront(void);
+
+// Low level buffer access
   uint8_t
     *frontBuffer(void),
     *backBuffer(void),
-    *buffer(uint8_t buf);
+    *buffer(uint8_t buf);   // Return type should probably be void *
+
+// Color
   uint16_t
     getPixel(int16_t x, int16_t y),
     getPixel(uint8_t buf, int16_t x, int16_t y),
@@ -77,10 +83,12 @@ class RGBmatrixPanel : public Adafruit_GFX {
     Color888(uint8_t r, uint8_t g, uint8_t b, boolean gflag),
     ColorHSV(long hue, uint8_t sat, uint8_t val, boolean gflag);
 
+// Refresh frequency
   uint16_t
     setRefresh(uint16_t freq);   // Set number of display updates per second
   uint16_t
     getRefresh();                // Return refresh frequency
+
 #if defined(FADE)
   uint8_t
     swapFade(uint16_t tfade),    // Fade to next, no copy
@@ -88,9 +96,11 @@ class RGBmatrixPanel : public Adafruit_GFX {
   boolean
     fading();   // true if fade is in progress
 #endif
+
 #if defined(__TIVA__)
   void
     setDim(uint32_t time);
+  uint32_t getDim(void);  
 #endif
 
   int8_t
@@ -102,12 +112,14 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
   uint8_t         *matrixbuff[nBuf];
   uint8_t          nRows;
+  uint8_t          nPanels;
+
   volatile uint8_t backindex,   // Page drawing on
     frontindex,                 // Page being displayed
     nextindex;                  // Next page to display
-  volatile boolean swapflag;
-  uint8_t          nPanels;
-  
+
+  volatile boolean swapflag;    // Page change pending
+
   // Init/alloc code common to both constructors:
   void init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
     uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth);
@@ -123,14 +135,16 @@ class RGBmatrixPanel : public Adafruit_GFX {
 #if defined(FADE)
   volatile uint16_t FadeLen; 
   volatile int32_t FadeNAccum, FadeCnt;
-  boolean copyflag;
+  boolean copyflag;             // Copy buffer at end of fade
 #endif
 
 #if defined(__TIVA__)
   volatile uint8_t *sclkport;
+// Refresh frequency
   uint16_t         refreshFreq;
   volatile uint32_t rowtime;      // time to display one row
 
+// Dimmer
   volatile uint32_t dimtime;
   boolean dimwait;
 #endif
