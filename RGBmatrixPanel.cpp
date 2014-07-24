@@ -1273,6 +1273,9 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 }
 
 
+// TODO: Do dimmer properly - e.g., make it a fraction of maximum on time
+// TODO: Possibly - add dimmer sweeps (e.g. fade to black)
+
 // minimum delay, allow time for clearing interrupt and return from interrupt
 #define DIM_TIME_MIN  20
 // TODO: Figure out what this should be - this was set arbitrarily
@@ -1289,6 +1292,10 @@ void RGBmatrixPanel::setDim(uint32_t dtime){
   dimtime = dtime;  // Setting dimtime != 0 enables the delay
 }
 
+
+uint32_t RGBmatrixPanel::getDim(void){
+  return dimtime;
+}
 
 #endif // __TIVA__
 
