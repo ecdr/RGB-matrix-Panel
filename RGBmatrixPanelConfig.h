@@ -1,7 +1,7 @@
 /*
 RGBmatrixPanel library for 16x32 and 32x32 RGB LED matrix panels.
 
-Configuration - settings that need to be done at compile time.
+Configuration - compile time settings.
 */
 
 
