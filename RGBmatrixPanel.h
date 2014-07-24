@@ -70,6 +70,9 @@ class RGBmatrixPanel : public Adafruit_GFX {
     Color888(uint8_t r, uint8_t g, uint8_t b),
     Color888(uint8_t r, uint8_t g, uint8_t b, boolean gflag),
     ColorHSV(long hue, uint8_t sat, uint8_t val, boolean gflag);
+// TODO: Might be easier to have number of planes available as a constant (for macro color selection)?
+  uint8_t
+    bitsPerColor(void);
 
 // Refresh frequency
   uint16_t

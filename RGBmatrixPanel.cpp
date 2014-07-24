@@ -605,6 +605,10 @@ void RGBmatrixPanel::stop(void) {
   
 // -------------------- Color  --------------------
 
+// Note that some colors may use more bits than others (e.g. Green - 5/6/5)
+uint8_t RGBmatrixPanel::bitsPerColor(void) {
+  return nPlanes;
+}
 
 // Original RGBmatrixPanel library used 3/3/3 color.  Later version used
 // 4/4/4.  Then Adafruit_GFX (core library used across all Adafruit
