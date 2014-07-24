@@ -27,7 +27,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
     uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth = 1);
     /* Parameters
     a, b, c are the pins used for addressing the rows
-    cclk, latch and oe are the pins used for Serial Clock, Latach and Output Enable
+    cclk, latch and oe are the pins used for Serial Clock, Latch and Output Enable
     dbuf enables double buffering. This will use 2x RAM for frame buffer, but will give nice smooth animation
     pwidth is the number of panels used together in a multi panel configuration
     */
@@ -48,7 +48,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
     stop(void),
     drawPixel(int16_t x, int16_t y, uint16_t c),
     fillScreen(uint16_t c),   // fill current drawing buffer with color c
-    updateDisplay(void),      // TODO: Why is updateDisplay public?
+    updateDisplay(void),      // Public because called by interrupt handler
     swapBuffers(boolean copy = false),  // Display next buffer
 
     dumpMatrix(void);
@@ -75,6 +75,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
     getRefresh();                // Return refresh frequency
 
 #if defined(FADE)
+// Fade - transition one buffer to another
   uint8_t
     swapFade(uint16_t tfade, boolean copy = false);
   boolean
@@ -117,6 +118,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
 #if defined(__TIVA__)
   volatile uint8_t *sclkport;
+
 // Refresh frequency
   uint16_t         refreshFreq;
   volatile uint32_t rowtime;
@@ -126,7 +128,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
   boolean dimwait;
 #endif
 
-  // Counters/pointers for interrupt handler:
+  // Counters/pointers for updateDisplay interrupt handler:
   volatile uint8_t row, plane;
   volatile uint8_t *buffptr;
 };
