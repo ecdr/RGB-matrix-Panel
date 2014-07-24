@@ -67,6 +67,9 @@ class RGBmatrixPanel : public Adafruit_GFX {
     getNext(void),
     getFront(void);
 
+  inline uint8_t
+    nBuffers() {return nBuf;};    // Get number of buffers
+
 // Low level buffer access
   uint8_t
     *frontBuffer(void),
