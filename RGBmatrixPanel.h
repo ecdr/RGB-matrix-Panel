@@ -56,6 +56,8 @@ class RGBmatrixPanel : public Adafruit_GFX {
     loadBuffer(uint8_t *img, uint16_t imgsize);
 
 // Low level buffer access
+  uint16_t
+    bufferSize(void);    // Size of a buffer (in bytes)
   uint8_t
     *frontBuffer(void),
     *backBuffer(void);   // Return type should probably be void *

@@ -279,7 +279,7 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   nPanels = pwidth;
 
   // Allocate and initialize matrix buffer:
-  unsigned int buffsize  = WIDTH * nRows * nPackedPlanes;
+  unsigned int buffsize  = bufferSize();
   unsigned int allocsize = (dbuf == true) ? (buffsize * nBuf) : buffsize;
   if(NULL == (matrixbuff[0] = (uint8_t *)malloc(allocsize))) return;
   memset(matrixbuff[0], 0, allocsize);
@@ -920,7 +920,7 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
     // For black or white, all bits in frame buffer will be identically
     // set or unset (regardless of weird bit packing), so it's OK to just
     // quickly memset the whole thing:
-    memset(matrixbuff[backindex], c, WIDTH * nRows * nPackedPlanes );
+    memset(matrixbuff[backindex], c, bufferSize() );
   } else {
     // Otherwise, need to handle it the long way:
 // TODO: Could fill one row, then copy that
@@ -930,6 +930,11 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
 
 
 // -------------------- Buffers --------------------
+
+// Size of a buffer (in bytes) -- so can use a buffer without assuming as much about encoding
+inline uint16_t RGBmatrixPanel::bufferSize() {
+  return WIDTH * nRows * nPackedPlanes;
+}
 
 // Return address of front buffer -- can then read display directly
 uint8_t *RGBmatrixPanel::frontBuffer() {
@@ -970,7 +975,7 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
 
     while(swapflag == true) delay(1); // wait for interrupt to clear it
     if(copy == true)
-      memcpy(matrixbuff[backindex], matrixbuff[1-backindex], WIDTH * nRows * nPackedPlanes );
+      memcpy(matrixbuff[backindex], matrixbuff[1-backindex], bufferSize() );
 // TODO: Reduce busy wait - if copy is false, we could avoid this delay 
 //  However other update functions would need to check to be sure the backbuffer was okay to use
 //  (while swapflag is true, can not modify either buffer).
@@ -1033,7 +1038,7 @@ boolean RGBmatrixPanel::fading() {
 // back into the display using a pgm_read_byte() loop.
 void RGBmatrixPanel::dumpMatrix(void) {
 
-  int i, buffsize = WIDTH * nRows * nPackedPlanes;
+  int i, buffsize = bufferSize();
   uint row = 0, plane = 0;
 
   Serial.print("// RGBmatrixPanel image, ");
@@ -1090,7 +1095,7 @@ void RGBmatrixPanel::dumpMatrix(void) {
 int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 
   // Could do more sophisticated error handling - adjust for change in nPanels, nRows
-  if (imgsize != WIDTH * nRows * nPackedPlanes)
+  if (imgsize != bufferSize())
     return -1;
 #if defined(__AVR__)
 #warning Need to write this - use memcpy that uses pgm_read
