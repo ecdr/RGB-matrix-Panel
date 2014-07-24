@@ -16,3 +16,8 @@ Restart the IDE.
 
 We also have a great tutorial on Arduino library installation at:
 http://learn.adafruit.com/adafruit-all-about-arduino-libraries-install-use
+
+
+Some configuration options are in library code:
+Which timer to use.
+Data port/pin selection.

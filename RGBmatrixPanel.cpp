@@ -32,6 +32,8 @@ Written by Limor Fried/Ladyada & Phil Burgess/PaintYourDragon for
 Adafruit Industries.
 BSD license, all text above must be included in any redistribution.
 
+Version 1.x, 18 July 2014
+
 Revisions:
     getPixel, by RobF42 - Rob Fugina
     Multiple display daisychain, by protonmaster - Phillip Burgess
@@ -46,7 +48,10 @@ Revisions:
 */
 
 #include "RGBmatrixPanel.h"
+#include "RGBmatrixPanelConfig.h"
+
 #include "gamma.h"
+
 
 
 #if !defined(__AVR__)
@@ -71,45 +76,32 @@ Revisions:
 #endif
 
 
-// -------------------- Configuration  --------------------
-
-//Define DEBUG to send diagnostic/testing messages to console
-//#define DEBUG
-
-#if defined(__TIVA__)
-
-// On Tiva, define BENCHMARK to output TimerHandler time to console
-#define BENCHMARK
-
-#define DEBUG
-
 #if defined( BENCHMARK )
 #include "cyclecount.h"
 #endif
 
-// Define UNROLL_LOOP to speed up display by linearizing the inner loop
-#define UNROLL_LOOP
 
-// Slow down the clock pulse (use less efficient code)
-//#define SLOW_CLOCK
+static const uint8_t nPlanes = 4;
+// Will not work for nPlanes < 4 (would need fixing to not do packing)
+static const uint8_t nPackedPlanes = (nPlanes - 1);  // 3 bytes holds 4 planes "packed"
+static const uint8_t BYTES_PER_ROW = 32;
 
 
-// Add extra NOP during clock pulse (slow down signal) - 
-// need on TM4C1294, suspect may not need on TM4C123x
-#define NOP1
+
+// -------------------- Utility macros --------------------
+
+#if defined(__TIVA__)
 
 
 // TODO: See how much extra time needed, 
 //   compare loop unrolled with extra operations to looping version without SLOW_CLOCK
-
-
 // TODO: Clean up (or remove) code for UNROLL_LOOP not defined
 
 
-// Energia does not define portOutputRegister(port) for Tiva
-// So make up own version, portMaskedOutputRegister(port, mask)
-// include port mask to avoid read modify write
-// can just write to the address, without changing other pins
+// Energia does not define portOutputRegister(port) for Tiva, so make up replacement. 
+// portMaskedOutputRegister(port, mask)
+// include port mask so do not need read, modify, write
+// can just write to the address, and it will not change other pins
 
 // For reference:
 //  void digitalWrite(uint8_t pin, uint8_t val) =
@@ -138,6 +130,7 @@ Revisions:
 
 // True if a number indicates a valid pin
 /*
+// FIXME: Add range checks.  
 #define PIN_OK(pin) (( pin < ((sizeof (digital_pin_to_port))/(sizeof (digital_pin_to_port[0])))) && \
   (NOT_A_PIN != digital_pin_to_port[pin]))
 */
@@ -146,216 +139,11 @@ FIXME: The compiler complains that
 
 libraries\RGBmatrixpanel\RGBmatrixPanel.cpp:395:3: error: invalid application of 'sizeof' to incomplete type 'const uint8_t [] {aka const unsigned char []}'
 
-However this works fine in eLua
-Is there some switch need to give the compiler to tell it to wise-up and get with the program?
+sizeof an array doesn't work in C++ (unlike C)
+Tried various incantations which are supposed to do this in C++, 
+but none of them work in Energia
 */
 #define PIN_OK(pin) ( (NOT_A_PIN != digital_pin_to_port[pin]))
-
-
-
-// Port/pin definitions for various launchpads
-// TODO: Could make data port configurable at run time 
-//   Compiling the port into the library does not help performance on ARM
-
-#if defined(__TM4C129XNCZAD__)
-// Tiva DK-TM4C129
-
-#warning Ports not defined for DK-TM4C129
-
-
-#warning "Ports not defined for TM4C129 DK"
-
-#elif defined(__TM4C1294NCPDT__)
-// Tiva Connected Launchpad
-
-// Candidates for data port: 
-//   PortE (BP1), or PortK (BP2)
-//   PortL (BP1) (pins 0-5) would be a candidate if code was modified to use pins 0-5
-//      Doing a proper job of changing would be a bit of work
-//      However adding a bit shift just before outputting the bits should do the job
-//      with only a modest decrease in performance
-// The performance decrease from splitting the pins to 2 ports might be tollerable.
-//    
-
-#define DATAPORTMASK  B11111100
-#define DATAPORT      (*portMaskedOutputRegister(PK, DATAPORTMASK))
-#define DATAPORTBASE  ((uint32_t)portBASERegister(PK))
-
-// Dataport values start as bits 1-7 of the byte
-// To use lower pin numbers, define DATAPORTSHIFT as the number of bits to shift the value left
-// e.g. if connect panel to pins 0-5, then define DATAPORTSHIFT to be -2 
-// and DATAPORTMASK B00111111
-//#define DATAPORTSHIFT -2
-//#define DATAPORTMASK  B00111111
-// If leave DATAPORTSHIFT undefined there will be no shifting
-
-// Some ARM processors (e.g. SAM) have more than 8 pins per port
-// Therefore more likely to want to shift the pins on those processors
-// So DATAPORTSHIFT is defined as a left shift, 
-// even though right (negative) shifts are the only useful ones on Tiva
-
-
-// On Tiva, defining SCLKPORT as a constant slows down refresh code
-// instead sclkport is derived from sclk pin.
-//#define SCLKPORT      (*portDATARegister(PM))
-
-
-#elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
-// Stellaris or Tiva Launchpad
-
-// Data port should be PA or PB, 
-// PA: Do not use 0,1 - console Uart
-// PB: use caution in other pin assignments, 
-//     since PB6 and PB7 are connected to PD0 and PD1
-
-#define DATAPORTMASK  B11111100
-#define DATAPORT      (*portMaskedOutputRegister(PA, DATAPORTMASK))
-#define DATAPORTBASE  ((uint32_t)portBASERegister(PA))
-
-// Used in testing - data makes onboard LED blink
-//#define DATAPORT      (*portMaskedOutputRegister(PF, DATAPORTMASK))
-//#define DATAPORTBASE  ((uint32_t)portBASERegister(PF))
-//#define DATAPORTMASK B01111110
-//#define DATAPORTSHIFT -1
-
-// On Tiva, defining SCLKPORT as a constant slows down refresh code
-// sclkport is derived from sclk pin. 
-//#define SCLKPORT      (*portDATARegister(PB))
-
-#else
-
-#error Unknown TIVA processor
-
-#endif
-
-
-// Timer selection 
-
-// Can use regular timer or wide timer
-// For regular timer, uses full width timer
-// For wide timer, uses timer A
-
-// TODO: could adapt code to allow use of timer B of wide timer
-
-// Energia doesn't use all the timers, can use one not used
-//   Not used by Energia: WTIMER4 or WTIMER5 on LP, TIMER6 or TIMER7 on Connected LP
-// Could select timer that does PWM for pin(s) that are not using PWM (analogWrite).
-
-// Energia pin use:
-// Timer 4A is used by Tone
-// Timer 5 is used by Energia time tracking
-
-// Launchpad: PWM uses regular timer 0-3, wide timer 0-3, 6, 7
-//     Thus wide timers 4 and 5 appear to be available.
-// Connected LP: Energia uses timers 0-5 (so 6 and 7 should be available)
-
-//  TODO: Check Energia timer use for timers 4 and 5 on Connected LP
-//    Seems strange that, on Connected LP, Timers 4 and 5 are used both by tone/Energia and by PWM??
-
-// TODO: Make timer selectable by user code
-
-
-#if defined(__TM4C1294NCPDT__)
-
-#define TIMER TIMER6
-
-#elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
-
-#define TIMER WTIMER4
-
-#else
-
-#warning Timer not selected for this processor
-
-#endif
-
-
-
-#else 
-
-// On AVRs:
-// A full PORT register is required for the data lines, though only the
-// top 6 output bits are used.  For performance reasons, the port # cannot
-// be changed via library calls, only by changing constants in the library.
-// For similar reasons, the clock pin is only semi-configurable...it can
-// be specified as any pin within a specific PORT register stated below.
-#define DATAPORTMASK B11111100
-
-
-#if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
- // Arduino Mega is now tested and confirmed, with the following caveats:
- // Because digital pins 2-7 don't map to a contiguous port register,
- // the Mega requires connecting the matrix data lines to different pins.
- // Digital pins 24-29 are used for the data interface, and 22 & 23 are
- // unavailable for other outputs because the software needs to write to
- // the full PORTA register for speed.  Clock may be any pin on PORTB --
- // on the Mega, this CAN'T be pins 8 or 9 (these are on PORTH), thus the
- // wiring will need to be slightly different than the tutorial's
- // explanation on the Uno, etc.  Pins 10-13 are all fair game for the
- // clock, as are pins 50-53.
- #define DATAPORT PORTA
- #define DATADIR  DDRA
- #define SCLKPORT PORTB
- 
-#elif defined(__SAM3X8E__)
- // Arduino Due uses the SAM3X8E.
- #define DATAPORT PORTC
- #define DATADIR  tobedefined
- #define SCLKPORT tobedefined  
-
- #warning Arduino Due not finished
-
-#elif defined(__AVR_ATmega32U4__)
- // Arduino Leonardo: this is vestigial code an unlikely to ever be
- // finished -- DO NOT USE!!!  Unlike the Uno, digital pins 2-7 do NOT
- // map to a contiguous port register, dashing our hopes for compatible
- // wiring.  Making this work would require significant changes both to
- // the bit-shifting code in the library, and how this board is wired to
- // the LED matrix.  Bummer.
- #define DATAPORT PORTD
- #define DATADIR  DDRD
- #define SCLKPORT PORTB
-#else
- // Ports for "standard" boards (Arduino Uno, Duemilanove, etc.)
- #define DATAPORT PORTD
- #define DATADIR  DDRD
- #define SCLKPORT PORTB
-#endif
-
-#endif
-
-
-static const uint8_t nPlanes = 4;
-static const uint8_t nPackedPlanes = (nPlanes - 1);  // 3 bytes holds 4 planes "packed"
-static const uint8_t BYTES_PER_ROW = 32;
-
-// FIXME: Need to import real assert
-#if defined(DEBUG)
-#define ASSERT(expr) if (!(expr)) {Serial.print("Error: assertion failure in "); \
-    Serial.print(__FILE__); Serial.print(", line"); Serial.println(__LINE__);}
-#else
-#define ASSERT(expr)
-#endif
-
-
-#if defined(__TIVA__)
-
-static const uint16_t defaultRefreshFreq = 100; // Cycles per second
-// See refresh section below for constraints
-
-//const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
-
-#endif
-
-
-// -------------------- Declarations, Macros  --------------------
-
-#if !defined(__AVR__)
-#define pgm_read_byte( a ) (*(a))
-#endif
-
-
-#if defined(__TIVA__)
 
 
 // Use variable for sclkport
@@ -422,6 +210,15 @@ void TmrHandler(void);
 #define LEFT_SHIFT(value, shift) ((shift < 0) ? (value) >> - (shift) : ((value) << (shift)))
 
 
+// FIXME: Need to import real assert
+#if defined(DEBUG)
+#define ASSERT(expr) if (!(expr)) {Serial.print("Error: assertion failure in "); \
+    Serial.print(__FILE__); Serial.print(", line"); Serial.println(__LINE__);}
+#else
+#define ASSERT(expr)
+#endif
+
+
 // Todo: Allow multiple displays (share data and address, separate OE)
 
 // The fact that the display driver interrupt stuff is tied to the
@@ -433,6 +230,35 @@ void TmrHandler(void);
 // stop() method should perhaps be added...assuming multiple instances
 // are even an actual need.
 static RGBmatrixPanel *activePanel = NULL;
+
+// -------------------- Benchmark  --------------------
+
+#if defined( BENCHMARK )
+
+// Number of times to print time taken by updateDisplay
+//uint16_t nprint = 20;
+
+// Timing points
+volatile uint32_t c_tmr_handler_start = 0;
+volatile uint32_t c_tmr_handler_tset = 0;  // Where set delay to next ISR
+volatile uint32_t c_tmr_handler_loop = 0;  // Benchmark time for preamble (just before display loop)
+volatile uint32_t c_tmr_handler_end = 0;
+
+volatile uint32_t c_tmr_handler_start_old = 0;
+
+#if defined(BENCHMARK_OE)
+// Timing for OE - oeon / (oeoff + oeonn) gives duty cycle
+
+volatile uint32_t oeon_time = 0;
+volatile uint32_t oeoff_time = 0;
+
+volatile boolean oeflag = false;
+volatile uint64_t oeon = 0;
+volatile uint64_t oeoff = 0;
+volatile uint32_t c_tmr_oeoff = 0, c_tmr_oeon = 0;
+#endif
+
+#endif
 
 
 // -------------------- Constructors  --------------------
@@ -583,11 +409,17 @@ void RGBmatrixPanel::begin(void) {
 #if defined(DEBUG) || defined( BENCHMARK )
 // FIXME: Should check if Serial already begun, and only begin if not
 //   Don't see a call in the reference to test this, have to check the code
-  Serial.begin(9600);
+#if defined(DBUG_CON_SPEED)
+  Serial.begin(DBUG_CON_SPEED);
+#endif  
 #endif
 
 // Check these here because didn't get any output from ASSERTs when put in init
   ASSERT(WIDTH == BYTES_PER_ROW * nPanels);
+// FIXME: This assertion fails (1x32 row panel) - ?????
+//F:\Programming\energia-0101E0012-windows\energia-0101E0012\hardware\lm4f\libraries\RGBmatrixpanel\RGBmatrixPanel.cpp, line547
+// If leave the number of panels implicit, then this assertion fails
+// Should default to 1, but see what really get
   ASSERT(PIN_OK(_a));
   ASSERT(PIN_OK(_b));
   ASSERT(PIN_OK(_c));
@@ -676,7 +508,10 @@ if(nRows > 8) {
   DATAPORT = 0;
 #endif  
 
+
 // Timer setup
+
+
 #if defined(BENCHMARK)
   EnableTiming();
 #endif
@@ -717,7 +552,12 @@ if(nRows > 8) {
   MAP_TimerIntEnable( TIMER_BASE, TIMER_TIMA_TIMEOUT );
 
   MAP_TimerLoadSet( TIMER_BASE, TIMER_A, rowtime );  // Dummy initial interrupt period
-  
+
+//#if defined( BENCHMARK )
+// May not need this - EnableTiming zeros the time count, so not too far off
+//  c_tmr_handler_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // Initial setup for timing between ISR
+//#endif
+
   MAP_TimerEnable( TIMER_BASE, TIMER_A );
 
 #if defined(DEBUG)
@@ -754,6 +594,13 @@ void RGBmatrixPanel::stop(void) {
 // TODO: Should probably send all 0's to the panel
 
   *oeport    |= oepin;     // High (disable output)
+#if defined(BENCHMARK_OE)
+  c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
+  if (oeflag){
+    oeflag = false;
+    oeon += c_tmr_oeoff - c_tmr_oeon;
+    }
+#endif
 
   activePanel = NULL;
 }
@@ -1267,7 +1114,7 @@ uint8_t RGBmatrixPanel::swapFade(uint8_t nextPage, uint16_t tfade, boolean copy)
   else {
     FadeCnt = 0;        // How many cycles have occured in this fade
 //    FadeNNext = 0;    // How many times has the next frame been shown
-    FadeNAccum = 0;
+    FadeNAccum = 0;     // Sum of 2*FadeNNext over course of fade
     copyflag = copy;    // reminder to do copy at end
     // Start the fade
 
@@ -1394,7 +1241,7 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 //   It also needs to be long enough that planes with extra processing
 //     will still fit when done with the appropriate multiplier
 //     e.g. if use fancy coding for the 4th plane, 
-//     then handling that must take less than minRowTime << 3 
+//     then handling that must take less than minRowTime << 3 (assuming nPanels is 4)
 //
 // Can measure by setting BENCHMARK, and checking serial output
 //   BENCHMARK result does not include interrupt overhead to call timer handler
@@ -1402,6 +1249,8 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 //
 // TimePerPanel = time for 2 panel - time for 1 panel
 // TimeConst    = time for 1 panel - TimePerPanel
+//
+// Benchmark now includes constant time (so can calculate both const and loop time from one measure)
 //
 
 // Before optimization:
@@ -1422,17 +1271,42 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 
 // TODO: Reameasure and update minRowTime if make major changes to timer service routine
 // FIXME: Need to measure the loop timing values for Connected LP, and for Stellaris LP
-// FIXME: Measure values for unroll_loop once get it working
 
 // TODO: Timing does not include shift - adjust if DATAPORTSHIFT != 0
+
+// TODO: take off the safety check and see how high can push refresh before it fails
+//  (compare real min time to what calculated here)
 
 #if defined(__TM4C1294NCPDT__)
 // Connected Launchpad (120 MHz clock)
 
+// Time between beginning of ISR and timer set instruction (approx)
+// TODO: Need to estimate values for offset
+//  Estimate limit about 280 (with bench code), works at 150 (1 x32 panel), works at 200 (2x32)
+#define TIMER_SET_OFFSET 200
+
+
 #if defined(UNROLL_LOOP)
 
-const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
-const uint16_t minRowTimeConst = 265;            // Overhead ticks
+#if defined( SLOW_NOP1 )
+// For version with 1 NOP, x16 panels
+//const uint16_t minRowTimePerPanel = 156;         // Ticks per panel for a row
+//const uint16_t minRowTimeConst = 350;            // Overhead ticks
+
+// For version with 1 NOP, x32 panels
+const uint16_t minRowTimePerPanel = 180;         // Ticks per panel for a row
+const uint16_t minRowTimeConst = 290;            // Overhead ticks
+
+//#elif defined( REROLL ) || defined ( REROLL_B )
+#else
+
+const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
+const uint16_t minRowTimeConst = 310;            // Overhead ticks
+// Was working with numbers below for 2 x32 panels (with 1 NOP)
+//const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
+//const uint16_t minRowTimeConst = 265;            // Overhead ticks
+
+#endif
 
 #else
 
@@ -1444,7 +1318,13 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 #elif defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
 // For Stellaris Launchpad (80 MHz clock)
 
+// Time between beginning of ISR and timer set instruction (approx)
+// Fails if 120 (measure says 150, so must not be allowing enough for the loop after)
+#define TIMER_SET_OFFSET 100
+
 #if defined(UNROLL_LOOP)
+
+// Based on version without NOP
 const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
 const uint16_t minRowTimeConst = 160;            // Overhead ticks
 
@@ -1472,16 +1352,8 @@ const uint16_t minRowTimeConst = 180;            // Overhead ticks
 // May introduce a visual glitch if redefine refresh rate while displaying something
 // FIXME: Revise to change refresh rate at end of a frame.
 
-// Unoptimized:
-// Takes about 1300 ticks for minimum row time on Stellaris for 1 16row panel
-//  So maximum refresh something in neighborhood of 500 cycles/second 
-
-
-// With 2 32 row panels
-//  Maximum refresh something in neighborhood of 128 cycles/second 
-//  Might get to neighborhood of 200 cycles/second with 120MHz clock (TM4C1294)
-
-// Optimized version might be able to do 500 refreshes/second for 2 panels
+// Optimized version can do about 800 refreshes/second 
+//   (for 4 bit color on 2 32 row panels with 120MHz clock)
 
 
 // Returns refresh rate
@@ -1533,13 +1405,16 @@ uint16_t RGBmatrixPanel::getRefresh() {
 #define DIM_TIME_MIN  20
 // TODO: Figure out what this should be - this was set arbitrarily
 
+// Turn off LEDs for about 4x dtime (clock ticks) per refresh cycle
+//  e.g. if dtime = 2xrowtime should cut the time the LEDs are on in half 
+//   (and reduce refresh rate to about half)
 
 // Dimmer - set a delay between refreshes (with LEDs turned off)
-void RGBmatrixPanel::setDim(uint32_t time){
-  if (time < DIM_TIME_MIN)
+void RGBmatrixPanel::setDim(uint32_t dtime){
+  if (dtime < DIM_TIME_MIN)
     return;
   dimwait = false;  // Next interrupt will be a refresh, one after that will be a delay
-  dimtime = time;   // Setting dimtime != 0 enables the delay
+  dimtime = dtime;  // Setting dimtime != 0 enables the delay
 }
 
 
@@ -1551,33 +1426,22 @@ void RGBmatrixPanel::setDim(uint32_t time){
 
 #if defined(__TIVA__)
 
-#if defined( BENCHMARK )
-
-// Number of times to print time taken by updateDisplay
-uint8_t nprint = 20;
-
-#endif
-
 
 void TmrHandler()
 {
 
 #if defined( BENCHMARK )
-  c_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // beginning of the tested code
+  c_tmr_handler_start_old = c_tmr_handler_start;        // Time since last int
+  c_tmr_handler_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // beginning of the tested code
 #endif
 
   activePanel->updateDisplay();
 
-  MAP_TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
+// MAP_ version of library call takes longer
+  TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
 
 #if defined( BENCHMARK )
-  c_stop = HWREG(DWT_BASE + DWT_O_CYCCNT);  // end of the tested code  
-
-  if (nprint > 0){
-    --nprint;
-    Serial.print("Tmh: ");
-    Serial.println(c_stop - c_start);
-    };
+  c_tmr_handler_end = HWREG(DWT_BASE + DWT_O_CYCCNT);  // end of the tested code  
 #endif
 }
 
@@ -1669,12 +1533,24 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 
 #if defined(__TIVA__)
+#if defined(DIMMER)
+
   // Dimmer - Insert a delay with LEDs off between refreshes
   if (dimtime){
     if (dimwait){
       // last time was a refresh, so this time we wait
       dimwait = false;   // Next interrupt will not be a wait
-      *oeport  = oepin;  // Disable LED output during delay
+      *oeport  = 0xFF;  // Disable LED output during delay
+
+#if defined(BENCHMARK_OE)
+  c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
+  if (oeflag){
+    oeflag = false;
+    oeon_time = c_tmr_oeoff - c_tmr_oeon;
+//    oeon += oeon_time;
+    }
+#endif
+
 // TODO: should the latch be done now, or should that wait until really going to change addr
 
       MAP_TimerLoadSet( TIMER_BASE, TIMER_A, dimtime );
@@ -1685,36 +1561,50 @@ void RGBmatrixPanel::updateDisplay(void) {
   }
 #endif
 
-// Tiva - Masking means don't need read/modify/write
-
-#if defined(__TIVA__)
-  *oeport  = oepin;  // Disable LED output during row/plane switchover
-  *latport = latpin; // Latch data loaded during *prior* interrupt
-#else
-  *oeport  |= oepin;  // Disable LED output during row/plane switchover
-  *latport |= latpin; // Latch data loaded during *prior* interrupt
 #endif
 
-/*
-#if defined(DEBUG)
-  Serial.print(plane);
-#endif
-*/
 
-#if defined(__TIVA__)
-  duration = rowtime << plane;
-
-#else
   // Calculate time to next interrupt BEFORE incrementing plane #.
   // This is because duration is the display time for the data loaded
-  // on the PRIOR interrupt.  CALLOVERHEAD is subtracted from the
-  // result because that time is implicit between the timer overflow
-  // (interrupt triggered) and the initial LEDs-off line at the start
-  // of this method.
+  // on the PRIOR interrupt.  
+#if defined(__TIVA__)
+  duration = (rowtime << plane) - TIMER_SET_OFFSET;
+  
+#else
+  // CALLOVERHEAD is subtracted from the result because that time is 
+  // implicit between the timer overflow (interrupt triggered) and 
+  // the initial LEDs-off line at the start of this method.
   t = (nRows > 8) ? LOOPTIME : (LOOPTIME * 2);
   // FIXME: adjust for number of panels (maybe * nPanels )
-  // TODO: Why is t longer for 32x32 than for 32x16?
+  // TODO: Why is t longer for 32x16 than for 32x32?
   duration = ((t + CALLOVERHEAD * 2) << plane) - CALLOVERHEAD;
+#endif
+
+// TODO: Comment below about latching when latch rises may be wrong? - 
+// Octoscroller said latch happens on falling edge of latch (i.e. this is get ready to latch)
+// Below in address prep it says "about to latch now" so think it is when latch goes low
+// Moved the comment to where latch is lowered (think that is correct place for it).
+
+// TODO: Could move this closer to where latch is turned on again.
+//  oe Has to be off when change address and when latch
+//  but probably doesn't have to be off for calculating delay or updating timer
+//  (unless there is some minimum time involved).
+#if defined(__TIVA__)
+  *oeport  = 0xFF;  // Disable LED output during row/plane switchover
+
+// End of display timing  
+#if defined(BENCHMARK_OE)
+  c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
+  if (oeflag){
+    oeflag = false;
+    oeon_time = c_tmr_oeoff - c_tmr_oeon;
+//    oeon += oeon_time;
+    }
+#endif
+  *latport = 0xFF;
+#else
+  *oeport  |= oepin;  // Disable LED output during row/plane switchover
+  *latport |= latpin;
 #endif
 
   // Borrowing a technique here from Ray's Logic:
@@ -1749,8 +1639,16 @@ void RGBmatrixPanel::updateDisplay(void) {
         }
         else {  // Calculate which buffer to show this time
 
+//  Fade by image flipping:
+//  Does a linear interpolation between the two images.
+//  What it should show is an image that is a certain percent FrontBuffer and a certain % next.
+//  Use the ammount of time spent showing FrontBuffer vs NextBuffer to approximate that percent
+//  For the next interval, display whichever one will bring displayed percent closer to
+//    the current target percent.
+
 // Need to test following expression 
-//  (derived from calculating error differences and a bunch of algebra, checked in a spreadsheet so think okay)
+//  (derived from calculating error differences and a bunch of algebra, 
+//   checked in a spreadsheet so think okay)
 
 //
 // if (abs(FadeCnt ^ 2 - 2 * FadeLen * FadeNNext) > abs(FadeCnt ^ 2 - 2 * FadeLen * (FadeNNext + 1)))
@@ -1762,11 +1660,13 @@ void RGBmatrixPanel::updateDisplay(void) {
 //   Could cache 2*FadeLen - but just a bit shift, so may not be worth it
 
 // Following expression has been tested and works to give linear fade
-//          int16_t FadeCntSq = FadeCnt * FadeCnt;
+//          int32_t FadeCntSq = FadeCnt * FadeCnt;
 //          if (abs(FadeCntSq - FadeNAccum ) > abs(FadeCntSq - FadeNAccum - (2 * FadeLen) )){
 
 // Following expression should yield the same result as above, with less calculation
 // TODO: Test to see that this gives same result
+
+// TODO: Would it be more efficient to keep FadeLen as a uint32_t also?
           if (abs(FadeCnt * FadeCnt - FadeNAccum ) > FadeLen ){
 //    Show NextBuffer;
             buffptr = matrixbuff[backindex]; // Reset into back buffer
@@ -1783,12 +1683,7 @@ void RGBmatrixPanel::updateDisplay(void) {
         buffptr = matrixbuff[frontindex]; // Reset into front buffer
     }
   } else if(plane == 1) {
-/*
-#if defined(DEBUG)
-    Serial.print("P1R");
-    Serial.print(row);
-#endif
-*/
+
     // Plane 0 was loaded on prior interrupt invocation and is about to
     // latch now, so update the row address lines before we do that:
 #if defined(__TIVA__)
@@ -1814,6 +1709,32 @@ void RGBmatrixPanel::updateDisplay(void) {
 #endif
   }
 
+// FIXME: Check other drivers - should latch be lowered while output is still disabled?
+//  In raspi version, latch is lowered while output enable is high
+//   (latch set and immediately cleared, suggesting no minimum high time)
+//  I changed it so latch set to 0 before re-enable output 
+// Changed to put latch down first
+// TODO: Test, see if it works; see if it helps any with ghosts (e.g. at end of line).
+
+#if defined(__TIVA__)
+  *latport = 0;  // Latch data loaded during *prior* interrupt
+  
+// Beginning of display timing
+#if defined(BENCHMARK_OE)
+  if (!oeflag){
+    c_tmr_oeon = HWREG(DWT_BASE + DWT_O_CYCCNT);
+    oeflag = true;
+    oeoff_time = c_tmr_oeon - c_tmr_oeoff;
+//    oeoff += oeoff_time;
+    }
+#endif
+  *oeport  = 0;  // Re-enable output
+#else
+  *latport &= ~latpin;   // Latch data loaded during *prior* interrupt
+  *oeport  &= ~oepin;   // Re-enable output
+#endif
+
+
   // buffptr, being 'volatile' type, doesn't take well to optimization.
   // A local register copy can speed some things up:
   ptr = (uint8_t *)buffptr;
@@ -1828,23 +1749,22 @@ void RGBmatrixPanel::updateDisplay(void) {
     Serial.println(duration);
 #endif
 */
+
+// BENCHMARK - together the two timer calls take about 60 cycles (Stellaris) (MAP_ version)
+//   Non-MAP_ version takes 8 cycles less MAP version on Stellaris LP
+
 //  MAP_TimerDisable( timerBase, timerAB );
-  MAP_TimerLoadSet( TIMER_BASE, TIMER_A, duration );
-  MAP_TimerEnable( TIMER_BASE, TIMER_A );
+  TimerLoadSet( TIMER_BASE, TIMER_A, duration );
+#if defined(BENCHMARK)
+  c_tmr_handler_tset = HWREG(DWT_BASE + DWT_O_CYCCNT);
+#endif
+  TimerEnable( TIMER_BASE, TIMER_A );
 
 #else
   ICR1      = duration; // Set interval for next interrupt
   TCNT1     = 0;        // Restart interrupt timer
 #endif
 
-
-#if defined(__TIVA__)
-  *oeport  = 0;  // Re-enable output
-  *latport = 0;  // Latch down
-#else
-  *oeport  &= ~oepin;   // Re-enable output
-  *latport &= ~latpin;  // Latch down
-#endif 
 
 #if !defined(__TIVA__)
   // Record current state of SCLKPORT register, as well as a second
@@ -1864,11 +1784,15 @@ void RGBmatrixPanel::updateDisplay(void) {
   static const uint8_t tock = 0;
 #endif
 
+#if defined(BENCHMARK)
+  c_tmr_handler_loop = HWREG(DWT_BASE + DWT_O_CYCCNT);
+#endif
+
   if(plane > 0) { // 188 ticks from TCNT1=0 (above) to end of function
 
     // Planes 1-3 copy bytes directly from RAM to PORT without unpacking.
     // The least 2 bits (used for plane 0 data) are presumed masked out
-    // by the port direction bits.
+    // by the port direction bits (on Tiva they are masked by port mask).
 
 #if defined(__AVR__)
     // A tiny bit of inline assembly is used; compiler doesn't pick
@@ -1892,9 +1816,6 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 #else				// Code for non AVR (i.e. Due and ARM based systems)
 
-// FIXME: This may send data too fast for the panel 
-// (May depend on processor clock speed - e.g. Connected LP vs. Stellaris LP)
-// 
 // TODO: Gather what information available on timing constraints.
 // 
 // Raspberry Pi driver - Says takes 3.4 uSec to clock out the data
@@ -1909,7 +1830,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 // This forum thread
 //   http://forums.adafruit.com/viewtopic.php?f=47&t=26130&start=0
 //   Says 25MHz may be recomended maximum for some of the parts, with 50MHz absolute max
-//     One user with FPGA reports success at 40MHz, with problems above that.
+//     One user with FPGA reports success at 40MHz (25ns), with problems above that.
 // 
 // At a guess, clock speed about 40ns (25mHz) might be reasonable starting point for experiment?
 //   That would be 5 cycles at 120mHz, or 3.2 cycles at 80 mHz
@@ -1917,25 +1838,18 @@ void RGBmatrixPanel::updateDisplay(void) {
 //
 // There might be requirements for particular parts of the clock 
 //   (e.g. clock needs to be high for so many ns).
-//   The unrolled code has the clock high for about 1 instruction cycle, 
-//   and low for about 3 cycles.  
-//   (So on connected LP the clock is high for about 8.3 ns, and low for about 24 ns
-//    Whereas a 25MHz clock evenly divided would be high for 20ns,
+//   The initial unrolled code - gives messed up display
+//      has the clock high for about 1 instruction cycle, and low for about 3 cycles.
+//   (So on connected LP the clock is high for about 8.3 ns, and low for about 24 ns)
+//     
+//   Adding one NOP while clock high fixes the display. (5 cycles at 120 mHz)
+//     (NOP while clock low does not fix the problem)
+//
+//    A 25MHz clock evenly divided would be high for 20ns,
 //     and a 50MHz clock would be high for 10 ns
 //
-//  TODO: Check the following comment - it may be talking about old versions
-// On the Stellaris LP the unrolled loop version takes about 6 cycles per item, 
-//   The loopy version about 35 cycles per item
-//   So would expect the unrolled version to be slightly too fast 
-//     (One of the versions using non-local variables might be about right, 
-//      or add a couple of noops?)
-// 
-// On the connected LP may need to add a bit more padding
-//
-// Try padding in different locations in pew macro (e.g. between tick and tock vs around data output.
-//
-// Although noop is not guaranteed to take time, it still might be useful 
-// for trying to insert extra delays.
+// Although no-op is not guaranteed to take time, it still might be useful 
+//   for trying to insert extra delays.
 
 
 
@@ -1946,35 +1860,104 @@ void RGBmatrixPanel::updateDisplay(void) {
 // Works for Connected LP and 2 panels
 /* 
     ldrb	r7, [r5, #1]
-    strb.w	r7, [r6, #1008]	; 0x3f0
-    ldr	r6, [r4, #88]	; 0x58
-    strb	r2, [r6, #0]
-    ldr	r7, [r4, #88]	; 0x58
-    strb	r3, [r7, #0]
+    strb.w	r7, [r6, #1008]
+    ldr	r6, [r4, #88]       ; tick
+    strb	r2, [r6, #0]      ;  "
+    ldr	r7, [r4, #88]       ; tock
+    strb	r3, [r7, #0]      ;  "
     ldr	r6, [r1, #4]
-    */
+*/
 
 #else
 
-// For sclkport, dataport, local variables easier for the compiler to access/optimize
-// (Might be able to do it with the dataport variable in "this" instead?)
-// Makes the inner "loop" 4 instructions, a load and 3 stores
-//   (+1 instruction if a shift is needed)
+// For sclkport, dataport - local variables easier for the compiler to access/optimize
+// TODO: Might be able to do it with the dataport variable in "this" instead?
 
-// Extra no op is needed on the TM4C1294 because it is a little too fast for the panel.
-#ifdef NOP1
+// However, need instruction between clock toggle instructions on the TM4C1294,
+// otherwise it is a little too fast for the panel.
+// Use a NOP
+#ifdef SLOW_NOP1
 
 #define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; __NOP(); * sclkp = tock;
 /* 4 instructions plus one pad (pad might keep clock high for extra 8 ns)
 
-ldrb	r0, [r6, #1]
-strb	r0, [r7, #0]
-strb	r2, [r5, #0]
+ldrb	r0, [r6, #1]  ; Load value
+strb	r0, [r7, #0]  ; Output value
+strb	r2, [r5, #0]  ; tick
 nop
-strb	r3, [r5, #0]
+strb	r3, [r5, #0]  ; tock
 */
   
+#elif defined(REROLL)
+
+/* TODO: test this.
+Rearrange instructions try eliminating NOP - fetch next value while clocking out last value.
+
+ldrb	r0, [r6, #1]  ; Setup
+
+
+strb	r0, [r7, #0]  ; Output value
+strb	r2, [r5, #0]  ; tick
+ldrb	r0, [r6, #2]  ; Load value for next time around
+strb	r3, [r5, #0]  ; tock
+...
+*/
+
+uint8_t temp;
+
+#define PREP temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT);
+
+#define pew *dataport = temp; * sclkp = tick; \
+  temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tock;
+
+// *** CAUTION: This does one more *ptr++ than the regular version
+// so it leaves ptr pointing beyond the end of the data area
+// At the moment this is not a problem since ptr is not used after
+// However it reads 1 beyond the end of data - not good.
+//  Could - add an extra buffer bit at end of last buffer
+
+#elif defined(REROLL_B)
+
+uint8_t temp;
+
+// TODO: test
+//  Different rearrangement
+// Read first, then tock, then output data, then tick
+//  So the first tock will be ignored (since clock should already be tocked)
+//  Means need to add extra tock at end to finish
+
+/*
+ldrb	r0, [r6, #2]  ; Load value
+strb	r3, [r5, #0]  ; tock
+strb	r0, [r7, #0]  ; Output value
+strb	r2, [r5, #0]  ; tick
+...
+*/
+
+#define pew \
+  temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tock; \
+  *dataport = temp; * sclkp = tick;
+
+//  Then, rather than needing prep, need an extra tock at the end
+
+// TODO: Probably do not need the NOP (because of loop overhead)
+#define FINISHUP   __NOP(); * sclkp = tock;
+
 #else
+
+// Basic fast version - 
+// Makes the inner "loop" 4 instructions, a load and 3 stores
+//   (+1 instruction if a shift is needed)
+
+// Too fast at 120 MHz (TM4C129x), may be okay on TM4C123x
+
+/* 
+ldrb	r0, [r6, #1]
+strb	r0, [r7, #0]
+strb	r2, [r5, #0]    ; tick
+strb	r3, [r5, #0]    ; tock
+...
+*/
 
 #define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; * sclkp = tock;
 
@@ -2004,7 +1987,11 @@ strb	r3, [r5, #0]
 
 #if defined( UNROLL_LOOP )
     uint8_t panelcount;
-  
+
+#if defined( PREP )    
+    PREP
+#endif
+
     for (panelcount = 0; panelcount < nPanels; panelcount++)
     {
     	// Loop is unrolled for speed:
@@ -2013,6 +2000,10 @@ strb	r3, [r5, #0]
       pew pew pew pew pew pew pew pew
       pew pew pew pew pew pew pew pew
     } 
+
+#if defined( FINISHUP )
+    FINISHUP
+#endif
 
 #else     // Loopy version
 /*
@@ -2024,8 +2015,8 @@ strb	r3, [r5, #0]
       * sclkp = tock;
     }
 */
-// For loop pointer, rather than indexing, saves 2 more instructions per loop
-    uint8_t *pFinal = ptr + WIDTH;
+// Using for loop pointer, rather than indexing, saves 2 more instructions per loop
+    uint8_t *pFinal = ptr + WIDTH;  // Avoid recalculation in loop
     for(; ptr<pFinal; ptr++)
     {
 #ifdef SLOW_CLOCK
@@ -2035,6 +2026,8 @@ strb	r3, [r5, #0]
 #else
       * dataport = LEFT_SHIFT((*ptr), DATAPORTSHIFT);
       * sclkp = tick;
+// FIXME: This might need an extra instruction on Connected LP
+//   (either NOP, or do code rearrangement as in REROLL)
       * sclkp = tock;
 #endif
     }
@@ -2045,7 +2038,7 @@ strb	r3, [r5, #0]
   } else { // 920 ticks from TCNT1=0 (above) to end of function
 
     // Planes 1-3 (handled above) formatted their data "in place,"
-    // their layout matching that out the output PORT register (where
+    // their layout matching that of the output PORT register (where
     // 6 bits correspond to output data lines), maximizing throughput
     // as no conversion or unpacking is needed.  Plane 0 then takes up
     // the slack, with all its data packed into the 2 least bits not
@@ -2075,11 +2068,14 @@ strb	r3, [r5, #0]
         ((ptr[i+WIDTH] << 4) & 0x30) |
         ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
       * sclkp = tick;
-#ifdef NOP1
-// FIXME: Values greater than 1/2 scale result in shadows on next line - 
+#ifdef SLOW_NOP1
+// FIXME: Color values greater than 1/2 scale result in shadows on next line - 
 //  That would be while plane 3 is being displayed.
 //  Could it be too fast clocking on plane 0? (which is clocked out while plane 3 is displayed)
+      __NOP();
+#elif defined(REROLL) || defined(REROLL_B)
 //  TODO: If NOP fixes it, then should be able to re-roll the loop to put useful operation here
+//   to replace the NOP
       __NOP();
 #endif
       * sclkp = tock;

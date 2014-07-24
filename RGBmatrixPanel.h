@@ -1,5 +1,6 @@
-
-/* RGBmatrixPanel Arduino/Energia library for 16x32 and 32x32 RGB LED matrix panels. */
+/*
+RGBmatrixPanel library for 16x32 and 32x32 RGB LED matrix panels.
+*/
 
 
 #ifndef RGBmatrixPanel_h
@@ -12,44 +13,10 @@
  #include "pins_arduino.h"
 #endif
 
+
 #include "Adafruit_GFX.h"
+#include "RGBmatrixPanelConfig.h"
 
-
-// Define build control macros: __TIVA__ and __ARM__
-// FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
-// Just a temporary patch - until find the proper macro 
-// Listing known processors is not robust, new processors keep coming out
-// There is a macro for MSP430 - __MSP430_CPU__
-// TODO: Is there a macro for C2000?
-
-#if defined(ENERGIA)
-
-//#if !defined(__MSP430_CPU__)
-
-#if defined(__TM4C129XNCZAD__) || defined(__TM4C1294NCPDT__) || defined(__LM4F120H5QR__) || defined(__TM4C123GH6PM__)
-
-#ifndef __TIVA__
-#define __TIVA__
-#endif
-
-#ifndef __ARM__
-#define __ARM__
-#endif
-
-#else
-
-#error "**** Unrecognized processor in Energia ****"
-
-#endif
-
-#endif // ENERGIA
-
-
-// define FADE to include support for fading between displays
-#define FADE
-
-// FIXME: Number of buffers - add interface to set?
-const uint8_t nBuf = 2;
 
 
 class RGBmatrixPanel : public Adafruit_GFX {
@@ -154,8 +121,8 @@ class RGBmatrixPanel : public Adafruit_GFX {
     _sclk, _latch, _oe, _a, _b, _c, _d;
 
 #if defined(FADE)
-  volatile uint16_t FadeCnt, FadeLen; 
-  volatile int16_t FadeNAccum; // replaces FadeNNext
+  volatile uint16_t FadeLen; 
+  volatile int32_t FadeNAccum, FadeCnt;
   boolean copyflag;
 #endif
 
