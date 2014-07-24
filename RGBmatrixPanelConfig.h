@@ -279,6 +279,9 @@ static const uint16_t defaultRefreshFreq = 100; // Cycles per second
 #define FADE
 #endif
 
+//#define DIMMER
+
+
 const uint8_t nBuf = 2;
 
 

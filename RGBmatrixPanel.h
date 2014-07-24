@@ -47,15 +47,20 @@ class RGBmatrixPanel : public Adafruit_GFX {
     begin(void),
     stop(void),
     drawPixel(int16_t x, int16_t y, uint16_t c),
-    fillScreen(uint16_t c),
-    updateDisplay(void),
-    swapBuffers(boolean copy = false),
+    fillScreen(uint16_t c),   // fill current drawing buffer with color c
+    updateDisplay(void),      // TODO: Why is updateDisplay public?
+    swapBuffers(boolean copy = false),  // Display next buffer
+
     dumpMatrix(void);
   int8_t
     loadBuffer(uint8_t *img, uint16_t imgsize);
+
+// Low level buffer access
   uint8_t
     *frontBuffer(void),
-    *backBuffer(void);
+    *backBuffer(void);   // Return type should probably be void *
+
+// Color
   uint16_t
     getPixel(int16_t x, int16_t y),
     Color333(uint8_t r, uint8_t g, uint8_t b),
@@ -64,27 +69,34 @@ class RGBmatrixPanel : public Adafruit_GFX {
     Color888(uint8_t r, uint8_t g, uint8_t b, boolean gflag),
     ColorHSV(long hue, uint8_t sat, uint8_t val, boolean gflag);
 
+// Refresh frequency
   uint16_t
-    setRefresh(uint16_t freq);
+    setRefresh(uint16_t freq),   // Set number of display updates per second
+    getRefresh();                // Return refresh frequency
+
 #if defined(FADE)
   uint8_t
     swapFade(uint16_t tfade, boolean copy = false);
   boolean
-    fading();
+    fading();   // true if fade is in progress
 #endif
+
 #if defined(__TIVA__)
   void
     setDim(uint32_t time);
+  uint32_t getDim(void);  
 #endif
 
  private:
 
   uint8_t         *matrixbuff[nBuf];
   uint8_t          nRows;
-  volatile uint8_t backindex;
-  volatile boolean swapflag;
   uint8_t          nPanels;
-  
+
+  volatile uint8_t backindex;
+
+  volatile boolean swapflag;    // Page change pending
+
   // Init/alloc code common to both constructors:
   void init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
     uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth);
@@ -100,14 +112,16 @@ class RGBmatrixPanel : public Adafruit_GFX {
 #if defined(FADE)
   volatile uint16_t FadeLen; 
   volatile int32_t FadeNAccum, FadeCnt;
-  boolean copyflag;
+  boolean copyflag;             // Copy buffer at end of fade
 #endif
 
 #if defined(__TIVA__)
   volatile uint8_t *sclkport;
+// Refresh frequency
   uint16_t         refreshFreq;
   volatile uint32_t rowtime;
 
+// Dimmer
   volatile uint32_t dimtime;
   boolean dimwait;
 #endif
