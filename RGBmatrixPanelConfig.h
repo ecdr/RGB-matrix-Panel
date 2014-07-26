@@ -114,6 +114,7 @@ Configuration - compile time settings.
 // Candidates for data port:
 //   (have enough pins on booster pack connector without conflicting functions) 
 //   PortE (BP1), PortK (BP2), or PortL (BP1) (pins 0-5)
+//     Timers: Not on these pins (except port L, but shared with other pins)
 
 #define DATAPORTMASK  B11111100
 #define DATAPORT      (*portMaskedOutputRegister(PK, DATAPORTMASK))
@@ -143,8 +144,12 @@ Configuration - compile time settings.
 
 // Data port should be PA or PB, 
 // PA: Do not use pins 0,1 - console Uart
+//    Timers: None
 // PB: use caution in other pin assignments, 
 //     since PB6 and PB7 are connected to PD0 and PD1
+//    Timers: If use port B for data lines, then could use Timer 3 for matrix refresh timer.
+//      0: T2A, 1: T2B, 2: T3A, 3: T3B, 4: T1A, 5: T1B, 6: T0A, 7: T0B
+//      But all except pins 1, 2, 3 are shared with PF - (so could use timer 3 without conflicting with AnalogWrite)
 
 #define DATAPORTMASK  B11111100
 #define DATAPORT      (*portMaskedOutputRegister(PA, DATAPORTMASK))
@@ -184,7 +189,8 @@ Configuration - compile time settings.
 //     (For instance, pins used for RGBMatrix)
 
 //  TODO: Check Energia timer use for timers 4 and 5 on Connected LP
-//    Seems strange that, on Connected LP, Timers 4 and 5 are used both by tone and by PWM??
+//    Seems strange that, on Connected LP, Timers 4 and 5 are used both by tone/time tracking and by PWM??
+//    Especially since timers 6 and 7 do not appear to control any pins.
 
 // TODO: Make timer selectable by user code
 
