@@ -286,7 +286,7 @@ static const uint16_t defaultRefreshFreq = 100; // Cycles per second
 #endif
 
 //#define DIMMER
-
+//const uint16_t dimmScale = 1024;
 
 const uint8_t nBuf = 2;
 

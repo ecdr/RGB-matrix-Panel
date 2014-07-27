@@ -1452,7 +1452,9 @@ void RGBmatrixPanel::updateDisplay(void) {
   // on the PRIOR interrupt.  
 #if defined(__TIVA__)
   duration = (rowtime << plane) - TIMER_SET_OFFSET;
-  
+
+// Draft dimmer - use timer to turn off OE early - would retain refresh rate
+//  oetime = ((duration + TIMER_SET_OFFSET - OE_OFF_OFFSET) * dimFactor) / dimmScale;
 #else
   // CALLOVERHEAD is subtracted from the result because that time is 
   // implicit between the timer overflow (interrupt triggered) and 
