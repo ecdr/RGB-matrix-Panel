@@ -612,7 +612,7 @@ void RGBmatrixPanel::stop(void) {
 // -------------------- Color  --------------------
 
 // Note that some colors may use more bits than others (e.g. Green - 5/6/5)
-uint8_t RGBmatrixPanel::bitsPerColor(void) {
+uint8_t RGBmatrixPanel::bitsPerColor(void) const {
   return nPlanes;
 }
 
@@ -625,7 +625,7 @@ uint8_t RGBmatrixPanel::bitsPerColor(void) {
 // benefit of older code using one of the original color formats.
 
 // Promote 3/3/3 RGB to Adafruit_GFX 5/6/5
-uint16_t RGBmatrixPanel::Color333(uint8_t r, uint8_t g, uint8_t b) {
+uint16_t RGBmatrixPanel::Color333(uint8_t r, uint8_t g, uint8_t b) const {
   // RRRrrGGGgggBBBbb
   return ((r & 0x7) << 13) | ((r & 0x6) << 10) |
          ((g & 0x7) <<  8) | ((g & 0x7) <<  5) |
@@ -633,7 +633,7 @@ uint16_t RGBmatrixPanel::Color333(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 // Promote 4/4/4 RGB to Adafruit_GFX 5/6/5
-uint16_t RGBmatrixPanel::Color444(uint8_t r, uint8_t g, uint8_t b) {
+uint16_t RGBmatrixPanel::Color444(uint8_t r, uint8_t g, uint8_t b) const {
   // RRRRrGGGGggBBBBb
   return ((r & 0xF) << 12) | ((r & 0x8) << 8) |
          ((g & 0xF) <<  7) | ((g & 0xC) << 3) |
@@ -642,7 +642,7 @@ uint16_t RGBmatrixPanel::Color444(uint8_t r, uint8_t g, uint8_t b) {
 
 // Demote 8/8/8 to Adafruit_GFX 5/6/5
 // If no gamma flag passed, assume linear color
-uint16_t RGBmatrixPanel::Color888(uint8_t r, uint8_t g, uint8_t b) {
+uint16_t RGBmatrixPanel::Color888(uint8_t r, uint8_t g, uint8_t b) const {
   return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
 
@@ -653,7 +653,7 @@ uint16_t RGBmatrixPanel::Color888(uint8_t r, uint8_t g, uint8_t b) {
 
 // 8/8/8 -> gamma -> 5/6/5
 uint16_t RGBmatrixPanel::Color888(
-  uint8_t r, uint8_t g, uint8_t b, boolean gflag) {
+  uint8_t r, uint8_t g, uint8_t b, boolean gflag) const {
   if(gflag) { // Gamma-corrected color?
     r = pgm_read_byte(&gamma_table[r]); // Gamma correction table maps
     g = pgm_read_byte(&gamma_table[g]); // 8-bit input to 4-bit output
@@ -681,7 +681,7 @@ uint16_t RGBmatrixPanel::Color888(
 
 
 uint16_t RGBmatrixPanel::ColorHSV(
-  long hue, uint8_t sat, uint8_t val, boolean gflag) {
+  long hue, uint8_t sat, uint8_t val, boolean gflag) const {
 
   uint8_t  r, g, b, lo;
   uint16_t s1, v1;
@@ -844,7 +844,7 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
   }
 }
 
-uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) {
+uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) const {
   uint8_t r, g, b, bit, limit, *ptr;
 
   if((x < 0) || (x >= _width) || (y < 0) || (y >= _height)) return 0;
@@ -942,7 +942,7 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
 // -------------------- Buffers --------------------
 
 // Size of a buffer (in bytes) -- so can use a buffer without assuming as much about encoding
-inline uint16_t RGBmatrixPanel::bufferSize() {
+inline uint16_t RGBmatrixPanel::bufferSize() const {
   return WIDTH * nRows * nPackedPlanes;
 }
 
@@ -1034,7 +1034,7 @@ uint8_t RGBmatrixPanel::swapFade(uint16_t tfade, boolean copy) {
 }
 
 // Or could make this return uint - fade time remaining
-boolean RGBmatrixPanel::fading() {
+boolean RGBmatrixPanel::fading() const {
   return (FadeLen != 0);
 }
 
@@ -1046,7 +1046,7 @@ boolean RGBmatrixPanel::fading() {
 // sketch.  If using multiple dumps this way, you'll need to edit the
 // output to change the 'img' name for each.  Data can then be loaded
 // back into the display using a pgm_read_byte() loop.
-void RGBmatrixPanel::dumpMatrix(void) {
+void RGBmatrixPanel::dumpMatrix(void) const {
 
   int i, buffsize = bufferSize();
   uint row = 0, plane = 0;
@@ -1288,6 +1288,11 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 }
 
 
+uint16_t RGBmatrixPanel::getRefresh() const {
+  return refreshFreq;
+}
+
+
 // TODO: Do dimmer properly - e.g., make it a fraction of maximum on time
 // TODO: Possibly - add dimmer sweeps (e.g. fade to black)
 
@@ -1308,7 +1313,7 @@ void RGBmatrixPanel::setDim(uint32_t dtime){
 }
 
 
-uint32_t RGBmatrixPanel::getDim(void){
+uint32_t RGBmatrixPanel::getDim(void) const {
   return dimtime;
 }
 

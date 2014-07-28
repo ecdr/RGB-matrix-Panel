@@ -53,46 +53,46 @@ class RGBmatrixPanel : public Adafruit_GFX {
     updateDisplay(void),      // Public because called by interrupt handler
     swapBuffers(boolean copy = false),  // Display next buffer
 
-    dumpMatrix(void);
+    dumpMatrix(void) const;
   int8_t
     loadBuffer(uint8_t *img, uint16_t imgsize);
 
 // Low level buffer access
   uint16_t
-    bufferSize(void);    // Size of a buffer (in bytes)
+    bufferSize(void) const;    // Size of a buffer (in bytes)
   uint8_t
     *frontBuffer(void),
     *backBuffer(void);   // Return type should probably be void *
 
 // Color
   uint16_t
-    getPixel(int16_t x, int16_t y),
-    Color333(uint8_t r, uint8_t g, uint8_t b),
-    Color444(uint8_t r, uint8_t g, uint8_t b),
-    Color888(uint8_t r, uint8_t g, uint8_t b),
-    Color888(uint8_t r, uint8_t g, uint8_t b, boolean gflag),
-    ColorHSV(long hue, uint8_t sat, uint8_t val, boolean gflag);
+    getPixel(int16_t x, int16_t y) const,
+    Color333(uint8_t r, uint8_t g, uint8_t b) const,
+    Color444(uint8_t r, uint8_t g, uint8_t b) const,
+    Color888(uint8_t r, uint8_t g, uint8_t b) const,
+    Color888(uint8_t r, uint8_t g, uint8_t b, boolean gflag) const,
+    ColorHSV(long hue, uint8_t sat, uint8_t val, boolean gflag) const;
 // TODO: Might be easier to have number of planes available as a constant (for macro color selection)?
   uint8_t
-    bitsPerColor(void);
+    bitsPerColor(void) const;
 
 // Refresh frequency
   uint16_t
     setRefresh(uint16_t freq),   // Set number of display updates per second
-    getRefresh();                // Return refresh frequency
+    getRefresh() const;          // Return refresh frequency
 
 #if defined(FADE)
 // Fade - transition one buffer to another
   uint8_t
     swapFade(uint16_t tfade, boolean copy = false);
   boolean
-    fading();   // true if fade is in progress
+    fading() const;   // true if fade is in progress
 #endif
 
 #if defined(__TIVA__)
   void
     setDim(uint32_t time);
-  uint32_t getDim(void);  
+  uint32_t getDim(void) const;  
 #endif
 
  private:
