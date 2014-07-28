@@ -573,6 +573,12 @@ if(nRows > 8) {
 }
 
 
+// Destructor - free allocated memory
+RGBmatrixPanel::~RGBmatrixPanel(void) {
+  free(matrixbuff[0]);
+}
+
+
 void RGBmatrixPanel::stop(void) {
 
 #if defined(__TIVA__)
@@ -602,7 +608,7 @@ void RGBmatrixPanel::stop(void) {
   activePanel = NULL;
 }
 
-  
+
 // -------------------- Color  --------------------
 
 // Note that some colors may use more bits than others (e.g. Green - 5/6/5)

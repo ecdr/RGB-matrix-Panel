@@ -43,6 +43,8 @@ class RGBmatrixPanel : public Adafruit_GFX {
 //  RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
 //    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf);
 
+  ~RGBmatrixPanel(void);
+
   void
     begin(void),
     stop(void),
