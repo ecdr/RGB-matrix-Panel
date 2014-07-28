@@ -267,7 +267,7 @@ static const uint16_t defaultRefreshFreq = 100; // Cycles per second
 
 //#define DIMMER
 
-
+// Set nBuf to number of buffers desired
 const uint8_t nBuf = 2;
 
 
