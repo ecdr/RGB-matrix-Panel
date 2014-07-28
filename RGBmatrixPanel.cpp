@@ -265,7 +265,7 @@ volatile uint32_t c_tmr_oeoff = 0, c_tmr_oeon = 0;
 
 // Code common to both the 16x32 and 32x32 constructors:
 void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
-  uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth) {
+  uint8_t sclk, uint8_t latch, uint8_t oe, int8_t bufs, uint8_t pwidth) {
 
 // Error to not have any panels.  Should throw exception or something.
 // (Actually the compiler should catch this, but it doesn't seem to care if omit pwidth)
@@ -273,6 +273,19 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
     pwidth = 1;
     // FIXME: Signal error somehow
   }
+// In the old interface the argument in this place was a boolean
+// TODO: See what values true and false are - 
+// if both positive then could use uint and take out checking for less than 0
+  if (bufs == false)
+    nBuf = 1;
+  else if (bufs == true)
+    nBuf = 2;
+  else if (bufs < 0)
+    return;       // FIXME: Signal error
+  else if (bufs < nBufMax)
+    nBuf = bufs;
+  else
+    nBuf = nBufMax;
 
   nRows = rows; // Number of multiplexed rows; actual height is 2X this
   nPanels = pwidth;
@@ -280,7 +293,7 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   
   // Allocate and initialize matrix buffer:
   unsigned int buffsize  = WIDTH * nRows * nPackedPlanes;
-  unsigned int allocsize = (dbuf == true) ? (buffsize * nBuf) : buffsize;
+  unsigned int allocsize = buffsize * nBuf;
   if(NULL == (matrixbuff[0] = (uint8_t *)malloc(allocsize))) return;
   memset(matrixbuff[0], 0, allocsize);
   for (i = 1; i < nBuf; i++)
@@ -342,7 +355,7 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   swapflag  = false;
 
   backindex = 0;     // Array index of back buffer
-  frontindex= (dbuf == true) ? 1 : 0;
+  frontindex= (nBuf > 1) ? 1 : 0;
   nextindex = backindex;
 
 #if defined(FADE)
@@ -357,19 +370,19 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
 // Constructor for 16x32 panel:
 RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c,
-  uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth) :
+  uint8_t sclk, uint8_t latch, uint8_t oe, int8_t bufs, uint8_t pwidth) :
   Adafruit_GFX(BYTES_PER_ROW*pwidth, 16) {
 
-  init(8, a, b, c, sclk, latch, oe, dbuf, pwidth);
+  init(8, a, b, c, sclk, latch, oe, bufs, pwidth);
 }
 
 // Constructor for 32x32 panel:
 RGBmatrixPanel::RGBmatrixPanel(
   uint8_t a, uint8_t b, uint8_t c, uint8_t d,
-  uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth) :
+  uint8_t sclk, uint8_t latch, uint8_t oe, int8_t bufs, uint8_t pwidth) :
   Adafruit_GFX(BYTES_PER_ROW*pwidth, 32) {
 
-  init(16, a, b, c, sclk, latch, oe, dbuf, pwidth);
+  init(16, a, b, c, sclk, latch, oe, bufs, pwidth);
 
   // Init a few extra 32x32-specific elements:
   _d        = d;
@@ -426,6 +439,8 @@ void RGBmatrixPanel::begin(void) {
   ASSERT(PIN_OK(_sclk));
   ASSERT(PIN_OK(_latch));
   ASSERT(PIN_OK(_oe));
+
+  ASSERT(nBuf <= nBufMax);
 
 /*
 #if defined(DEBUG)

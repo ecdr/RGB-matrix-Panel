@@ -25,7 +25,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
     
   // Constructor for 16x32 panel:
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c,
-    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth = 1);
+    uint8_t sclk, uint8_t latch, uint8_t oe, int8_t bufs, uint8_t pwidth = 1);
     /* Parameters
     a, b, c are the pins used for addressing the rows
     cclk, latch and oe are the pins used for Serial Clock, Latach and Output Enable
@@ -35,7 +35,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
   // Constructor for 32x32 panel (adds 'd' row address pin)
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
-    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth);
+    uint8_t sclk, uint8_t latch, uint8_t oe, int8_t bufs, uint8_t pwidth);
 
 // TODO: See if can get 32x32 constructor with default pwidth
 // Compiler couldn't distinguish this one.
@@ -113,7 +113,9 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
  private:
 
-  uint8_t         *matrixbuff[nBuf];
+  uint8_t         *matrixbuff[nBufMax];
+  uint8_t          nBuf;
+
   uint8_t          nRows;
   uint8_t          nPanels;
 
@@ -125,7 +127,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
   // Init/alloc code common to both constructors:
   void init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
-    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth);
+    uint8_t sclk, uint8_t latch, uint8_t oe, int8_t bufs, uint8_t pwidth);
 
   // PORT register pointers, pin bitmasks, pin numbers:
   volatile uint8_t
