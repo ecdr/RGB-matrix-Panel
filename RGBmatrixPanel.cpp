@@ -1690,6 +1690,7 @@ void RGBmatrixPanel::updateDisplay(void) {
   // Tiva uses masking, so do not worry about changing other pins.
   static const uint8_t tick = 0xFF;
   static const uint8_t tock = 0;
+  uint8_t temp;
 #endif
 
 #if defined(BENCHMARK)
@@ -1827,7 +1828,6 @@ strb	r3, [r5, #0]  ; tock
 //  Workaround - could add an extra dummy entry at end of last buffer
 */
 
-uint8_t temp;
 
 #define PREP temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT);
 
@@ -1849,7 +1849,6 @@ strb	r2, [r5, #0]  ; tick
 ...
 */
 
-uint8_t temp;
 
 #define pew \
   temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tock; \
@@ -1981,20 +1980,33 @@ strb	r3, [r5, #0]    ; tock
       SCLKPORT = tick;
       SCLKPORT = tock;
 #else      
+#ifdef SLOW_NOP1
       * dataport =
         LEFT_SHIFT((( ptr[i]    << 6)                   |
         ((ptr[i+WIDTH] << 4) & 0x30) |
         ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
       * sclkp = tick;
-#ifdef SLOW_NOP1
       __NOP();
-#elif defined(REROLL) || defined(REROLL_B)
-//  TODO: Should be able to re-roll the loop to put useful operation here to replace the NOP
-      __NOP();
-#endif
       * sclkp = tock;
+#elif defined(REROLL) || defined(REROLL_B)
+//  TODO: Test
+//   Re-rolled the loop to put useful operation to replace the NOP
+      temp =
+        LEFT_SHIFT((( ptr[i]    << 6)                   |
+        ((ptr[i+WIDTH] << 4) & 0x30) |
+        ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
+      * sclkp = tock;
+      * dataport = temp;
+      * sclkp = tick;
+#endif // SLOW_NOP1
+#endif // SLOW_CLOCK
 #endif
+    }
+#if defined(REROLL) || defined(REROLL_B)
+// TODO: Probably do not need the NOP (because of loop overhead)
+    __NOP();
+    * sclkp = tock;
 #endif
-    } 
   }
 }
+
