@@ -1724,6 +1724,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 #else				// Code for non AVR (i.e. Due and ARM based systems)
 
+
 // TODO: Gather what information available on timing constraints.
 // 
 // Raspberry Pi driver - Says takes 3.4 uSec to clock out the data
@@ -1745,16 +1746,19 @@ void RGBmatrixPanel::updateDisplay(void) {
 //
 // At a guess, clock speed about 40ns (25mHz) might be reasonable starting point for experiment?
 //   That would be 5 cycles at 120mHz, or 3.2 cycles at 80 mHz
-//   (Might be able to push it to 20ns (50mHz)?)
 //
-// There might be requirements for particular parts of the clock 
-//   (e.g. clock needs to be high for so many ns).
-//   The initial unrolled code - gives messed up display
+// Seems to work at about 30 mHz with 2 x32 panels (with some ghosting).
+//
+//   The initial code gives messed up display
 //      has the clock high for about 1 instruction cycle, and low for about 3 cycles.
-//   (So on connected LP the clock is high for about 8.3 ns, and low for about 24 ns)
-//     
+//   (So on Connected Launchpad the clock is high for about 8.3 ns, and low for about 24 ns)
+//
 //   Adding one NOP while clock high fixes the display. (5 cycles at 120 mHz)
 //     (NOP while clock low does not fix the problem)
+//   Rearranging the code so there is an instruction between clock up and clock down 
+//     (4 cycles at 120 mHz) also fixes the display.
+//     There might be requirements for particular parts of the clock 
+//       (e.g. clock needs to be high for so many ns).
 //
 //    A 25MHz clock evenly divided would be high for 20ns,
 //     and a 50MHz clock would be high for 10 ns
@@ -1762,9 +1766,6 @@ void RGBmatrixPanel::updateDisplay(void) {
 // Octoscroller says that the data is shifted on falling edge of clock.
 //   (Looks like it leaves clock high, whereas Adafruit code leaves clock low).
 //
-
-// Although no-op is not guaranteed to take time, it still might be useful 
-//   for trying to insert extra delays.
 
 
 #ifdef SLOW_CLOCK
@@ -1787,13 +1788,14 @@ void RGBmatrixPanel::updateDisplay(void) {
 // For sclkport, dataport - local variables easier for the compiler to access/optimize
 // TODO: Might be able to do it with the dataport variable in "this" instead?
 
-// However, need instruction between clock toggle instructions on the TM4C1294,
+// Need instruction between clock toggle instructions on the TM4C1294,
 // otherwise it is a little too fast for the panel.
+
 // Use a NOP
 #ifdef SLOW_NOP1
 
 #define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; __NOP(); * sclkp = tock;
-/* 4 instructions plus one pad (pad might keep clock high for extra 8 ns)
+/* 4 instructions plus one pad (pad keep clock high for extra 8 ns)
 
 ldrb	r0, [r6, #1]  ; Load value
 strb	r0, [r7, #0]  ; Output value
@@ -1801,11 +1803,13 @@ strb	r2, [r5, #0]  ; tick
 nop
 strb	r3, [r5, #0]  ; tock
 */
-  
+
+// Putting NOP in other positions does not help
+
 #elif defined(REROLL)
 
-/* TODO: test this.
-Rearrange instructions try eliminating NOP - fetch next value while clocking out last value.
+/* Rearrange instructions to eliminate NOP - fetch next value while clocking out last value.
+  This works.
 
 ldrb	r0, [r6, #1]  ; Setup
 
@@ -1815,6 +1819,12 @@ strb	r2, [r5, #0]  ; tick
 ldrb	r0, [r6, #2]  ; Load value for next time around
 strb	r3, [r5, #0]  ; tock
 ...
+
+// *** CAUTION: This does one more *ptr++ than the base version
+// so it leaves ptr pointing beyond the end of the data area
+// At the moment this is not a problem, since ptr is not used after
+// However it reads 1 beyond the end of data - which could be a problem if memory protection was used.
+//  Workaround - could add an extra dummy entry at end of last buffer
 */
 
 uint8_t temp;
@@ -1824,18 +1834,9 @@ uint8_t temp;
 #define pew *dataport = temp; * sclkp = tick; \
   temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tock;
 
-// *** CAUTION: This does one more *ptr++ than the regular version
-// so it leaves ptr pointing beyond the end of the data area
-// At the moment this is not a problem since ptr is not used after
-// However it reads 1 beyond the end of data - not good.
-//  Could - add an extra buffer bit at end of last buffer
-
 #elif defined(REROLL_B)
 
-uint8_t temp;
-
-// TODO: test
-//  Different rearrangement
+//  Different rearrangement - works
 // Read first, then tock, then output data, then tick
 //  So the first tock will be ignored (since clock should already be tocked)
 //  Means need to add extra tock at end to finish
@@ -1847,6 +1848,8 @@ strb	r0, [r7, #0]  ; Output value
 strb	r2, [r5, #0]  ; tick
 ...
 */
+
+uint8_t temp;
 
 #define pew \
   temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tock; \
@@ -1863,7 +1866,7 @@ strb	r2, [r5, #0]  ; tick
 // Makes the inner "loop" 4 instructions, a load and 3 stores
 //   (+1 instruction if a shift is needed)
 
-// Too fast at 120 MHz (TM4C129x), may be okay on TM4C123x
+// Clock pulse not long enough at 120 MHz (TM4C129x), may be okay on TM4C123x
 
 /* 
 ldrb	r0, [r6, #1]
@@ -1879,10 +1882,11 @@ strb	r3, [r5, #0]    ; tock
 #endif
 
 
-// Possible improvement might be if could read a word,
+// Possible speedup might be to read a word,
 // then shift it to output 4 successive bytes.
+// (Reduce memory fetch overhead).
 // TODO: Try this, see if it improves performance
-// However, may not be much point since already running too fast (at least on connected LP)
+// However, may not be much point since already pushing speed limit (at least on Connected Launchpad)
 //
 // uint32_t * ptr;
 // t = *ptr++; *dataport = t; *dataport = t>>8; * dataport = t>>16; ...
@@ -1949,7 +1953,7 @@ strb	r3, [r5, #0]    ; tock
     buffptr += WIDTH;
 
 
-  } else { // 920 ticks from TCNT1=0 (above) to end of function
+  } else { // AVR: 920 ticks from TCNT1=0 (above) to end of function
 
     // Planes 1-3 (handled above) formatted their data "in place,"
     // their layout matching that of the output PORT register (where
@@ -1983,13 +1987,9 @@ strb	r3, [r5, #0]    ; tock
         ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
       * sclkp = tick;
 #ifdef SLOW_NOP1
-// FIXME: Color values greater than 1/2 scale result in shadows on next line - 
-//  That would be while plane 3 is being displayed.
-//  Could it be too fast clocking on plane 0? (which is clocked out while plane 3 is displayed)
       __NOP();
 #elif defined(REROLL) || defined(REROLL_B)
-//  TODO: If NOP fixes it, then should be able to re-roll the loop to put useful operation here
-//   to replace the NOP
+//  TODO: Should be able to re-roll the loop to put useful operation here to replace the NOP
       __NOP();
 #endif
       * sclkp = tock;
