@@ -72,16 +72,16 @@ Configuration - compile time settings.
 // Processor can put out data too fast for the display - various ways of slowing it down
 // (Use only one of following)
 
-// Slow down the clock pulse (use less efficient code)
+// Slow down the clock pulse (use much less efficient code)
 //#define SLOW_CLOCK
 
 // Add extra NOP during clock pulse (slow down data output a little)
-// extra NOP needed on TM4C1294, suspect may not need on TM4C123x
+// extra time needed in clock on TM4C1294, suspect may not need on TM4C123x
 // TODO: Test on TM4C123x - see if need the extra NOP
 // #define SLOW_NOP1
 
 // Rearranging instructions eliminates need for the NOP
-// TODO: REROLL and REROLL_B both work - remove extra version
+// TODO: REROLL and REROLL_B both work - remove REROLL, just use REROLL_B
 //#define REROLL
 #define REROLL_B
 
@@ -101,8 +101,12 @@ Configuration - compile time settings.
 #if defined(__TIVA__)
 
 // Port/pin definitions for various launchpads
+
 // TODO: Could make data port configurable at run time 
 //   Compiling the port into the library does not help performance on ARM
+//   Would mean changing the interface compared to AVR version (or adding a separate configuration call)
+//   DATAPORTMASK could be configured at run time on Tiva, 
+//   but on might not work as well to make it configurable on other ARM processors.
 
 #if defined(__TM4C129XNCZAD__)
 
@@ -144,12 +148,13 @@ Configuration - compile time settings.
 
 // Data port should be PA or PB, 
 // PA: Do not use pins 0,1 - console Uart
-//    Timers: None
+//    Timers associated with port A: None
 // PB: use caution in other pin assignments, 
 //     since PB6 and PB7 are connected to PD0 and PD1
-//    Timers: If use port B for data lines, then could use Timer 3 for matrix refresh timer.
-//      0: T2A, 1: T2B, 2: T3A, 3: T3B, 4: T1A, 5: T1B, 6: T0A, 7: T0B
-//      But all except pins 1, 2, 3 are shared with PF - (so could use timer 3 without conflicting with AnalogWrite)
+//    Timers on Port B: If use port B for data lines, then could use Timer 3 for matrix refresh timer.
+//      Pin 0: T2A, 1: T2B, 2: T3A, 3: T3B, 4: T1A, 5: T1B, 6: T0A, 7: T0B
+//      However, timers for all except pins 1, 2, 3 are shared with PF - 
+//        So could use timer 3 without conflicting with AnalogWrite
 
 #define DATAPORTMASK  B11111100
 #define DATAPORT      (*portMaskedOutputRegister(PA, DATAPORTMASK))
@@ -193,6 +198,8 @@ Configuration - compile time settings.
 //    Especially since timers 6 and 7 do not appear to control any pins.
 
 // TODO: Make timer selectable by user code
+
+// TODO: Consider possibility of using Watchdog timer?
 
 
 #if defined(__TM4C1294NCPDT__)
