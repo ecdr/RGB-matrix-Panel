@@ -128,7 +128,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
 // Refresh frequency
   uint16_t         refreshFreq;
-  volatile uint32_t rowtime;
+  volatile uint32_t rowtime, newrowtime;
 
 // Dimmer
   volatile uint32_t dimtime;

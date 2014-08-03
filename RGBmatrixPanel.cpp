@@ -298,6 +298,8 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   // Look up port registers and pin masks ahead of time,
   // avoids many slow digitalWrite() calls later.
 #if defined(__TIVA__)
+  newrowtime = 0;
+
   dimtime = 0;
   dimwait = false;
 
@@ -338,7 +340,7 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   row       = nRows   - 1;
   swapflag  = false;
   backindex = 0;     // Array index of back buffer
-
+  
 #if defined(FADE)
   FadeCnt = 0;
   FadeNAccum = 0;
@@ -514,7 +516,10 @@ if(nRows > 8) {
 #endif
 
 #if defined(__TIVA__)
+
   setRefresh(defaultRefreshFreq);
+  if (newrowtime)
+    rowtime = newrowtime;         // Be sure rowtime is valid
 
 #if defined(DEBUG)
   
@@ -1241,11 +1246,19 @@ const uint16_t minRowTimeConst = 180;            // Overhead ticks
 
 // Caution: Blank the display before changing refresh
 // May introduce a visual glitch if redefine refresh rate while displaying something
-// FIXME: Revise to change refresh rate at end of a frame.
+// FIXME: Revise to actually change refresh rate at end of a frame. - Fix written.
+// TODO: Test the fix.  (Adjust refresh rate during display, see if changes)
 
 // Optimized version can do about 800 refreshes/second 
 //   (for 4 bit color on 2 32 row panels with 120MHz clock)
 
+// Minimum refresh frequency (cycles/second)
+// Calculate based on maximum timer interrupt period (timer size and clock)
+// Calculation is a bit pessimistic (assumes a 16x32 panel) to make it a constant
+#define MIN_ROWS 8
+
+const uint32_t minRefreshFreq = (uint32_t) TIMER_CLK / 
+  ((uint32_t) (TIMER_MAX >> nPlanes) * MIN_ROWS * ((1<<nPlanes) - 1));
 
 // Returns refresh rate
 uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
@@ -1254,10 +1267,18 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 //  uint16_t refreshTime = 1 * ticksPerSecond / refreshFreq;   // Time for 1 display refresh
 //  rowtime = refreshTime / (nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
 //  rowtime = ticksPerSecond / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
+
+// Limit frequency based on maximum timer period
+  if (freq < minRefreshFreq)
+    freq = minRefreshFreq;
+
   rowtimetemp = (uint32_t) TIMER_CLK / ((uint32_t) freq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
 
 #if defined(DEBUG)
-  Serial.print("Rowtime raw: ");
+  Serial.print("Min refresh: ");
+  Serial.print(minRefreshFreq);
+
+  Serial.print(" Rowtime raw: ");
   Serial.print(rowtimetemp);
 #endif
 
@@ -1266,16 +1287,16 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
   //  All the constituents are unsigned, and there is no way this could come out with
   //  a negative result, but the compiler complains about comparison between signed and unsigned
   if (rowtimetemp < (uint32_t) minRowTimePerPanel * nPanels + minRowTimeConst){
-    rowtime = minRowTimePerPanel * nPanels + minRowTimeConst;
+    newrowtime = minRowTimePerPanel * nPanels + minRowTimeConst;
 
 #if defined(DEBUG)
   Serial.print(", Rowtime: ");
-  Serial.print(rowtime);
+  Serial.print(newrowtime);
 #endif
 
     }
   else
-    rowtime = rowtimetemp;
+    newrowtime = rowtimetemp;
 
   refreshFreq = ((uint32_t) TIMER_CLK / (rowtime * nRows * ((1<<nPlanes) - 1)));
 #if defined(DEBUG)
@@ -1527,6 +1548,12 @@ void RGBmatrixPanel::updateDisplay(void) {
 #endif
     if(++row >= nRows) {        // advance row counter.  Maxed out?
       row     = 0;              // Yes, reset row counter, then...
+      if(newrowtime) {          // Update refresh frequency if new one specified
+        // TODO: May be simpler to not bother with the test, 
+        // but just always copy newrowtime into rowtime
+        rowtime = newrowtime;   
+        newrowtime = 0;
+        }
 #if !defined(SWAP_AT_END_ROW)
       if(swapflag == true) {    // Swap front/back buffers if requested
         backindex = 1 - backindex;

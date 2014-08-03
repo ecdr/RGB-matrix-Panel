@@ -202,6 +202,10 @@ Configuration - compile time settings.
 // TODO: Consider possibility of using Watchdog timer?
 
 
+// Largest timer count (TODO: Find definition in standard headers)
+#define TIMER_MAX 0xFFFFUL
+
+
 #if defined(__TM4C1294NCPDT__)
 
 #define TIMER TIMER6
