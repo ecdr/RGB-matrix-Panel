@@ -176,25 +176,76 @@ Given name of a timer, assemble names of the various associated constants.
   BASE(TIMER0) =>  TIMER0_BASE
   SYSCTL_PERIPH_TIMER0
   INT_TIMER0A
+  TIMER_A
+  TIMER_TIMA_TIMEOUT
 */
+
+#if (TIMER_CHANEL == A)
+#define TIMER_AB  TIMER_A
+#define TIMER_TIMEOUT TIMER_TIMA_TIMEOUT
+
+#define INT1(t)   (INT_##t##A)
+
+#elif (TIMER_CHANEL == B)
+
+#define TIMER_AB  TIMER_B
+#define TIMER_TIMEOUT TIMER_TIMB_TIMEOUT
+
+#define INT1(t)   (INT_##t##B)
+
+#else
+
+#error Tiva: Unrecognized timer channel (TIMER_CHANEL should be A or B)
+
+#endif
+
+#define INTAB(t)    INT1(t)
+
+#define TIMER_INT   INTAB(TIMER)
+
+
+// TODO: Finish filling in using these macros for timer control (to use chanel A or B)
+
 
 // Auxiliary macros (to get substitution to happen correctly)
 #define BASE1(t)   (t##_BASE)
 #define SYSCTL1(t) (SYSCTL_PERIPH_##t)
-#define INTA1(t)   (INT_##t##A)
-#define INTB1(t)   (INT_##t##B)
+//#define INTA1(t)   (INT_##t##A)
 
 #define BASE(t)    BASE1(t)
 #define SYSCTL(t)  SYSCTL1(t)
-#define INTA(t)    INTA1(t)
-#define INTB(t)    INTB1(t)
+//#define INTA(t)    INTA1(t)
 
 
 // Actually assemble the timer macro names
 
 #define TIMER_BASE   BASE(TIMER)
 #define TIMER_SYSCTL SYSCTL(TIMER)
-#define TIMER_INT    INTA(TIMER)
+//#define TIMER_INT    INTA(TIMER)
+
+
+// TODO: If miss an interrupt, the display driver dies
+//   Try make more robust.
+//   Maybe using repeat timer, rather than ONE_SHOT might help?
+
+// For wide timer, use half timer
+// This assumes that WTIMER bases all come after regular timer bases
+//  (which is true in TM4C123x, but need not be true in general)
+
+#if ( TIMER_BASE >= WTIMER0_BASE )
+
+#if ( TIMER_CHANEL == A)
+#define TIMER_CFG   (TIMER_CFG_SPLIT_PAIR | TIMER_CFG_A_ONE_SHOT)
+#else
+#define TIMER_CFG   (TIMER_CFG_SPLIT_PAIR | TIMER_CFG_B_ONE_SHOT)
+#endif
+
+#else
+#define TIMER_CFG   TIMER_CFG_ONE_SHOT
+#endif
+
+
+
 
 
 void TmrHandler(void);
@@ -508,12 +559,13 @@ if(nRows > 8) {
 #endif  
 
 
-// Timer setup
-
-
 #if defined(BENCHMARK)
   EnableTiming();
 #endif
+
+
+// Timer setup
+
 
 #if defined(__TIVA__)
 
@@ -532,19 +584,6 @@ if(nRows > 8) {
 
 //  MAP_TimerDisable( TIMER_BASE, TIMER_A );
 
-// For wide timer, use half timer
-// This assumes that WTIMER bases all come after regular timer bases
-//  (which is true in TM4C123x, but need not be true in general)
-#if ( TIMER_BASE >= WTIMER0_BASE )
-#define TIMER_CFG   (TIMER_CFG_SPLIT_PAIR | TIMER_CFG_A_ONE_SHOT)
-#else
-#define TIMER_CFG   TIMER_CFG_ONE_SHOT
-#endif
-
-// TODO: If miss an interrupt, the display driver dies
-//   Try make more robust.
-//   Maybe using repeat timer, rather than ONE_SHOT might help?
-
   MAP_TimerConfigure( TIMER_BASE, TIMER_CFG );
 
   IntRegister( TIMER_INT, TmrHandler );
@@ -554,11 +593,6 @@ if(nRows > 8) {
   MAP_TimerIntEnable( TIMER_BASE, TIMER_TIMA_TIMEOUT );
 
   MAP_TimerLoadSet( TIMER_BASE, TIMER_A, rowtime );  // Dummy initial interrupt period
-
-//#if defined( BENCHMARK )
-// May not need this - EnableTiming zeros the time count, so not too far off
-//  c_tmr_handler_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // Initial setup for timing between ISR
-//#endif
 
   MAP_TimerEnable( TIMER_BASE, TIMER_A );
 
@@ -595,7 +629,9 @@ void RGBmatrixPanel::stop(void) {
   IntUnregister(TIMER_INT);
 #else
 
-#warning "Need AVR code to turn off timer"
+// AVR
+	TCCR1B = _BV(WGM13);    // From TimerOne, stop clock(?) TODO: Test
+	TIMSK1 = 0;             // From TimerOne, detachInterrupt TODO: test
 
 #endif  // __TIVA__
 
@@ -1246,8 +1282,8 @@ const uint16_t minRowTimeConst = 180;            // Overhead ticks
 
 // Caution: Blank the display before changing refresh
 // May introduce a visual glitch if redefine refresh rate while displaying something
-// FIXME: Revise to actually change refresh rate at end of a frame. - Fix written.
-// TODO: Test the fix.  (Adjust refresh rate during display, see if changes)
+// FIXME: Revise to actually change refresh rate at end of a frame. - Fix added.
+// TODO: *** Test the fix.  (Adjust refresh rate during display, see if changes)
 
 // Optimized version can do about 800 refreshes/second 
 //   (for 4 bit color on 2 32 row panels with 120MHz clock)
@@ -1257,8 +1293,8 @@ const uint16_t minRowTimeConst = 180;            // Overhead ticks
 // Calculation is a bit pessimistic (assumes a 16x32 panel) to make it a constant
 #define MIN_ROWS 8
 
-const uint32_t minRefreshFreq = (uint32_t) TIMER_CLK / 
-  ((uint32_t) (TIMER_MAX >> nPlanes) * MIN_ROWS * ((1<<nPlanes) - 1));
+const uint32_t minRefreshFreq = (uint32_t) (TIMER_CLK / 
+  ((uint64_t) (TIMER_MAX >> nPlanes) * MIN_ROWS * ((1<<nPlanes) - 1));
 
 // Returns refresh rate
 uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
@@ -1270,7 +1306,7 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 
 // Limit frequency based on maximum timer period
   if (freq < minRefreshFreq)
-    freq = minRefreshFreq;
+    freq = (minRefreshFreq) ? minRefreshFreq : 1 ;  // Must be at least 1
 
   rowtimetemp = (uint32_t) TIMER_CLK / ((uint32_t) freq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
 

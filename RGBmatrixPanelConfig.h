@@ -206,6 +206,9 @@ Configuration - compile time settings.
 #define TIMER_MAX 0xFFFFUL
 
 
+#define TIMER_CHANEL  A
+
+
 #if defined(__TM4C1294NCPDT__)
 
 #define TIMER TIMER6
@@ -219,6 +222,7 @@ Configuration - compile time settings.
 // For wide timer, uses timer A
 
 // TODO: could adapt code to allow use of timer B of wide timer
+
 #else
 
 #warning "Unrecognized Tiva processor, timer not defined"
