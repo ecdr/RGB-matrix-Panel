@@ -1323,18 +1323,20 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
   //  All the constituents are unsigned, and there is no way this could come out with
   //  a negative result, but the compiler complains about comparison between signed and unsigned
   if (rowtimetemp < (uint32_t) minRowTimePerPanel * nPanels + minRowTimeConst){
-    newrowtime = minRowTimePerPanel * nPanels + minRowTimeConst;
+    rowtimetemp = (uint32_t) minRowTimePerPanel * nPanels + minRowTimeConst;
 
 #if defined(DEBUG)
   Serial.print(", Rowtime: ");
-  Serial.print(newrowtime);
+  Serial.print(rowtimetemp);
 #endif
 
     }
-  else
-    newrowtime = rowtimetemp;
 
-  refreshFreq = ((uint32_t) TIMER_CLK / (rowtime * nRows * ((1<<nPlanes) - 1)));
+  ASSERT(rowtimetemp > 0);
+
+  newrowtime = rowtimetemp;   // Set new refresh time (to be picked up on next screen refresh)
+
+  refreshFreq = ((uint32_t) TIMER_CLK / (rowtimetemp * nRows * ((1<<nPlanes) - 1)));
 #if defined(DEBUG)
   Serial.print("Freq:");
   Serial.print(freq);
