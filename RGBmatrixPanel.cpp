@@ -1181,6 +1181,7 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 // TimeConst    = time for 1 panel - TimePerPanel
 //
 // Benchmark now includes constant time (so can calculate both const and loop time from one measure)
+//   TODO: But calculation of loop time doesn't seem to work well from that
 //
 
 // Before optimization:
@@ -1212,8 +1213,8 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 
 // Time between beginning of ISR and timer set instruction (approx)
 // TODO: Need to estimate values for offset
-//  Estimate limit about 280 (with bench code), works at 150 (1 x32 panel), works at 200 (2x32)
-#define TIMER_SET_OFFSET 200
+//  Estimate limit about 230 (with bench code), works at 170 (1 x32 panel) not at 200 (1x32)
+#define TIMER_SET_OFFSET 170
 
 
 #if defined(UNROLL_LOOP)
@@ -1230,11 +1231,9 @@ const uint16_t minRowTimeConst = 290;            // Overhead ticks
 //#elif defined( REROLL ) || defined ( REROLL_B )
 #else
 
-// TODO: Recheck these values - 
-//  Going back to faster refresh values, which worked before.
-//const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
-//const uint16_t minRowTimeConst = 310;            // Overhead ticks
-// Was working with numbers below for 2 x32 panels (with 1 NOP)
+//const uint16_t minRowTimePerPanel = 160;         // Ticks per panel for a row
+//const uint16_t minRowTimeConst = 270;            // Overhead ticks
+// Was working with numbers below for 2 x32 panels
 const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
 const uint16_t minRowTimeConst = 265;            // Overhead ticks
 
@@ -1251,7 +1250,7 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 // For Stellaris Launchpad (80 MHz clock)
 
 // Time between beginning of ISR and timer set instruction (approx)
-// Fails if 120 (measure says 150, so must not be allowing enough for the loop after)
+// Fails if 120 (measure says 140, so must not be allowing enough for the loop after)
 #define TIMER_SET_OFFSET 100
 
 #if defined(UNROLL_LOOP)
@@ -1259,6 +1258,7 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 // Based on version without NOP
 const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
 const uint16_t minRowTimeConst = 160;            // Overhead ticks
+// const - 150 to 195 (with bench code)
 
 #else
 const uint16_t minRowTimePerPanel = 1150;        // Ticks per panel for a row
@@ -1294,7 +1294,7 @@ const uint16_t minRowTimeConst = 180;            // Overhead ticks
 #define MIN_ROWS 8
 
 const uint32_t minRefreshFreq = (uint32_t) (TIMER_CLK / 
-  ((uint64_t) (TIMER_MAX >> nPlanes) * MIN_ROWS * ((1<<nPlanes) - 1));
+  ((uint64_t) (TIMER_MAX >> nPlanes) * MIN_ROWS * ((1<<nPlanes) - 1)));
 
 // Returns refresh rate
 uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
@@ -1575,8 +1575,9 @@ void RGBmatrixPanel::updateDisplay(void) {
 #if defined(SWAP_AT_END_ROW)
 // Do swap when finish drawing all the planes in a row, rather than waiting until end of screen.
 // Means not guaranteed to fully display a screen if do two swaps in succession
+// Means display handler a little slower (test swapflag on every row, rather than at end screen)
 // But also means swapbuffer much faster
-    if(swapflag == true) {    // Swap front/back buffers if requested
+    if(swapflag) {    // Swap front/back buffers if requested
       backindex = 1 - backindex;
       swapflag  = false;
     // Change to reading from front buffer, but using current row
@@ -1591,17 +1592,18 @@ void RGBmatrixPanel::updateDisplay(void) {
         // but just always copy newrowtime into rowtime
         rowtime = newrowtime;   
         newrowtime = 0;
-        }
+        };
 #if !defined(SWAP_AT_END_ROW)
-      if(swapflag == true) {    // Swap front/back buffers if requested
+      if(swapflag) {    // Swap front/back buffers if requested
         backindex = 1 - backindex;
         swapflag  = false;
         buffptr = matrixbuff[1-backindex]; // Reset into front buffer
       }
+      else 
 #endif
 #if defined(FADE)
-      else if(FadeLen) {
-        if (++FadeCnt == FadeLen){  // Fade done, swap the buffers
+      if(FadeLen) {
+        if (++FadeCnt >= FadeLen){  // Fade done, swap the buffers
           backindex = 1 - backindex;
           FadeLen = 0;
           FadeCnt = 0;
@@ -1627,7 +1629,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 // if (abs(FadeCnt ^ 2 - 2 * FadeLen * FadeNNext) > abs(FadeCnt ^ 2 - 2 * FadeLen * (FadeNNext + 1)))
 //
 // If it works, see how to optimize calculation - 
-//   2*FadeLen*FadeNNext can be calculated cumulatively 
+//   2*FadeLen*FadeNNext calculated cumulatively 
 //     (Keep running total, when increment FadeNNext, then FadeNAccum += 2 * FadeLen)
 //   FadeCnt^2 used on both sides (calculate once)
 //   Could cache 2*FadeLen - but just a bit shift, so may not be worth it
@@ -1637,7 +1639,6 @@ void RGBmatrixPanel::updateDisplay(void) {
 //          if (abs(FadeCntSq - FadeNAccum ) > abs(FadeCntSq - FadeNAccum - (2 * FadeLen) )){
 
 // Following expression should yield the same result as above, with less calculation
-// TODO: Test to see that this gives same result
 
 // TODO: Would it be more efficient to keep FadeLen as a uint32_t also?
           if (abs(FadeCnt * FadeCnt - FadeNAccum ) > FadeLen ){
@@ -1724,14 +1725,33 @@ void RGBmatrixPanel::updateDisplay(void) {
 */
 
 // BENCHMARK - together the two timer calls take about 60 cycles (Stellaris) (MAP_ version)
-//   Non-MAP_ version takes 8 cycles less MAP version on Stellaris LP
+//   Non-MAP_ version takes 8 cycles less than MAP version on Stellaris LP
+//   Just the HWREG cuts off another 30+ cycles
 
-//  MAP_TimerDisable( timerBase, timerAB );
-  TimerLoadSet( TIMER_BASE, TIMER_A, duration );
+//  TimerDisable( timerBase, timerAB ); // Not needed
+
 #if defined(BENCHMARK)
   c_tmr_handler_tset = HWREG(DWT_BASE + DWT_O_CYCCNT);
 #endif
-  TimerEnable( TIMER_BASE, TIMER_A );
+
+#if (A == TIMER_CHANEL)
+//  TimerLoadSet( TIMER_BASE, TIMER_A, duration );
+    HWREG(TIMER_BASE + TIMER_O_TAILR) = duration;
+//  TimerEnable( TIMER_BASE, TIMER_A );
+    HWREG(TIMER_BASE + TIMER_O_CTL) |= TIMER_A & (TIMER_CTL_TAEN |
+                                                  TIMER_CTL_TBEN);
+
+#elif (B == TIMER_CHANEL)
+//  TimerLoadSet( TIMER_BASE, TIMER_B, duration );
+    HWREG(TIMER_BASE + TIMER_O_TBILR) = duration;
+//  TimerEnable( TIMER_BASE, TIMER_B );
+    HWREG(TIMER_BASE + TIMER_O_CTL) |= TIMER_B & (TIMER_CTL_TAEN |
+                                                  TIMER_CTL_TBEN);
+#else
+
+#error Unrecognized timer chanel
+
+#endif
 
 #else
   ICR1      = duration; // Set interval for next interrupt
