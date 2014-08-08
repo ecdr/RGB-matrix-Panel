@@ -19,6 +19,19 @@ RGBmatrixPanel library for 16x32 and 32x32 RGB LED matrix panels.
 #include <Adafruit_GFX.h>
 #include "RGBmatrixPanelConfig.h"
 
+/*
+// This might work in concept, but probably not in practice.
+struct crgb16 {
+    union {
+      uint16_t c;
+      struct { uint16_t r:5, g:6, b:5 }
+    }
+  };
+
+typedef struct crgb16 crgb16_t;
+*/
+
+typedef uint16_t crgb16_t;
 
 
 class RGBmatrixPanel : public Adafruit_GFX {
@@ -50,9 +63,9 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
   void
     begin(void),
-    stop(void),
-    drawPixel(int16_t x, int16_t y, uint16_t c),
-    fillScreen(uint16_t c),   // fill current drawing buffer with color c
+    stop(void),               // TODO: Maybe should be end (to match begin)?
+    drawPixel(int16_t x, int16_t y, crgb16_t c),
+    fillScreen(crgb16_t c),   // fill current drawing buffer with color c
     updateDisplay(void),      // Public because called by interrupt handler
     swapBuffers(boolean copy = false),  // Display next buffer
 
@@ -68,7 +81,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
     *backBuffer(void);   // Return type should probably be void *
 
 // Color
-  uint16_t
+  crgb16_t
     getPixel(int16_t x, int16_t y) const,
     Color333(uint8_t r, uint8_t g, uint8_t b) const,
     Color444(uint8_t r, uint8_t g, uint8_t b) const,
