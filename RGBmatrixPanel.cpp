@@ -885,6 +885,95 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
   }
 }
 
+// DrawPixel with interleaved color
+// color = g5 bgr4 bgr3 b|gr2 bgr1 bgr0
+
+// Benchmark (on Stellaris LP, with refresh going): 
+//  Regular drawPixel code takes about 400 (397) cycles
+//  Interleaved color takes about 300 (291) cycles
+//  Interleaved code saves about 100 (107) cycles per call 
+//   So, if code is correct, could cut about 1/4 off time
+
+void RGBmatrixPanel::drawPixelI(int16_t x, int16_t y, uint16_t c) {
+  uint8_t bit, limit, *ptr;
+
+  if((x < 0) || (x >= _width) || (y < 0) || (y >= _height)) return;
+
+  switch(rotation) {
+   case 1:
+    swap(x, y);
+    x = WIDTH  - 1 - x;
+    break;
+   case 2:
+    x = WIDTH  - 1 - x;
+    y = HEIGHT - 1 - y;
+    break;
+   case 3:
+    swap(x, y);
+    y = HEIGHT - 1 - y;
+    break;
+  }
+
+  // Loop counter stuff
+  bit   = 2;
+  limit = 1 << nPlanes;
+
+  if(y < nRows) {
+    // Data for the upper half of the display is stored in the lower
+    // bits of each byte.
+    ptr = &matrixbuff[backindex][y * WIDTH * nPackedPlanes + x]; // Base addr
+// FIXME: Adapt for nBuf > 2
+    // Plane 0 is a tricky case -- its data is spread about,
+    // stored in least two bits not used by the other planes.
+    ptr=ptr+WIDTH*2;
+    *ptr &= ~B00000011;            // Plane 0 R,G mask out in one op
+    *ptr |= c & B00000011;        // Plane 0 G,R: 64 bytes ahead, bit 1,0
+    
+//    if(r & 1) *ptr |=  B00000001;  // Plane 0 R: 64 bytes ahead, bit 0
+//    if(g & 1) *ptr |=  B00000010;  // Plane 0 G: 64 bytes ahead, bit 1
+    ptr=ptr-WIDTH;
+    if(c & 4) *ptr |=  B00000001;  // Plane 0 B: 32 bytes ahead, bit 2
+    else      *ptr &= ~B00000001;  // Plane 0 B unset; mask out
+    // The remaining three image planes are more normal-ish.
+    // Data is stored in the high 6 bits so it can be quickly
+    // copied to the DATAPORT register w/6 output lines.
+    c >>= 1;  // Line up the next bgr tripe as bits 2-4
+    ptr=ptr-WIDTH;
+    for(; bit < limit; bit <<= 1) {
+      *ptr &= ~B00011100;             // Mask out R,G,B in one op
+      *ptr |= (uint8_t) c & B00011100;
+//      if(r & bit) *ptr |= B00000100;  // Plane N R: bit 2
+//      if(g & bit) *ptr |= B00001000;  // Plane N G: bit 3
+//      if(b & bit) *ptr |= B00010000;  // Plane N B: bit 4
+      c >>= 3;                        // On to the next triple
+      ptr  += WIDTH;                  // Advance to next bit plane
+    }
+  } else {
+    // Data for the lower half of the display is stored in the upper
+    // bits, except for the plane 0 stuff, using 2 least bits.
+    ptr = &matrixbuff[backindex][(y - nRows) * WIDTH * nPackedPlanes + x];
+// FIXME: Adapt for nBuf > 2
+    *ptr &= ~B00000011;               // Plane 0 G,B mask out in one op
+    ptr[WIDTH] |= ((uint8_t) c << 1) & B00000010 ;// Plane 0 R: 32 bytes ahead, bit 1
+//    if(r & 1)  ptr[WIDTH] |=  B00000010; // Plane 0 R: 32 bytes ahead, bit 1
+//    else       ptr[WIDTH] &= ~B00000010; // Plane 0 R unset; mask out
+    *ptr     |= ((uint8_t) c >> 1) & B00000011 ; // Plane 0, B, G bit 1, 0
+//    if(g & 1) *ptr     |=  B00000001; // Plane 0 G: bit 0
+//    if(b & 1) *ptr     |=  B00000010; // Plane 0 B: bit 1
+    uint32_t ctemp = c << 2;  // Line up the next bgr tripe as bits 5-7
+      // Need a longer word since doing left shift
+    for(; bit < limit; bit <<= 1) {
+      *ptr &= ~B11100000;             // Mask out B,G,R in one op
+      *ptr |= (uint8_t) ctemp & B11100000;
+//      if(r & bit) *ptr |= B00100000;  // Plane N R: bit 5
+//      if(g & bit) *ptr |= B01000000;  // Plane N G: bit 6
+//      if(b & bit) *ptr |= B10000000;  // Plane N B: bit 7
+      ctemp >>= 3;                      // On to the next triple      
+      ptr  += WIDTH;                  // Advance to next bit plane
+    }
+  }
+}
+
 uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) const {
   uint8_t r, g, b, bit, limit, *ptr;
 

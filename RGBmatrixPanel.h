@@ -68,6 +68,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
     fillScreen(crgb16_t c),   // fill current drawing buffer with color c
     updateDisplay(void),      // Public because called by interrupt handler
     swapBuffers(boolean copy = false),  // Display next buffer
+    drawPixelI(int16_t x, int16_t y, uint16_t c), // Testing: same as drawpixel but interleaved color
 
     dumpMatrix(void) const;
   int8_t
