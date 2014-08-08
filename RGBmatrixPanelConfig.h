@@ -58,6 +58,7 @@ Configuration - compile time settings.
 #define DBUG_CON_SPEED  9600
 
 // On Tiva, define BENCHMARK to measure TimerHandler time (may work on other ARM)
+// Library just records timings, sketch has to output them (see TODO: benchmark example)
 #if !defined(__AVR__)
 //#define BENCHMARK
 //#define BENCHMARK_OE

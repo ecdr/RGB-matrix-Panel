@@ -1170,7 +1170,7 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 //   minRowTime needs to be greater than the time for the shortest row
 //   It also needs to be long enough that planes with extra processing
 //     will still fit when done with the appropriate multiplier
-//     e.g. if use fancy coding for the 4th plane, 
+//     e.g. if use fancy coding for plane 0, 
 //     then handling that must take less than minRowTime << 3 (assuming nPanels is 4)
 //
 // Can measure by setting BENCHMARK, and checking serial output
@@ -1183,21 +1183,6 @@ int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
 // Benchmark now includes constant time (so can calculate both const and loop time from one measure)
 //   TODO: But calculation of loop time doesn't seem to work well from that
 //
-
-// Before optimization:
-// Stellaris: At 80 MHz, with 4 planes, 200 cycles/second gives about 3333 ticks/row
-//   CPU takes about 1300 ticks to process a row on one panel
-
-// Timing for Stellaris launchpad 1x 16x32 panel: 1348, 1316, 1316, 1706
-//   2x 32x32 panel: 3274, 2514, 2472, 2472, 3246, ...
-//   3x 32x32 panel: 4804, 3662, 3620, 3620, 4778, 3662, ...
-
-// With loop unrolling, using local variables for pointers, etc.
-// 1x16: 1588, 392, 360, 360, 1560, 392, 360, 360
-// 2x32: 2996, 604, 564, 564, 2968, 604, 564, 564
-  // with locals declared right before
-// 2x32: 2370, 612, 572, 572, 2344, 612, 572, 572
-  // with locals used in loop versions (not sure why little slower for most planes)
 
 
 // TODO: Reameasure and update minRowTime if make major changes to timer service routine
@@ -1615,27 +1600,24 @@ void RGBmatrixPanel::updateDisplay(void) {
         }
         else {  // Calculate which buffer to show this time
 
-//  Fade by image flipping:
+//  Fade by image flipping (?Delta-Sigma DAC):
 //  Does a linear interpolation between the two images.
 //  What it should show is an image that is a certain percent FrontBuffer and a certain % next.
 //  Use the ammount of time spent showing FrontBuffer vs NextBuffer to approximate that percent
 //  For the next interval, display whichever one will bring displayed percent closer to
 //    the current target percent.
-
-// Need to test following expression 
-//  (derived from calculating error differences and a bunch of algebra, 
-//   checked in a spreadsheet so think okay)
+//  Need a fairly high refresh rate for this to work
 
 //
 // if (abs(FadeCnt ^ 2 - 2 * FadeLen * FadeNNext) > abs(FadeCnt ^ 2 - 2 * FadeLen * (FadeNNext + 1)))
 //
-// If it works, see how to optimize calculation - 
-//   2*FadeLen*FadeNNext calculated cumulatively 
+// To improve efficiency:
+//   2*FadeLen*FadeNNext calculated cumulatively - FadeNAccum 
 //     (Keep running total, when increment FadeNNext, then FadeNAccum += 2 * FadeLen)
 //   FadeCnt^2 used on both sides (calculate once)
 //   Could cache 2*FadeLen - but just a bit shift, so may not be worth it
 
-// Following expression has been tested and works to give linear fade
+// After efficiency improvements - expression has been tested and works
 //          int32_t FadeCntSq = FadeCnt * FadeCnt;
 //          if (abs(FadeCntSq - FadeNAccum ) > abs(FadeCntSq - FadeNAccum - (2 * FadeLen) )){
 
@@ -1688,8 +1670,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 //  In raspi version, latch is lowered while output enable is high
 //   (latch set and immediately cleared, suggesting no minimum high time)
 //  I changed it so latch set to 0 before re-enable output 
-// Changed to put latch down first
-// TODO: Test, see if it works; see if it helps any with ghosts (e.g. at end of line).
+// TODO: Test, see if it helps any with ghosts (e.g. at end of line).
 
 #if defined(__TIVA__)
   *latport = 0;  // Latch data loaded during *prior* interrupt
@@ -1725,15 +1706,15 @@ void RGBmatrixPanel::updateDisplay(void) {
 #endif
 */
 
-// BENCHMARK - together the two timer calls take about 60 cycles (Stellaris) (MAP_ version)
-//   Non-MAP_ version takes 8 cycles less than MAP version on Stellaris LP
-//   Just the HWREG cuts off another 30+ cycles
-
-//  TimerDisable( timerBase, timerAB ); // Not needed
-
 #if defined(BENCHMARK)
   c_tmr_handler_tset = HWREG(DWT_BASE + DWT_O_CYCCNT);
 #endif
+
+//  TimerDisable( timerBase, timerAB ); // Not needed
+
+// BENCHMARK - together the two timer calls take about 60 cycles (Stellaris) (MAP_ version)
+//   Non-MAP_ version takes 8 cycles less than MAP version on Stellaris LP
+//   Inline with just the HWREG cuts off another 30+ cycles
 
 #if (A == TIMER_CHANEL)
 //  TimerLoadSet( TIMER_BASE, TIMER_A, duration );
