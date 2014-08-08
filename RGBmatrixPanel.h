@@ -68,9 +68,19 @@ class RGBmatrixPanel : public Adafruit_GFX {
     fillScreen(crgb16_t c),   // fill current drawing buffer with color c
     updateDisplay(void),      // Public because called by interrupt handler
     swapBuffers(boolean copy = false),  // Display next buffer
-    drawPixelI(int16_t x, int16_t y, uint16_t c), // Testing: same as drawpixel but interleaved color
+    drawPixelI(int16_t x, int16_t y, crgb16i_t c), // Testing: same as drawpixel but interleaved color
 
     dumpMatrix(void) const;
+
+  // Use internal color representation to speed these up
+  void
+    drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, crgb16_t color),
+    drawRect(int16_t x, int16_t y, int16_t w, int16_t h, crgb16_t color),
+    fillRect(int16_t x, int16_t y, int16_t w, int16_t h, crgb16_t color),
+    drawLineI(int16_t x0, int16_t y0, int16_t x1, int16_t y1, crgb16i_t color),
+    drawFastVLineI(int16_t x, int16_t y, int16_t h, crgb16i_t color),
+    drawFastHLineI(int16_t x, int16_t y, int16_t w, crgb16i_t color);
+
   int8_t
     loadBuffer(uint8_t *img, uint16_t imgsize);
 
