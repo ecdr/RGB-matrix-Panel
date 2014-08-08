@@ -657,6 +657,58 @@ uint8_t RGBmatrixPanel::bitsPerColor(void) const {
   return nPlanes;
 }
 
+
+// color = bgr4 bgr3 b|gr2 bgr1 bgr0 g-1
+
+// Set the tobit'th bit of tovar if the frombit'th bit of fromvar is set
+#define BIT_TST_SET(fromvar, frombit, tovar, tobit) if (fromvar & (1<<frombit)) tovar |= (1<<tobit)
+
+crgb16i_t RGBmatrixPanel::ColorI(crgb16_t c) const {
+  crgb16i_t cnew = 0;
+
+//5 planes  R4R3R2R1:R0G4G3G2|G1G0gxB4:B3B2B1B0
+//4 planes  R3R2R1R0:rxG3G2G1|G0gxgxB3:B2B1B0bx
+//bit#      15141312:11100908|07060504:03020100 
+//IColor    b4g4r4b3:g3r3b2g2|r2b1g1r1:b0g0r0g-1
+
+//#if (4 == nPlanes)
+  // Adafruit_GFX uses 16-bit color in 5/6/5 format, 
+  // while matrix uses low 4 planes.
+  // Pluck out relevant bits while interleaving into g,r,b
+  BIT_TST_SET(c, 12, cnew, 1);  // R0
+  BIT_TST_SET(c, 13, cnew, 4);  // R1
+  BIT_TST_SET(c, 14, cnew, 7);  // R2
+  BIT_TST_SET(c, 15, cnew, 10); // R3
+  BIT_TST_SET(c,  7, cnew, 2);  // G0
+  BIT_TST_SET(c,  8, cnew, 5);  // G1
+  BIT_TST_SET(c,  9, cnew, 8);  // G2
+  BIT_TST_SET(c, 10, cnew, 11); // G3
+  BIT_TST_SET(c,  1, cnew, 3);  // B0
+  BIT_TST_SET(c,  2, cnew, 6);  // B1
+  BIT_TST_SET(c,  3, cnew, 9);  // B2
+  BIT_TST_SET(c,  4, cnew, 12);  // B3
+/*#elif (5 == nPlanes)
+
+//  r =  c >> 11;         // RRRRRggggggbbbbb
+//  g = (c >>  6) & 0x1F; // rrrrrGGGGGgbbbbb
+//  b = (c )      & 0x1F; // rrrrrggggggBBBBB
+#else
+#error drawPixel Unsupported number of planes
+#endif
+*/
+
+/*
+  // Loop counter
+  limit = 1 << nPlanes;
+
+  for(bit = 1; bit < limit; bit <<= 1) {
+    if(r & bit) 
+    if(g & bit)
+    if(b & bit)
+  } */
+  return cnew;
+}
+
 // Original RGBmatrixPanel library used 3/3/3 color.  Later version used
 // 4/4/4.  Then Adafruit_GFX (core library used across all Adafruit
 // display devices now) standardized on 5/6/5.  The matrix still operates
@@ -886,7 +938,7 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
 }
 
 // DrawPixel with interleaved color
-// color = g5 bgr4 bgr3 b|gr2 bgr1 bgr0
+// color = bgr4 bgr3 bg|r2 bgr1 bgr0 g-1
 
 // Benchmark (on Stellaris LP, with refresh going): 
 //  Regular drawPixel code takes about 400 (397) cycles
@@ -927,17 +979,17 @@ void RGBmatrixPanel::drawPixelI(int16_t x, int16_t y, uint16_t c) {
     // stored in least two bits not used by the other planes.
     ptr=ptr+WIDTH*2;
     *ptr &= ~B00000011;            // Plane 0 R,G mask out in one op
-    *ptr |= c & B00000011;        // Plane 0 G,R: 64 bytes ahead, bit 1,0
+    *ptr |= c >> 1 & B00000011;        // Plane 0 G,R: 64 bytes ahead, bit 1,0
     
 //    if(r & 1) *ptr |=  B00000001;  // Plane 0 R: 64 bytes ahead, bit 0
 //    if(g & 1) *ptr |=  B00000010;  // Plane 0 G: 64 bytes ahead, bit 1
     ptr=ptr-WIDTH;
-    if(c & 4) *ptr |=  B00000001;  // Plane 0 B: 32 bytes ahead, bit 2
+    if(c & 8) *ptr |=  B00000001;  // Plane 0 B: 32 bytes ahead, bit 2
     else      *ptr &= ~B00000001;  // Plane 0 B unset; mask out
     // The remaining three image planes are more normal-ish.
     // Data is stored in the high 6 bits so it can be quickly
     // copied to the DATAPORT register w/6 output lines.
-    c >>= 1;  // Line up the next bgr tripe as bits 2-4
+    c >>= 2;  // Line up the next bgr triple as bits 2-4
     ptr=ptr-WIDTH;
     for(; bit < limit; bit <<= 1) {
       *ptr &= ~B00011100;             // Mask out R,G,B in one op
@@ -954,13 +1006,13 @@ void RGBmatrixPanel::drawPixelI(int16_t x, int16_t y, uint16_t c) {
     ptr = &matrixbuff[backindex][(y - nRows) * WIDTH * nPackedPlanes + x];
 // FIXME: Adapt for nBuf > 2
     *ptr &= ~B00000011;               // Plane 0 G,B mask out in one op
-    ptr[WIDTH] |= ((uint8_t) c << 1) & B00000010 ;// Plane 0 R: 32 bytes ahead, bit 1
+    ptr[WIDTH] |= ((uint8_t) c) & B00000010 ;// Plane 0 R: 32 bytes ahead, bit 1
 //    if(r & 1)  ptr[WIDTH] |=  B00000010; // Plane 0 R: 32 bytes ahead, bit 1
 //    else       ptr[WIDTH] &= ~B00000010; // Plane 0 R unset; mask out
-    *ptr     |= ((uint8_t) c >> 1) & B00000011 ; // Plane 0, B, G bit 1, 0
+    *ptr     |= ((uint8_t) c >> 2) & B00000011 ; // Plane 0, B, G bit 1, 0
 //    if(g & 1) *ptr     |=  B00000001; // Plane 0 G: bit 0
 //    if(b & 1) *ptr     |=  B00000010; // Plane 0 B: bit 1
-    uint32_t ctemp = c << 2;  // Line up the next bgr tripe as bits 5-7
+    uint32_t ctemp = c << 1;  // Line up the next bgr triple as bits 5-7
       // Need a longer word since doing left shift
     for(; bit < limit; bit <<= 1) {
       *ptr &= ~B11100000;             // Mask out B,G,R in one op
