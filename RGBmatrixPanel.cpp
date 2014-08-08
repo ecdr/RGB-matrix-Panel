@@ -1396,7 +1396,8 @@ void TmrHandler()
   activePanel->updateDisplay();
 
 // MAP_ version of library call takes longer
-  TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
+//  TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
+  HWREG(TIMER_BASE + TIMER_O_ICR) = TIMER_TIMEOUT;    // Inlining code - just in ISR, where speed helpful
 
 #if defined( BENCHMARK )
   c_tmr_handler_end = HWREG(DWT_BASE + DWT_O_CYCCNT);  // end of the tested code  
