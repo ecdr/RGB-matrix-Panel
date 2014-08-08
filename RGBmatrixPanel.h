@@ -13,7 +13,10 @@ RGBmatrixPanel library for 16x32 and 32x32 RGB LED matrix panels.
 #endif
 
 
-#include "Adafruit_GFX.h"
+// FIXME: Including Adafruit_GFX.h here does not work in Energia.
+// Workaround: Include Adafruit_GFX in the main sketch.
+//
+#include <Adafruit_GFX.h>
 #include "RGBmatrixPanelConfig.h"
 
 

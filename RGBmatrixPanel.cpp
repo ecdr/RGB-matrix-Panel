@@ -1235,7 +1235,7 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 // For Stellaris Launchpad (80 MHz clock)
 
 // Time between beginning of ISR and timer set instruction (approx)
-// Fails if 120 (measure says 140, so must not be allowing enough for the loop after)
+// Fails if 120 (measure says 130, so must not be allowing enough for the loop after)
 #define TIMER_SET_OFFSET 100
 
 #if defined(UNROLL_LOOP)
