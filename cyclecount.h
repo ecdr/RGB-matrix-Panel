@@ -2,28 +2,31 @@
 // Stellaris/Tiva
 // http://forum.stellarisiti.com/topic/1908-execution-time-the-easy-way/
 
+#ifndef cyclecount_h
+#define cyclecount_h
+
 #include "inc/hw_nvic.h"          /* for definition of NVIC_DBG_INT */
 #include "inc/hw_memmap.h"        /* for definition of DWT_BASE */
 #include "inc/hw_types.h"         /* for definition of HWREG */
 
 #define DWT_O_CYCCNT 0x00000004
 //static  
-uint32_t     c_start, c_stop;
+//uint32_t     c_start, c_stop;
 
 // declaration of an initialization function
-void  EnableTiming(void);
-void  ResetTiming(void);
-uint32_t ReadTiming(void);
+//void  EnableTiming(void);
+//void  ResetTiming(void);
+//uint32_t ReadTiming(void);
 
 // definition of that function
 /******************************************************************************/
-void EnableTiming(void){
+inline void EnableTiming(void){
    HWREG(NVIC_DBG_INT) |= 0x01000000;      /*enable TRCENA bit in NVIC_DBG_INT*/
    HWREG(DWT_BASE + DWT_O_CYCCNT) = 0;     /* reset the counter */
    HWREG(DWT_BASE) |= 0x01;                /* enable the counter */
 //   enabled = 1;
-   c_start = 0;
-   c_stop = 0;
+//   c_start = 0;
+//   c_stop = 0;
 }
 /******************************************************************************/
 
@@ -51,7 +54,7 @@ inline void ResetTiming(void) {HWREG(DWT_BASE + DWT_O_CYCCNT) = 0;}
  // Delay based on cyclecount
  // FIXME: handle timer overflow
  /**********************************************************/
- void TimingDelay(unsigned int tick)
+ inline void TimingDelay(unsigned int tick)
  {
    unsigned int start, current;
 
@@ -62,3 +65,5 @@ inline void ResetTiming(void) {HWREG(DWT_BASE + DWT_O_CYCCNT) = 0;}
    } while((current-start)<tick);
  }
 /*********************************************************/
+
+#endif
