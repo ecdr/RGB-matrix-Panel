@@ -72,14 +72,21 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
     dumpMatrix(void) const;
 
+#if defined(COLORI_DRAW)
   // Use internal color representation to speed these up
   void
     drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, crgb16_t color),
     drawRect(int16_t x, int16_t y, int16_t w, int16_t h, crgb16_t color),
     fillRect(int16_t x, int16_t y, int16_t w, int16_t h, crgb16_t color),
+// The ColorI, drawPixelI and I versions of line functions are used internally,
+// it is not necesarry to call them in order to speed up drawing, 
+// but they are left accessible to the user if desired.
+// Use ColorI to convert AdafruitGFX color to interleaved color, 
+// then pass that as color argument of I functions.
     drawLineI(int16_t x0, int16_t y0, int16_t x1, int16_t y1, crgb16i_t color),
     drawFastVLineI(int16_t x, int16_t y, int16_t h, crgb16i_t color),
     drawFastHLineI(int16_t x, int16_t y, int16_t w, crgb16i_t color);
+#endif
 
   int8_t
     loadBuffer(uint8_t *img, uint16_t imgsize);
@@ -100,7 +107,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
     Color888(uint8_t r, uint8_t g, uint8_t b, boolean gflag) const,
     ColorHSV(long hue, uint8_t sat, uint8_t val, boolean gflag) const;
 
-  crgb16i_t ColorI(crgb16_t c) const;
+  crgb16i_t ColorI(crgb16_t c) const; // Convert AdafruitGFX color to interleaved color
 
 // TODO: Might be easier to have number of planes available as a constant (for macro color selection)?
   uint8_t

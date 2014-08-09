@@ -32,7 +32,7 @@ Written by Limor Fried/Ladyada & Phil Burgess/PaintYourDragon for
 Adafruit Industries.
 BSD license, all text above must be included in any redistribution.
 
-Version 1.x, 18 July 2014
+Version 1.x, 9 Aug 2014
 
 Revisions:
     getPixel, by RobF42 - Rob Fugina
@@ -970,7 +970,7 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
 //  Regular drawPixel code takes about 400 (397) cycles
 //  Interleaved color takes about 300 (291) cycles
 //  Interleaved code saves about 100 (107) cycles per call 
-//   So, if code is correct, could cut about 1/4 off time
+//   So, if code is correct, could cut about 25% off pixel time
 
 void RGBmatrixPanel::drawPixelI(int16_t x, int16_t y, uint16_t c) {
   uint8_t bit, limit, *ptr;
@@ -1149,8 +1149,19 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
 // -------------------- Faster draw --------------------
 
 // Convert color argument to internal color, then pass that on down to speed up drawing
-// TODO: Test for speed comparison
 
+// The ColorI, drawPixelI and I versions of various line functions are used internally,
+// it is not necesarry to call them in order to get speedup, but they are left accessible
+// to the user if desired.
+// Use ColorI to convert AdafruitGFX color to interleaved color, 
+// then pass that as color argument of I functions.
+
+
+// benchmark: On Stellaris LP, with display going
+// Using interleaved color speeds up a horizontal line by about 20%
+//  Normal color: 12,700 cycles, interleaved color 10,000 cycles, saves 2700 cycles 2700/12700 ~= 20%
+
+#if defined(COLORI_DRAW)
 void RGBmatrixPanel::drawRect(int16_t x, int16_t y,
 			    int16_t w, int16_t h,
 			    crgb16_t color) {
@@ -1204,8 +1215,10 @@ void RGBmatrixPanel::drawLine(int16_t x0, int16_t y0,
   for (; x0<=x1; x0++) {
     if (steep) {
       drawPixelI(y0, x0, icolor);
+//      drawPixel(y0, x0, color);
     } else {
       drawPixelI(x0, y0, icolor);
+//      drawPixel(y0, x0, color);
     }
     err -= dy;
     if (err < 0) {
@@ -1267,6 +1280,7 @@ void RGBmatrixPanel::drawFastHLineI(int16_t x, int16_t y,
   drawLineI(x, y, x+w-1, y, color);
 }
 
+#endif
 
 // -------------------- Buffers --------------------
 

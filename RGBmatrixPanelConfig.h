@@ -87,6 +87,10 @@ Configuration - compile time settings.
 #define REROLL_B
 
 
+// Use interleaved color value to speed up drawing
+#define COLORI_DRAW
+
+
 // TODO: Test swap at end of row
 // swapbuffer - wait until end of row, rather than waiting until end of screen
 // Comments in original code said - To avoid 'tearing' display, actual swap takes place 
