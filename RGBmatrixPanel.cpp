@@ -669,14 +669,20 @@ static const uint16_t space_bit[] = {
   SPACEOUT(8), SPACEOUT(9), SPACEOUT(10), SPACEOUT(11), 
   SPACEOUT(12), SPACEOUT(13), SPACEOUT(14), SPACEOUT(15) };
 
-
-crgb16i_t RGBmatrixPanel::ColorI(crgb16_t c) const {
-  crgb16i_t cnew = 0;
+// Control interleaving order
+// bgr, with spare green bit at bit 0
+#define RED_SHIFT   1
+#define GREEN_SHIFT 2
+#define BLUE_SHIFT  3
 
 //5 planes  R4R3R2R1:R0G4G3G2|G1G0gxB4:B3B2B1B0
 //4 planes  R3R2R1R0:rxG3G2G1|G0gxgxB3:B2B1B0bx
 //bit#      15141312:11100908|07060504:03020100 
 //IColor    b4g4r4b3:g3r3b2g2|r2b1g1r1:b0g0r0g-1
+
+
+crgb16i_t RGBmatrixPanel::ColorI(crgb16_t c) const {
+  crgb16i_t cnew = 0;
 
 //#if (4 == nPlanes)
   // Adafruit_GFX uses 16-bit color in 5/6/5 format, 
@@ -684,9 +690,9 @@ crgb16i_t RGBmatrixPanel::ColorI(crgb16_t c) const {
   // Pluck out relevant bits while interleaving into b,g,r
 // This handles one nibble
 // Could extend space_bits to handle slightly larger values (e.g. 5 bits/color)
-  cnew  = space_bit[(c >>  1) & 0xF] << 3; // Blue bits
-  cnew |= space_bit[(c >>  7) & 0xF] << 2; // Green bits
-  cnew |= space_bit[(c >> 12) & 0xF] << 1; // Red bits
+  cnew  = space_bit[(c >>  1) & 0xF] << BLUE_SHIFT; // Blue bits
+  cnew |= space_bit[(c >>  7) & 0xF] << GREEN_SHIFT; // Green bits
+  cnew |= space_bit[(c >> 12) & 0xF] << RED_SHIFT; // Red bits
 
 // Or handle nibble at a time, e.g.
 // cnew1 = (space_bit[(r >> 4) & 0xF] << 12 | space_bit[r & 0xF]) << RED_SHIFT;
@@ -714,24 +720,17 @@ crgb16i_t RGBmatrixPanel::ColorI(crgb16_t c) const {
 */
 
 /*#elif (5 == nPlanes)
+// TODO: test 5 planes version 
 
-//  r =  c >> 11;         // RRRRRggggggbbbbb
-//  g = (c >>  6) & 0x1F; // rrrrrGGGGGgbbbbb
-//  b = (c )      & 0x1F; // rrrrrggggggBBBBB
+  cnew  = (space_bit[(c      ) & 0xF] | space_bit[(c >>   4) & 0xF] << 12) << BLUE_SHIFT; // Blue bits
+  cnew |= (space_bit[(c >>  6) & 0xF] | space_bit[(c >>  10) & 0xF] << 12) << GREEN_SHIFT; // Green bits
+  cnew |= (space_bit[(c >> 11) & 0xF] | space_bit[(c >>  15)      ] << 12) << RED_SHIFT; // Red bits
+
 #else
 #error drawPixel Unsupported number of planes
 #endif
 */
 
-/*
-  // Loop counter
-  limit = 1 << nPlanes;
-
-  for(bit = 1; bit < limit; bit <<= 1) {
-    if(r & bit) 
-    if(g & bit)
-    if(b & bit)
-  } */
   return cnew;
 }
 
