@@ -660,8 +660,15 @@ uint8_t RGBmatrixPanel::bitsPerColor(void) const {
 
 // color = bgr4 bgr3 b|gr2 bgr1 bgr0 g-1
 
-// Set the tobit'th bit of tovar if the frombit'th bit of fromvar is set
-#define BIT_TST_SET(fromvar, frombit, tovar, tobit) if (fromvar & (1<<frombit)) tovar |= (1<<tobit)
+// Convert b3b2b1b0 -> 000 00b30 0b200 b100b0
+#define SPACEOUT( n ) ((n & 8) << 6 | (n & 4) << 4 | (n & 2) << 2 | (n & 1))
+
+static const uint16_t space_bit[] = {
+  SPACEOUT(0), SPACEOUT(1), SPACEOUT(2), SPACEOUT(3), 
+  SPACEOUT(4), SPACEOUT(5), SPACEOUT(6), SPACEOUT(7), 
+  SPACEOUT(8), SPACEOUT(9), SPACEOUT(10), SPACEOUT(11), 
+  SPACEOUT(12), SPACEOUT(13), SPACEOUT(14), SPACEOUT(15) };
+
 
 crgb16i_t RGBmatrixPanel::ColorI(crgb16_t c) const {
   crgb16i_t cnew = 0;
@@ -674,19 +681,38 @@ crgb16i_t RGBmatrixPanel::ColorI(crgb16_t c) const {
 //#if (4 == nPlanes)
   // Adafruit_GFX uses 16-bit color in 5/6/5 format, 
   // while matrix uses low 4 planes.
-  // Pluck out relevant bits while interleaving into g,r,b
-  BIT_TST_SET(c, 12, cnew, 1);  // R0
-  BIT_TST_SET(c, 13, cnew, 4);  // R1
-  BIT_TST_SET(c, 14, cnew, 7);  // R2
-  BIT_TST_SET(c, 15, cnew, 10); // R3
-  BIT_TST_SET(c,  7, cnew, 2);  // G0
-  BIT_TST_SET(c,  8, cnew, 5);  // G1
-  BIT_TST_SET(c,  9, cnew, 8);  // G2
-  BIT_TST_SET(c, 10, cnew, 11); // G3
-  BIT_TST_SET(c,  1, cnew, 3);  // B0
-  BIT_TST_SET(c,  2, cnew, 6);  // B1
-  BIT_TST_SET(c,  3, cnew, 9);  // B2
-  BIT_TST_SET(c,  4, cnew, 12);  // B3
+  // Pluck out relevant bits while interleaving into b,g,r
+// This handles one nibble
+// Could extend space_bits to handle slightly larger values (e.g. 5 bits/color)
+  cnew  = space_bit[(c >>  1) & 0xF] << 3; // Blue bits
+  cnew |= space_bit[(c >>  7) & 0xF] << 2; // Green bits
+  cnew |= space_bit[(c >> 12) & 0xF] << 1; // Red bits
+
+// Or handle nibble at a time, e.g.
+// cnew1 = (space_bit[(r >> 4) & 0xF] << 12 | space_bit[r & 0xF]) << RED_SHIFT;
+
+/*
+  // Slower way of doing conversion
+
+// Set the tobit'th bit of tovar if the frombit'th bit of fromvar is set
+//#define BIT_TST_SET(fromvar, frombit, tovar, tobit) if (fromvar & (1<<frombit)) tovar |= (1<<tobit)
+
+  BIT_TST_SET(c, 12, cnew1, 1);  // R0
+  BIT_TST_SET(c, 13, cnew1, 4);  // R1
+  BIT_TST_SET(c, 14, cnew1, 7);  // R2
+  BIT_TST_SET(c, 15, cnew1, 10); // R3
+  BIT_TST_SET(c,  7, cnew1, 2);  // G0
+  BIT_TST_SET(c,  8, cnew1, 5);  // G1
+  BIT_TST_SET(c,  9, cnew1, 8);  // G2
+  BIT_TST_SET(c, 10, cnew1, 11); // G3
+  BIT_TST_SET(c,  1, cnew1, 3);  // B0
+  BIT_TST_SET(c,  2, cnew1, 6);  // B1
+  BIT_TST_SET(c,  3, cnew1, 9);  // B2
+  BIT_TST_SET(c,  4, cnew1, 12);  // B3
+
+  ASSERT(cnew1 == cnew);
+*/
+
 /*#elif (5 == nPlanes)
 
 //  r =  c >> 11;         // RRRRRggggggbbbbb
