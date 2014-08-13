@@ -1543,8 +1543,10 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 
 // Based on version without NOP
 const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
-const uint16_t minRowTimeConst = 160;            // Overhead ticks
+const uint16_t minRowTimeConst = 150;            // Overhead ticks
 // const - 150 to 195 (with bench code)
+//  limit const 144, per panel 205, with bench code
+//  limit const 130, per panel 205, without bench
 
 #else
 const uint16_t minRowTimePerPanel = 1150;        // Ticks per panel for a row
