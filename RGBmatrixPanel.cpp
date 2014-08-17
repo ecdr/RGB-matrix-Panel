@@ -32,16 +32,17 @@ Written by Limor Fried/Ladyada & Phil Burgess/PaintYourDragon for
 Adafruit Industries.
 BSD license, all text above must be included in any redistribution.
 
-Version 1.x, 9 Aug 2014
+Version 1.x, 17 Aug 2014
 
 Revisions:
     getPixel, by RobF42 - Rob Fugina
     daisychain displays, by protonmaster - Phillip Burgess
-    TI Stellaris/Tiva Launchpad support, by ecdr - Michael Hanson
+    Energia/TI Stellaris/Tiva Launchpad support, by ecdr - Michael Hanson
 
 - Tiva version:
   Works with Energia.
-  More port configuration from user code (faster to use port variables rather than constants). Does not need inline assembly language (carefully selected c code sufficient).
+  More port selection from user code (faster to use port variables rather than constants). 
+  Does not need inline assembly language on ARM (carefully selected c++ code sufficient).
 
   User selectable refresh rate.
   Add fade between immages.
