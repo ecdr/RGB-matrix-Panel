@@ -319,13 +319,14 @@ volatile uint32_t c_tmr_oeoff = 0, c_tmr_oeon = 0;
 void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth) {
 
-// Error to not have any panels.  Should throw exception or something.
+// FIXME: Error to not have any panels.  Should throw exception or something.
 // (Actually the compiler should catch this, but it doesn't seem to care if omit pwidth)
   if (pwidth == 0){
     pwidth = 1;
     // FIXME: Signal error somehow
   }
 
+  // TODO: Make nRows, nPanels constants (set in constructor) - would be an error if changed
   nRows = rows; // Number of multiplexed rows; actual height is 2X this
   nPanels = pwidth;
 
@@ -1673,7 +1674,7 @@ uint32_t RGBmatrixPanel::getDim(void) const {
 #if defined(__TIVA__)
 
 
-void TmrHandler()
+void TmrHandler(void)
 {
 
 #if defined( BENCHMARK )
@@ -2278,6 +2279,7 @@ strb	r3, [r5, #0]    ; tock
 #if defined( PREP )    
     PREP
 #endif
+
 
     for (panelcount = 0; panelcount < nPanels; panelcount++)
     {

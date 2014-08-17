@@ -66,7 +66,6 @@ class RGBmatrixPanel : public Adafruit_GFX {
     stop(void),               // TODO: Maybe should be end (to match begin)?
     drawPixel(int16_t x, int16_t y, crgb16_t c),
     fillScreen(crgb16_t c),   // fill current drawing buffer with color c
-    updateDisplay(void),      // Public because called by interrupt handler
     swapBuffers(boolean copy = false),  // Display next buffer
     drawPixelI(int16_t x, int16_t y, crgb16i_t c), // Testing: same as drawpixel but interleaved color
 
@@ -131,6 +130,33 @@ class RGBmatrixPanel : public Adafruit_GFX {
     setDim(uint32_t time);
   uint32_t getDim(void) const;  
 #endif
+
+
+// Display refresh function - need to be able to call from ISR, but not part of public interface
+
+#if defined(__TIVA__)
+ protected:
+// Make interrupt handler a friend so can make updateDisplay protected
+  friend void TmrHandler(void);
+
+// TODO: test
+  void updateDisplay(void);     // Dispaly refresh
+
+#elif defined(__AVR__)
+
+// FIXME: Need to figure out actual function name of ISR for arduino
+// until then, just leave updateDisplay public
+  void updateDisplay(void);      // Public because called by interrupt handler
+#warning Need to make Arduino timer ISR a friend
+
+#else
+
+#warning Unrecognized processor
+
+  void updateDisplay(void);      // Public because called by interrupt handler
+
+#endif
+
 
  private:
 
