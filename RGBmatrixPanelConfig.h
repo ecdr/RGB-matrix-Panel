@@ -271,12 +271,14 @@ Configuration - compile time settings.
  #warning Arduino Due not finished
 
 #elif defined(__AVR_ATmega32U4__)
- // Arduino Leonardo: this is vestigial code an unlikely to ever be
+ // Arduino Leonardo: this is vestigial code and unlikely to ever be
  // finished -- DO NOT USE!!!  Unlike the Uno, digital pins 2-7 do NOT
  // map to a contiguous port register, dashing our hopes for compatible
  // wiring.  Making this work would require significant changes both to
  // the bit-shifting code in the library, and how this board is wired to
  // the LED matrix.  Bummer.
+#error Needs different pin numbers and wiring for ATmega32U4/Leonardo - see comments
+ 
  #define DATAPORT PORTD
  #define DATADIR  DDRD
  #define SCLKPORT PORTB
