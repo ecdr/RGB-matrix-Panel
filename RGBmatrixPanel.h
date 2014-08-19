@@ -88,7 +88,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
 #endif
 
   int8_t
-    loadBuffer(uint8_t *img, uint16_t imgsize);
+    loadBuffer(const uint8_t *img, uint16_t imgsize);
 
 // Low level buffer access
   uint16_t

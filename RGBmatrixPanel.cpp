@@ -692,6 +692,14 @@ crgb16i_t RGBmatrixPanel::ColorI(crgb16_t c) const {
   // Pluck out relevant bits while interleaving into b,g,r
 // This handles one nibble
 // Could extend space_bits to handle slightly larger values (e.g. 5 bits/color)
+
+// For full 8 bits the table would have 256 entries 
+//   (768 bytes, possibly 1kb if can't get it to generate 3 byte entries)
+//   Probably an acceptable ammount of flash, 
+//   but would need some better way to generate (e.g. nested macros)
+//   Could give a switch for user to control time vs. space tradeoff.
+//
+
   cnew  = space_bit[(c >>  1) & 0xF] << BLUE_SHIFT; // Blue bits
   cnew |= space_bit[(c >>  7) & 0xF] << GREEN_SHIFT; // Green bits
   cnew |= space_bit[(c >> 12) & 0xF] << RED_SHIFT; // Red bits
@@ -910,6 +918,10 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
   r =  c >> 11;         // RRRRRggggggbbbbb
   g = (c >>  6) & 0x1F; // rrrrrGGGGGgbbbbb
   b = (c )      & 0x1F; // rrrrrggggggBBBBB
+#elif (8 == nPlanes)
+  r = c.red;
+  g = c.green;
+  b = c.blue;
 #else
 #error drawPixel Unsupported number of planes
 #endif
@@ -1126,6 +1138,8 @@ uint16_t RGBmatrixPanel::getPixel(int16_t x, int16_t y) const {
   return ((r & 0x1F) << 11) | 
          ((g & 0x1F) <<  6) | ((g & 0x10) << 2) |
          ((b & 0x1F) <<   ) | ;
+#elif (8 == nPlanes)
+  return rgb24(r, g, b);
 #else
 #error getPixel Unsupported number of planes
 #endif
@@ -1446,7 +1460,9 @@ void RGBmatrixPanel::dumpMatrix(void) const {
 //   Direct pointer to buffer in flash, flag as read only image
 
 // TODO: Load image routine
-int8_t RGBmatrixPanel::loadBuffer(uint8_t *img, uint16_t imgsize) {
+
+// TODO: Maybe pointer argument should be a void * (uint8_t's are not what dealing with)
+int8_t RGBmatrixPanel::loadBuffer(const uint8_t *img, uint16_t imgsize) {
 
   // Could do more sophisticated error handling - adjust for change in nPanels, nRows
   if (imgsize != bufferSize())
