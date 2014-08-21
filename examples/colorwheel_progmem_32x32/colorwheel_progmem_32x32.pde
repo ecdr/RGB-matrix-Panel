@@ -14,7 +14,9 @@
 #include "image.h"
 
 #ifndef __AVR__
-#define memcpy_P(dest, src, len) memcpy(dest, src, len)
+#ifndef memcpy_P
+#define memcpy_P(dest, src, len) memcpy((dest), (src), (len))
+#endif
 #endif
 
 // If your 32x32 matrix has the SINGLE HEADER input,

@@ -9,8 +9,12 @@
 #if defined(__AVR__)
 #include <avr/pgmspace.h>
 #else
+
+#ifndef PROGMEM
 #define PROGMEM 
 #define pgm_read_byte( a ) (*(a))
+#endif
+
 #endif
 
 #include <Adafruit_GFX.h>   // Core graphics library

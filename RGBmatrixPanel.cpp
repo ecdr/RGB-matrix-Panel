@@ -57,7 +57,11 @@ Revisions:
 
 
 #if !defined(__AVR__)
+
+#if !defined(pgm_read_byte)
 #define pgm_read_byte( a ) (*(a))
+#endif
+
 #endif
 
 

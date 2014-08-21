@@ -13,9 +13,13 @@
 #if defined(__AVR__)
 #define F2(progmem_ptr) (const __FlashStringHelper *)progmem_ptr
 #else
+
+#ifndef PROGMEM
 #define PROGMEM
 #define F2(progmem_ptr) (const *)progmem_ptr
 #define pgm_read_word( addr ) ((*)(addr))
+#endif
+
 #endif
 
 
