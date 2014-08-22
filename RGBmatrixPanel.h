@@ -34,6 +34,48 @@ typedef struct crgb16 crgb16_t;
 typedef uint16_t crgb16_t;
 typedef uint16_t crgb16i_t;
 
+
+// Conversion from Adafruit color (5/6/5) to internal/interleaved color 
+
+// Public
+
+// Convert constants at compile time, do rest at run time
+#define COLOR_INTERN(c) \
+  ((__builtin_constant_p((c))) ? _COLORI_CONST((c)) : ColorIntern1((c)))
+
+
+// Protected
+
+extern crgb16i_t ColorIntern1(crgb16_t c);
+
+#define BIT_TST_SET(fromvar, frombit, tobit) (((fromvar) & (1<<(frombit))) ? (1<<(tobit)))
+
+// Convert c to internal color at compile time
+#define _COLORI_CONST(c) ((crgb16i_t)\
+  BIT_TST_SET(c, 12, 1)|  /* R0 */ \
+  BIT_TST_SET(c, 13, 4)|  /* R1 */ \
+  BIT_TST_SET(c, 14, 7)|  /* R2 */ \
+  BIT_TST_SET(c, 15, 10)| /* R3 */ \
+  BIT_TST_SET(c,  7, 2)|  /* G0 */ \
+  BIT_TST_SET(c,  8, 5)|  /* G1 */ \
+  BIT_TST_SET(c,  9, 8)|  /* G2 */ \
+  BIT_TST_SET(c, 10, 11)| /* G3 */ \
+  BIT_TST_SET(c,  1, 3)|  /* B0 */ \
+  BIT_TST_SET(c,  2, 6)|  /* B1 */ \
+  BIT_TST_SET(c,  3, 9)|  /* B2 */ \
+  BIT_TST_SET(c,  4, 12))
+
+// FIXME: Needs update to handle 5 bit color
+
+/*crgb16i_t ColorI2(crgb16_t c)  INLINE
+{
+  if (__builtin_constant_p(c))
+    return _COLORI_CONST(c);
+  else
+    return ColorIntern(c);
+};*/
+
+
 class RGBmatrixPanel : public Adafruit_GFX {
 
  public:
@@ -106,7 +148,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
     Color888(uint8_t r, uint8_t g, uint8_t b, boolean gflag) const,
     ColorHSV(long hue, uint8_t sat, uint8_t val, boolean gflag) const;
 
-  crgb16i_t ColorI(crgb16_t c) const; // Convert AdafruitGFX color to interleaved color
+  crgb16i_t ColorIntern(crgb16_t c) const; // Convert AdafruitGFX color to interleaved color
 
 // TODO: Might be easier to have number of planes available as a constant (for macro color selection)?
   uint8_t

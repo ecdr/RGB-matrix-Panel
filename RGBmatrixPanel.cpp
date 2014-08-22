@@ -32,7 +32,7 @@ Written by Limor Fried/Ladyada & Phil Burgess/PaintYourDragon for
 Adafruit Industries.
 BSD license, all text above must be included in any redistribution.
 
-Version 1.x, 17 Aug 2014
+Version v1.x.x-x.x.x, 17 Aug 2014
 
 Revisions:
     getPixel, by RobF42 - Rob Fugina
@@ -669,14 +669,23 @@ uint8_t RGBmatrixPanel::bitsPerColor(void) const {
 // Convert b3b2b1b0 -> 000 00b30 0b200 b100b0
 #define SPACEOUT( n ) ((n & 8) << 6 | (n & 4) << 4 | (n & 2) << 2 | (n & 1))
 
+// This handles one nibble
+// Could extend space_bits to handle slightly larger values (e.g. 5 bits/color)
+
+// For full 8 bits the table would have 256 entries
+//   (768 bytes, possibly 1kb if can't get it to generate 3 byte entries)
+//   Probably an acceptable ammount of flash,
+//   would need some better way to generate (e.g. nested macros)
+//   Could give a switch for user to control time vs. space tradeoff.
+//
 static const uint16_t space_bit[] = {
-  SPACEOUT(0), SPACEOUT(1), SPACEOUT(2), SPACEOUT(3), 
-  SPACEOUT(4), SPACEOUT(5), SPACEOUT(6), SPACEOUT(7), 
-  SPACEOUT(8), SPACEOUT(9), SPACEOUT(10), SPACEOUT(11), 
+  SPACEOUT(0),  SPACEOUT(1),  SPACEOUT(2),  SPACEOUT(3),
+  SPACEOUT(4),  SPACEOUT(5),  SPACEOUT(6),  SPACEOUT(7),
+  SPACEOUT(8),  SPACEOUT(9),  SPACEOUT(10), SPACEOUT(11),
   SPACEOUT(12), SPACEOUT(13), SPACEOUT(14), SPACEOUT(15) };
 
 // Control interleaving order
-// bgr, with spare green bit at bit 0
+// Currently bgr, with spare green bit at bit 0
 #define RED_SHIFT   1
 #define GREEN_SHIFT 2
 #define BLUE_SHIFT  3
@@ -687,22 +696,13 @@ static const uint16_t space_bit[] = {
 //IColor    b4g4r4b3:g3r3b2g2|r2b1g1r1:b0g0r0g-1
 
 
-crgb16i_t RGBmatrixPanel::ColorI(crgb16_t c) const {
+crgb16i_t ColorIntern1(crgb16_t c) {
   crgb16i_t cnew = 0;
 
 //#if (4 == nPlanes)
   // Adafruit_GFX uses 16-bit color in 5/6/5 format, 
   // while matrix uses low 4 planes.
   // Pluck out relevant bits while interleaving into b,g,r
-// This handles one nibble
-// Could extend space_bits to handle slightly larger values (e.g. 5 bits/color)
-
-// For full 8 bits the table would have 256 entries 
-//   (768 bytes, possibly 1kb if can't get it to generate 3 byte entries)
-//   Probably an acceptable ammount of flash, 
-//   but would need some better way to generate (e.g. nested macros)
-//   Could give a switch for user to control time vs. space tradeoff.
-//
 
   cnew  = space_bit[(c >>  1) & 0xF] << BLUE_SHIFT; // Blue bits
   cnew |= space_bit[(c >>  7) & 0xF] << GREEN_SHIFT; // Green bits
@@ -712,7 +712,7 @@ crgb16i_t RGBmatrixPanel::ColorI(crgb16_t c) const {
 // cnew1 = (space_bit[(r >> 4) & 0xF] << 12 | space_bit[r & 0xF]) << RED_SHIFT;
 
 /*
-  // Slower way of doing conversion
+// Alternate conversion - slower at runtime, but can do all at compile time
 
 // Set the tobit'th bit of tovar if the frombit'th bit of fromvar is set
 //#define BIT_TST_SET(fromvar, frombit, tovar, tobit) if (fromvar & (1<<frombit)) tovar |= (1<<tobit)
@@ -747,6 +747,12 @@ crgb16i_t RGBmatrixPanel::ColorI(crgb16_t c) const {
 
   return cnew;
 }
+
+// FIXME: No clear reason for this to be a member function - maybe just get rid of this version
+crgb16i_t RGBmatrixPanel::ColorIntern(crgb16_t c) const {
+  return ColorIntern1(c);
+}
+
 
 // Original RGBmatrixPanel library used 3/3/3 color.  Later version used
 // 4/4/4.  Then Adafruit_GFX (core library used across all Adafruit
@@ -1184,7 +1190,7 @@ void RGBmatrixPanel::fillScreen(uint16_t c) {
 void RGBmatrixPanel::drawRect(int16_t x, int16_t y,
 			    int16_t w, int16_t h,
 			    crgb16_t color) {
-  crgb16i_t icolor = ColorI(color);
+  crgb16i_t icolor = ColorIntern(color);
 
   drawFastHLineI(x, y, w, icolor);
   drawFastHLineI(x, y+h-1, w, icolor);
@@ -1194,7 +1200,7 @@ void RGBmatrixPanel::drawRect(int16_t x, int16_t y,
 
 void RGBmatrixPanel::fillRect(int16_t x, int16_t y, int16_t w, int16_t h,
 			    crgb16_t color) {
-  crgb16i_t icolor = ColorI(color);
+  crgb16i_t icolor = ColorIntern(color);
 
   for (int16_t i=x; i<x+w; i++) {
     drawFastVLineI(i, y, h, icolor);
@@ -1205,7 +1211,7 @@ void RGBmatrixPanel::fillRect(int16_t x, int16_t y, int16_t w, int16_t h,
 void RGBmatrixPanel::drawLine(int16_t x0, int16_t y0,
 			    int16_t x1, int16_t y1,
 			    uint16_t color) {
-  crgb16i_t icolor = ColorI(color);
+  crgb16i_t icolor = ColorIntern(color);
 
   int16_t steep = abs(y1 - y0) > abs(x1 - x0);
   if (steep) {
