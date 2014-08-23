@@ -113,6 +113,10 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
     dumpMatrix(void) const;
 
+  crgb16_t
+    getPixel(int16_t x, int16_t y) const;
+
+
 #if defined(COLORI_DRAW)
   // Use internal color representation to speed these up
   void
@@ -137,11 +141,10 @@ class RGBmatrixPanel : public Adafruit_GFX {
     bufferSize(void) const;    // Size of a buffer (in bytes)
   uint8_t
     *frontBuffer(void),
-    *backBuffer(void);   // Return type should probably be void *
+    *backBuffer(void);         // Return type should probably be void *
 
 // Color
   crgb16_t
-    getPixel(int16_t x, int16_t y) const,
     Color333(uint8_t r, uint8_t g, uint8_t b) const,
     Color444(uint8_t r, uint8_t g, uint8_t b) const,
     Color888(uint8_t r, uint8_t g, uint8_t b) const,
@@ -157,14 +160,14 @@ class RGBmatrixPanel : public Adafruit_GFX {
 // Refresh frequency
   uint16_t
     setRefresh(uint16_t freq),   // Set number of display updates per second
-    getRefresh() const;          // Return refresh frequency
+    getRefresh(void) const;      // Return refresh frequency
 
 #if defined(FADE)
 // Fade - transition one buffer to another
   uint8_t
     swapFade(uint16_t tfade, boolean copy = false);
   boolean
-    fading() const;   // true if fade is in progress
+    fading(void) const;          // true if fade is in progress
 #endif
 
 #if defined(__TIVA__)
@@ -182,14 +185,14 @@ class RGBmatrixPanel : public Adafruit_GFX {
   friend void TmrHandler(void);
 
 // TODO: test
-  void updateDisplay(void);     // Dispaly refresh
+  void updateDisplay(void);      // Dispaly refresh
 
 #elif defined(__AVR__)
 
 // FIXME: Need to figure out actual function name of ISR for arduino
 // until then, just leave updateDisplay public
   void updateDisplay(void);      // Public because called by interrupt handler
-#warning Need to make Arduino timer ISR a friend
+#warning Would be nice to make Arduino timer ISR a friend
 
 #else
 
@@ -208,7 +211,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
   volatile uint8_t backindex;
 
-  volatile boolean swapflag;    // Page change pending
+  volatile boolean swapflag;     // Page change pending
 
   // Init/alloc code common to both constructors:
   void init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
