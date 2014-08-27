@@ -683,6 +683,7 @@ uint8_t RGBmatrixPanel::bitsPerColor(void) const {
 //   would need some better way to generate (e.g. nested macros)
 //   Could give a switch for user to control time vs. space tradeoff.
 //
+// Moving this array to RAM does not increase speed on 80MHz Tiva
 static const uint16_t space_bit[] = {
   SPACEOUT( 0), SPACEOUT( 1), SPACEOUT( 2), SPACEOUT( 3),
   SPACEOUT( 4), SPACEOUT( 5), SPACEOUT( 6), SPACEOUT( 7),
@@ -701,6 +702,7 @@ static const uint16_t space_bit[] = {
 //IColor    b4g4r4b3:g3r3b2g2|r2b1g1r1:b0g0r0g-1
 
 
+// Fastest - 40 clocks (including call, loop, and benchmark code), 11 instructions
 crgb16i_t ColorIntern1(crgb16_t c) {
   crgb16i_t cnew = 0;
 
@@ -717,13 +719,53 @@ crgb16i_t ColorIntern1(crgb16_t c) {
 // cnew1 = (space_bit[(r >> 4) & 0xF] << 12 | space_bit[r & 0xF]) << RED_SHIFT;
 
 /*
-  // Another way of doing conversion - compare for speed (can do all at compile time)
-  Could also compare to using a struct to restructure (split fromvar up by either shift and copy to bitfield, or bitfield to bitfield copy
+  Other ways of doing conversion - can do all at compile time, but take longer
 
   But since don't use this that often, may not matter much (unless convert basic point plot to use this).
 
+// Slightly slower - 44 clocks (including call, loop, and benchmark code) - 27 instructions
+//   just a tad (4 clocks) slower than table lookup version on 80 MHz Tiva 
+//  (Could compare on Connected LP - faster clock, more cache)
+// 
+//  If extend to more bits the table version would stay same speed (possibly take longer if go to 32 bit table?)
+//  While this takes longer for more bits
+
 // Set the tobit'th bit of tovar if the frombit'th bit of fromvar is set
-//#define BIT_TST_SET(fromvar, frombit, tovar, tobit) if (fromvar & (1<<frombit)) tovar |= (1<<tobit)
+// Caution: Using bitfield is not portable (order may vary, have not verified what order Energia uses)
+  union {
+    uint16_t word;
+    struct {
+        uint32_t b0:1, b1:1, b2:1, b3:1, b4:1, b5:1, b6:1, b7:1,
+          b8:1, b9:1, b10:1, b11:1, b12:1, b13:1, b14:1, b15:1;
+    };
+  } cold, cnew1;
+  cold.word = c;
+
+#undef BIT_TST_SET
+#define BIT_TST_SET(fromvar, frombit, tovar, tobit) tovar.b##tobit = fromvar.b##frombit
+
+  BIT_TST_SET(cold, 12, cnew1, 1);  // R0
+  BIT_TST_SET(cold, 13, cnew1, 4);  // R1
+  BIT_TST_SET(cold, 14, cnew1, 7);  // R2
+  BIT_TST_SET(cold, 15, cnew1, 10); // R3
+  BIT_TST_SET(cold,  7, cnew1, 2);  // G0
+  BIT_TST_SET(cold,  8, cnew1, 5);  // G1
+  BIT_TST_SET(cold,  9, cnew1, 8);  // G2
+  BIT_TST_SET(cold, 10, cnew1, 11); // G3
+  BIT_TST_SET(cold,  1, cnew1, 3);  // B0
+  BIT_TST_SET(cold,  2, cnew1, 6);  // B1
+  BIT_TST_SET(cold,  3, cnew1, 9);  // B2
+  BIT_TST_SET(cold,  4, cnew1, 12);  // B3
+
+  return cnew1.word;
+
+
+// Slowest - 80 clocks (including call, and benchmark overhead (loop))
+
+// Set the tobit'th bit of tovar if the frombit'th bit of fromvar is set
+#undef BIT_TST_SET
+
+#define BIT_TST_SET(fromvar, frombit, tovar, tobit) if (fromvar & (1<<frombit)) tovar |= (1<<tobit)
 
   BIT_TST_SET(c, 12, cnew1, 1);  // R0
   BIT_TST_SET(c, 13, cnew1, 4);  // R1
@@ -740,16 +782,7 @@ crgb16i_t ColorIntern1(crgb16_t c) {
 
   ASSERT(cnew1 == cnew);
 
-  union {
-    uint16_t word;
-    struct {
-        uint32_t b0:1, b1:1, b2:1, b3:1, b4:1, b5:1, b6:1, b7:1,
-          b8:1, b9:1, b10:1, b11:1, b12:1, b13:1, b14:1, b15:1;
-    };
-  } cold, cnew;
-  cold.word = c;
-
-#define BIT_TST_SET(fromvar, frombit, tovar, tobit) tovar.b##tobit = fromvar.b##frombit
+  return cnew1;
 
 */
 
