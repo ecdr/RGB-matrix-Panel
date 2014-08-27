@@ -667,7 +667,12 @@ uint8_t RGBmatrixPanel::bitsPerColor(void) const {
 // color = bgr4 bgr3 b|gr2 bgr1 bgr0 g-1
 
 // Convert b3b2b1b0 -> 000 00b30 0b200 b100b0
-#define SPACEOUT( n ) ((n & 8) << 6 | (n & 4) << 4 | (n & 2) << 2 | (n & 1))
+
+// Space out bits every SPACING bits
+#define SPACING 3
+// So far only works for first 4 bits
+#define SPACEOUT( n ) ((((n) & 8) << (3*SPACING - 3)) | (((n) & 4) << (2*SPACING - 2)) | (((n) & 2) << (SPACING-1)) | ((n) & 1))
+// Note that the m'th bit is already in the m'th position, so bit position is subtracted from ammount to shift
 
 // This handles one nibble
 // Could extend space_bits to handle slightly larger values (e.g. 5 bits/color)
@@ -679,9 +684,9 @@ uint8_t RGBmatrixPanel::bitsPerColor(void) const {
 //   Could give a switch for user to control time vs. space tradeoff.
 //
 static const uint16_t space_bit[] = {
-  SPACEOUT(0),  SPACEOUT(1),  SPACEOUT(2),  SPACEOUT(3),
-  SPACEOUT(4),  SPACEOUT(5),  SPACEOUT(6),  SPACEOUT(7),
-  SPACEOUT(8),  SPACEOUT(9),  SPACEOUT(10), SPACEOUT(11),
+  SPACEOUT( 0), SPACEOUT( 1), SPACEOUT( 2), SPACEOUT( 3),
+  SPACEOUT( 4), SPACEOUT( 5), SPACEOUT( 6), SPACEOUT( 7),
+  SPACEOUT( 8), SPACEOUT( 9), SPACEOUT(10), SPACEOUT(11),
   SPACEOUT(12), SPACEOUT(13), SPACEOUT(14), SPACEOUT(15) };
 
 // Control interleaving order
@@ -712,7 +717,10 @@ crgb16i_t ColorIntern1(crgb16_t c) {
 // cnew1 = (space_bit[(r >> 4) & 0xF] << 12 | space_bit[r & 0xF]) << RED_SHIFT;
 
 /*
-// Alternate conversion - slower at runtime, but can do all at compile time
+  // Another way of doing conversion - compare for speed (can do all at compile time)
+  Could also compare to using a struct to restructure (split fromvar up by either shift and copy to bitfield, or bitfield to bitfield copy
+
+  But since don't use this that often, may not matter much (unless convert basic point plot to use this).
 
 // Set the tobit'th bit of tovar if the frombit'th bit of fromvar is set
 //#define BIT_TST_SET(fromvar, frombit, tovar, tobit) if (fromvar & (1<<frombit)) tovar |= (1<<tobit)
@@ -731,6 +739,18 @@ crgb16i_t ColorIntern1(crgb16_t c) {
   BIT_TST_SET(c,  4, cnew1, 12);  // B3
 
   ASSERT(cnew1 == cnew);
+
+  union {
+    uint16_t word;
+    struct {
+        uint32_t b0:1, b1:1, b2:1, b3:1, b4:1, b5:1, b6:1, b7:1,
+          b8:1, b9:1, b10:1, b11:1, b12:1, b13:1, b14:1, b15:1;
+    };
+  } cold, cnew;
+  cold.word = c;
+
+#define BIT_TST_SET(fromvar, frombit, tovar, tobit) tovar.b##tobit = fromvar.b##frombit
+
 */
 
 /*#elif (5 == nPlanes)
