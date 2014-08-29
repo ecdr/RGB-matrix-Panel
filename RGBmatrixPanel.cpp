@@ -82,7 +82,7 @@ Revisions:
 
 
 #if defined( BENCHMARK )
-#include "cyclecount.h"
+#include "benchmark/cyclecount.h"
 #endif
 
 #endif
