@@ -1840,12 +1840,15 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // counter variables change between past/present/future tense in mid-
 // function...hopefully tenses are sufficiently commented.
 
+
+#if defined(__TIVA__)
 #define __ASM asm
 
 __attribute__( ( always_inline ) ) static inline void __NOP(void)
 {
   __ASM volatile ("nop");
 }
+#endif
 
 
 void RGBmatrixPanel::updateDisplay(void) {
