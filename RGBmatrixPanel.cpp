@@ -81,7 +81,7 @@ Revisions:
 #include "driverlib/timer.h"
 
 
-#if defined( BENCHMARK )
+#if defined( BENCHMARK_RGBMAT )
 #include "benchmark/cyclecount.h"
 #endif
 
@@ -290,26 +290,29 @@ static RGBmatrixPanel *activePanel = NULL;
 
 // -------------------- Benchmark  --------------------
 
-#if defined( BENCHMARK )
+#if defined( BENCHMARK_RGBMAT )
 
 // Number of times to print time taken by updateDisplay
 //uint16_t nprint = 20;
 
 // Timing points
-volatile uint32_t c_tmr_handler_start = 0;
-volatile uint32_t c_tmr_handler_tset = 0;  // Where set delay to next ISR
-volatile uint32_t c_tmr_handler_loop = 0;  // Benchmark time for preamble (just before display loop)
-volatile uint32_t c_tmr_handler_end = 0;
+volatile uint32_t c_tmr_handler_start = 0;  // Start of display refresh timer handler
+volatile uint32_t c_tmr_handler_tset = 0;   // Where set timer delay to next ISR
+volatile uint32_t c_tmr_handler_loop = 0;   // time for preamble (just before display loop)
+volatile uint32_t c_tmr_handler_end = 0;    // End of display timer handler
 
-volatile uint32_t c_tmr_handler_start_old = 0;
+volatile uint32_t c_tmr_handler_start_old = 0;  // Start of previous refresh handler
 
 #if defined(BENCHMARK_OE)
+
+// Measure how long output enabled vs. disabled
 // Timing for OE - oeon / (oeoff + oeonn) gives duty cycle
 
 volatile uint32_t oeon_time = 0;
 volatile uint32_t oeoff_time = 0;
 
 volatile boolean oeflag = false;
+
 volatile uint64_t oeon = 0;
 volatile uint64_t oeoff = 0;
 volatile uint32_t c_tmr_oeoff = 0, c_tmr_oeon = 0;
@@ -460,7 +463,7 @@ RGBmatrixPanel::RGBmatrixPanel(
 
 void RGBmatrixPanel::begin(void) {
 
-#if defined(DEBUG_RGBMAT) || defined( BENCHMARK )
+#if defined(DEBUG_RGBMAT) || defined( BENCHMARK_RGBMAT )
 // FIXME: Should check if Serial already begun, and only begin if not
 //   Don't see a call in the reference to test this, have to check the code
 #if defined(DBUG_CON_SPEED)
@@ -565,7 +568,7 @@ if(nRows > 8) {
 #endif  
 
 
-#if defined(BENCHMARK)
+#if defined(BENCHMARK_RGBMAT)
   EnableTiming();
 #endif
 
@@ -1555,7 +1558,7 @@ int8_t RGBmatrixPanel::loadBuffer(const uint8_t *img, uint16_t imgsize) {
 //     e.g. if use fancy coding for plane 0, 
 //     then handling that must take less than minRowTime << 3 (assuming nPanels is 4)
 //
-// Can measure by setting BENCHMARK, and checking serial output
+// Can measure by setting BENCHMARK_RGBMAT, and checking serial output
 //   BENCHMARK result does not include interrupt overhead to call timer handler
 //   Includes a couple of assignments, to record start/stop times
 //
@@ -1759,19 +1762,19 @@ uint32_t RGBmatrixPanel::getDim(void) const {
 void TmrHandler(void)
 {
 
-#if defined( BENCHMARK )
-  c_tmr_handler_start_old = c_tmr_handler_start;        // Time since last int
-  c_tmr_handler_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // beginning of the tested code
+#if defined( BENCHMARK_RGBMAT )
+  c_tmr_handler_start_old = c_tmr_handler_start;        // when was last timer handler
+  c_tmr_handler_start = HWREG(DWT_BASE + DWT_O_CYCCNT); // beginning of timer handler
 #endif
 
   activePanel->updateDisplay();
 
 // MAP_ version of library call takes longer
 //  TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
-  HWREG(TIMER_BASE + TIMER_O_ICR) = TIMER_TIMEOUT;    // Inlining code - just in ISR, where speed helpful
+  HWREG(TIMER_BASE + TIMER_O_ICR) = TIMER_TIMEOUT;    // Inlining timer library code - just in ISR, where speed helpful
 
-#if defined( BENCHMARK )
-  c_tmr_handler_end = HWREG(DWT_BASE + DWT_O_CYCCNT);  // end of the tested code  
+#if defined( BENCHMARK_RGBMAT )
+  c_tmr_handler_end = HWREG(DWT_BASE + DWT_O_CYCCNT);  // end of timer handler
 #endif
 }
 
@@ -1866,10 +1869,13 @@ void RGBmatrixPanel::updateDisplay(void) {
     if (dimwait){
       // last time was a refresh, so this time we wait
       dimwait = false;   // Next interrupt will not be a wait
-      *oeport  = 0xFF;  // Disable LED output during delay
+      *oeport  = 0xFF;   // Disable LED output during delay
 
 #if defined(BENCHMARK_OE)
+  // record when OE disabled
   c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
+
+  // Log time OE was enabled
   if (oeflag){
     oeflag = false;
     oeon_time = c_tmr_oeoff - c_tmr_oeon;
@@ -1921,7 +1927,9 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 // End of display timing  
 #if defined(BENCHMARK_OE)
+  // record when OE disabled
   c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
+
   if (oeflag){
     oeflag = false;
     oeon_time = c_tmr_oeoff - c_tmr_oeon;
@@ -2061,8 +2069,8 @@ void RGBmatrixPanel::updateDisplay(void) {
 #if defined(__TIVA__)
   *latport = 0;  // Latch data loaded during *prior* interrupt
   
-// Beginning of display timing
 #if defined(BENCHMARK_OE)
+// Beginning of display timing
   if (!oeflag){
     c_tmr_oeon = HWREG(DWT_BASE + DWT_O_CYCCNT);
     oeflag = true;
@@ -2070,6 +2078,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 //    oeoff += oeoff_time;
     }
 #endif
+
   *oeport  = 0;  // Re-enable output
 #else
   *latport &= ~latpin;   // Latch data loaded during *prior* interrupt
@@ -2085,14 +2094,16 @@ void RGBmatrixPanel::updateDisplay(void) {
 // Set timer for next interrupt
 #if defined(__TIVA__)
 
-#if defined(BENCHMARK)
+#if defined(BENCHMARK_RGBMAT)
+// record when timer set (to figure how long after the handler started)
   c_tmr_handler_tset = HWREG(DWT_BASE + DWT_O_CYCCNT);
 #endif
 
 //  TimerDisable( timerBase, timerAB ); // Not needed
 
-// BENCHMARK - together the two timer calls take about 60 cycles (Stellaris) (MAP_ version)
-//   Non-MAP_ version takes 8 cycles less than MAP version on Stellaris LP
+// BENCHMARK results
+//   together the two timer library calls (LoadSet and Enable) took about 60 cycles (Stellaris) (MAP_ version)
+//   Non-MAP_ versions take 8 cycles less than MAP_ versions on Stellaris LP
 //   Inline with just the HWREG cuts off another 30+ cycles
 
 #if (A == TIMER_CHANEL)
@@ -2139,7 +2150,8 @@ void RGBmatrixPanel::updateDisplay(void) {
   uint8_t temp;
 #endif
 
-#if defined(BENCHMARK)
+#if defined(BENCHMARK_RGBMAT)
+// record when pixel "loop" starts
   c_tmr_handler_loop = HWREG(DWT_BASE + DWT_O_CYCCNT);
 #endif
 
