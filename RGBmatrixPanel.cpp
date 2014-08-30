@@ -2415,7 +2415,7 @@ strb	r3, [r5, #0]    ; tock
     for(; ptr<pFinal; ptr++)
     {
 #ifdef SLOW_CLOCK
-      DATAPORT = LEFT_SHIFT((*ptr), DATAPORTSHIFT);;
+      DATAPORT = LEFT_SHIFT((*ptr), DATAPORTSHIFT);
       SCLKPORT = tick;
       SCLKPORT = tock;
 #else
@@ -2426,7 +2426,7 @@ strb	r3, [r5, #0]    ; tock
       * sclkp = tock;
 #endif
     }
-#endif
+#endif // UNROLL_LOOP
     buffptr += WIDTH;
 
 
