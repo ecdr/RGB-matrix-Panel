@@ -24,6 +24,12 @@ RGBmatrixPanel library for 16x32 and 32x32 RGB LED matrix panels.
 
 #include "RGBmatrixPanelConfig.h"
 
+// Type for timer arguments
+#if defined(__AVR__)
+typedef uint16_t deltat_t;
+#else
+typedef uint32_t deltat_t;
+#endif
 
 /*
 // This might work in concept, but probably not in practice.
@@ -244,12 +250,12 @@ class RGBmatrixPanel : public Adafruit_GFX {
 #if defined(SET_REFRESH)
 // Refresh frequency
   uint16_t         refreshFreq;
-  volatile uint32_t rowtime, newrowtime;
+  volatile deltat_t rowtime, newrowtime;
 #endif
 
 #if defined(DIMMER)
 // Dimmer
-  volatile uint32_t dimtime;
+  volatile deltat_t dimtime;
   boolean dimwait;
 #endif
 

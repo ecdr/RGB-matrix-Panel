@@ -1866,14 +1866,13 @@ __attribute__( ( always_inline ) ) static inline void __NOP(void)
 
 void RGBmatrixPanel::updateDisplay(void) {
   uint8_t  i, *ptr;
+  deltat_t duration;
+
 #if defined(__TIVA__)
-  uint32_t duration;
   volatile uint8_t * dataport = &DATAPORT;
   volatile uint8_t * sclkp = sclkport;
-
 #else
   uint16_t t;
-  uint16_t duration;
 #endif
 
 
