@@ -360,9 +360,6 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
 #if defined(__TIVA__)
   newrowtime = 0;
 
-  dimtime = 0;
-  dimwait = false;
-
 // Tiva Energia does not provide portOutputRegister macro
   sclkpin   = digitalPinToBitMask(sclk);
   sclkport  = portMaskedOutputRegister(digitalPinToPort(sclk), sclkpin);
@@ -401,6 +398,12 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   swapflag  = false;
   backindex = 0;     // Array index of back buffer
   
+#if defined(DIMMER)
+// Dimmer
+  dimtime = 0;
+  dimwait = false;
+#endif
+
 #if defined(FADE)
   FadeCnt = 0;
   FadeNAccum = 0;
@@ -1724,8 +1727,10 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 uint16_t RGBmatrixPanel::getRefresh(void) const {
   return refreshFreq;
 }
+#endif // __TIVA__
 
 
+#if defined(DIMMER)
 // TODO: Do dimmer properly - e.g., make it a fraction of maximum on time
 // TODO: Possibly - add dimmer sweeps (e.g. fade to black)
 
@@ -1750,7 +1755,7 @@ uint32_t RGBmatrixPanel::getDim(void) const {
   return dimtime;
 }
 
-#endif // __TIVA__
+#endif // DIMMER
 
 
 // -------------------- Interrupt handler stuff --------------------
@@ -1864,7 +1869,6 @@ void RGBmatrixPanel::updateDisplay(void) {
 #endif
 
 
-#if defined(__TIVA__)
 #if defined(DIMMER)
 
   // Dimmer - Insert a delay with LEDs off between refreshes
@@ -1896,7 +1900,6 @@ void RGBmatrixPanel::updateDisplay(void) {
   }
 #endif
 
-#endif
 
   // Calculate time to next interrupt BEFORE incrementing plane #.
   // This is because duration is the display time for the data loaded

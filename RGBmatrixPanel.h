@@ -170,7 +170,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
     fading(void) const;          // true if fade is in progress
 #endif
 
-#if defined(__TIVA__)
+#if defined(DIMMER)
   void
     setDim(uint32_t time);
   uint32_t getDim(void) const;  
@@ -237,7 +237,9 @@ class RGBmatrixPanel : public Adafruit_GFX {
 // Refresh frequency
   uint16_t         refreshFreq;
   volatile uint32_t rowtime, newrowtime;
+#endif
 
+#if defined(DIMMER)
 // Dimmer
   volatile uint32_t dimtime;
   boolean dimwait;
