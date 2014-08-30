@@ -51,8 +51,8 @@ Configuration - compile time settings.
 // -------------------- Configuration --------------------
 
 
-// define DEBUG to enable debugging messages on serial console
-#define DEBUG
+// define DEBUG_RGBMAT to print debugging messages on serial console
+#define DEBUG_RGBMAT
 
 // Serial port speed for debug output (leave undefined if calling program sets up serial console)
 #define DBUG_CON_SPEED  9600

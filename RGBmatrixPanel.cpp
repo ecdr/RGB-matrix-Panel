@@ -268,7 +268,7 @@ void TmrHandler(void);
 
 
 // FIXME: Need to import real assert
-#if defined(DEBUG)
+#if defined(DEBUG_RGBMAT)
 #define ASSERT(expr) if (!(expr)) {Serial.print("Error: assertion failure in "); \
     Serial.print(__FILE__); Serial.print(", line"); Serial.println(__LINE__);}
 #else
@@ -460,7 +460,7 @@ RGBmatrixPanel::RGBmatrixPanel(
 
 void RGBmatrixPanel::begin(void) {
 
-#if defined(DEBUG) || defined( BENCHMARK )
+#if defined(DEBUG_RGBMAT) || defined( BENCHMARK )
 // FIXME: Should check if Serial already begun, and only begin if not
 //   Don't see a call in the reference to test this, have to check the code
 #if defined(DBUG_CON_SPEED)
@@ -482,7 +482,7 @@ void RGBmatrixPanel::begin(void) {
   ASSERT(PIN_OK(_oe));
 
 /*
-#if defined(DEBUG)
+#if defined(DEBUG_RGBMAT)
 
   Serial.println("RGBMatrix:begin");
 
@@ -495,18 +495,18 @@ void RGBmatrixPanel::begin(void) {
   Serial.print(", DATA port BASE:");
   Serial.println((uint32_t)DATAPORTBASE, HEX);
 
-  Serial.print("DPB+MASK");
+  Serial.print(" BASE+MASK:");
   Serial.print((uint32_t)(((uint32_t *)DATAPORTBASE)+(DATAPORTMASK)), HEX);
 #endif
 
-  Serial.print("SCLKPORT ");
+  Serial.print(" SCLKPORT ");
   Serial.print((uint32_t)&SCLKPORT, HEX);
-  Serial.print("sclkpin ");
+  Serial.print(" sclkpin ");
   Serial.println(sclkpin, HEX);
 
-  Serial.print("Addraport ");
+  Serial.print("Addraport: ");
   Serial.print((uint32_t)addraport, HEX);
-  Serial.print("Addrapin ");
+  Serial.print(" Addrapin: ");
   Serial.println(addrapin, HEX);
 
   Serial.print("Addrbport ");
@@ -579,7 +579,7 @@ if(nRows > 8) {
   if (newrowtime)
     rowtime = newrowtime;         // Be sure rowtime is valid
 
-#if defined(DEBUG)
+#if defined(DEBUG_RGBMAT)
   
   Serial.print("Rowtime ");
   Serial.println(rowtime);
@@ -602,7 +602,7 @@ if(nRows > 8) {
 
   MAP_TimerEnable( TIMER_BASE, TIMER_A );
 
-#if defined(DEBUG)
+#if defined(DEBUG_RGBMAT)
   Serial.println("Timer setup");
 #endif
 
@@ -943,7 +943,7 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
   uint8_t r, g, b, bit, limit, *ptr;
 
 /*
-#if defined(DEBUG)
+#if defined(DEBUG_RGBMAT)
   Serial.print("DrawPixel(");
   Serial.print(x);
   Serial.print(", ");
@@ -1386,7 +1386,7 @@ uint8_t *RGBmatrixPanel::backBuffer() {
 // draw over every pixel.  (No effect if double-buffering is not enabled.)
 void RGBmatrixPanel::swapBuffers(boolean copy) {
   if(matrixbuff[0] != matrixbuff[1]) {
-#if defined(DEBUG)
+#if defined(DEBUG_RGBMAT)
   Serial.print("swapBuffers");
 #endif
 // FIXME: Adapt for nBuf > 2
@@ -1422,7 +1422,7 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
 // Fade is done by PWM between front and next buffers
 uint8_t RGBmatrixPanel::swapFade(uint16_t tfade, boolean copy) {
 
-#if defined(DEBUG)
+#if defined(DEBUG_RGBMAT)
   Serial.print("swapFade");
 #endif
 
@@ -1679,8 +1679,8 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 
   rowtimetemp = (uint32_t) TIMER_CLK / ((uint32_t) freq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
 
-#if defined(DEBUG)
-  Serial.print("Min refresh: ");
+#if defined(DEBUG_RGBMAT)
+  Serial.print("setRefresh - Min refresh: ");
   Serial.print(minRefreshFreq);
 
   Serial.print(" Rowtime raw: ");
@@ -1694,8 +1694,8 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
   if (rowtimetemp < (uint32_t) minRowTimePerPanel * nPanels + minRowTimeConst){
     rowtimetemp = (uint32_t) minRowTimePerPanel * nPanels + minRowTimeConst;
 
-#if defined(DEBUG)
-  Serial.print(", Rowtime: ");
+#if defined(DEBUG_RGBMAT)
+  Serial.print(", Rowtime limited: ");
   Serial.print(rowtimetemp);
 #endif
 
@@ -1706,17 +1706,19 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
   newrowtime = rowtimetemp;   // Set new refresh time (to be picked up on next screen refresh)
 
   refreshFreq = ((uint32_t) TIMER_CLK / (rowtimetemp * nRows * ((1<<nPlanes) - 1)));
-#if defined(DEBUG)
-  Serial.print("Freq:");
+
+#if defined(DEBUG_RGBMAT)
+  Serial.print(" Freq:");
   Serial.print(freq);
-  Serial.print(" refresh:");
+  Serial.print(" refresh freq:");
   Serial.println(refreshFreq);
 #endif
+
   return refreshFreq;
 }
 
 
-uint16_t RGBmatrixPanel::getRefresh() const {
+uint16_t RGBmatrixPanel::getRefresh(void) const {
   return refreshFreq;
 }
 
@@ -2082,13 +2084,6 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 // Set timer for next interrupt
 #if defined(__TIVA__)
-
-/*
-#if defined(DEBUG)
-    Serial.print(" du");
-    Serial.println(duration);
-#endif
-*/
 
 #if defined(BENCHMARK)
   c_tmr_handler_tset = HWREG(DWT_BASE + DWT_O_CYCCNT);
