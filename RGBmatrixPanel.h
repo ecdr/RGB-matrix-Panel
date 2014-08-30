@@ -17,7 +17,13 @@ RGBmatrixPanel library for 16x32 and 32x32 RGB LED matrix panels.
 // Workaround: Include Adafruit_GFX in the main sketch.
 //
 #include <Adafruit_GFX.h>
+
+#if defined(__arm__)
+#define SET_REFRESH
+#endif
+
 #include "RGBmatrixPanelConfig.h"
+
 
 /*
 // This might work in concept, but probably not in practice.
@@ -231,9 +237,11 @@ class RGBmatrixPanel : public Adafruit_GFX {
   boolean copyflag;             // Copy buffer at end of fade
 #endif
 
-#if defined(__TIVA__)
+#if !defined(__AVR__)
   volatile uint8_t *sclkport;
+#endif
 
+#if defined(SET_REFRESH)
 // Refresh frequency
   uint16_t         refreshFreq;
   volatile uint32_t rowtime, newrowtime;

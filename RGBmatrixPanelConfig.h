@@ -275,6 +275,8 @@ Configuration - compile time settings.
  #define SCLKPORT tobedefined  
 
  #warning Arduino Due not finished
+ // Largest timer count (TODO: Find definition in standard headers)
+#define TIMER_MAX 0xFFFFUL
 
 #elif defined(__AVR_ATmega32U4__)
  // Arduino Leonardo: this is vestigial code and unlikely to ever be
@@ -298,7 +300,7 @@ Configuration - compile time settings.
 #endif
 
 
-#if defined(__TIVA__)
+#if defined(SET_REFRESH)
 
 static const uint16_t defaultRefreshFreq = 100; // Cycles per second 
 

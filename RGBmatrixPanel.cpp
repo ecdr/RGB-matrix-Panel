@@ -96,6 +96,7 @@ static const uint8_t BYTES_PER_ROW = 32;
 
 // -------------------- Utility macros --------------------
 
+
 #if defined(__TIVA__)
 
 
@@ -358,7 +359,6 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   // Look up port registers and pin masks ahead of time,
   // avoids many slow digitalWrite() calls later.
 #if defined(__TIVA__)
-  newrowtime = 0;
 
 // Tiva Energia does not provide portOutputRegister macro
   sclkpin   = digitalPinToBitMask(sclk);
@@ -398,6 +398,10 @@ void RGBmatrixPanel::init(uint8_t rows, uint8_t a, uint8_t b, uint8_t c,
   swapflag  = false;
   backindex = 0;     // Array index of back buffer
   
+#if defined(SET_REFRESH)
+  newrowtime = 0;
+#endif
+
 #if defined(DIMMER)
 // Dimmer
   dimtime = 0;
@@ -576,11 +580,7 @@ if(nRows > 8) {
 #endif
 
 
-// Timer setup
-
-
-#if defined(__TIVA__)
-
+#if defined(SET_REFRESH)
   setRefresh(defaultRefreshFreq);
   if (newrowtime)
     rowtime = newrowtime;         // Be sure rowtime is valid
@@ -591,6 +591,12 @@ if(nRows > 8) {
   Serial.println(rowtime);
 
 #endif
+#endif
+
+
+// Timer setup
+
+#if defined(__TIVA__)
 
   MAP_SysCtlPeripheralEnable( TIMER_SYSCTL );
 
@@ -1551,7 +1557,7 @@ int8_t RGBmatrixPanel::loadBuffer(const uint8_t *img, uint16_t imgsize) {
 
 // -------------------- Refresh timing --------------------
 
-#if defined(__TIVA__)
+#if defined(SET_REFRESH)
 
 // Minimum refresh timing
 // minRowTime =  minRowTimePerPanel * nPanels + minRowTimeConst
@@ -1649,7 +1655,9 @@ const uint16_t minRowTimeConst = 180;            // Overhead ticks
 
 #else
 
-#error Unknown TIVA processor
+#error Need to set minimum row time for this processor
+const uint16_t minRowTimePerPanel = xxxx;        // Ticks per panel for a row
+const uint16_t minRowTimeConst = xxx;            // Overhead ticks
 
 #endif
 
@@ -1727,7 +1735,7 @@ uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
 uint16_t RGBmatrixPanel::getRefresh(void) const {
   return refreshFreq;
 }
-#endif // __TIVA__
+#endif // SET_REFRESH
 
 
 #if defined(DIMMER)
@@ -1870,7 +1878,6 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 
 #if defined(DIMMER)
-
   // Dimmer - Insert a delay with LEDs off between refreshes
   if (dimtime){
     if (dimwait){
@@ -1898,7 +1905,7 @@ void RGBmatrixPanel::updateDisplay(void) {
     } else
       dimwait = true;
   }
-#endif
+#endif // DIMMER
 
 
   // Calculate time to next interrupt BEFORE incrementing plane #.
@@ -1919,17 +1926,6 @@ void RGBmatrixPanel::updateDisplay(void) {
   duration = ((t + CALLOVERHEAD * 2) << plane) - CALLOVERHEAD;
 #endif
 
-// TODO: Comment below about latching when latch rises may be wrong? - 
-// Octoscroller said latch happens on falling edge of latch (i.e. this is get ready to latch)
-// Below in address prep it says "about to latch now" so think it is when latch goes low
-// Moved the comment to where latch is lowered (think that is correct place for it).
-
-// TODO: Could move this closer to where latch is turned on again.
-//  oe Has to be off when change address and when latch
-//  but probably doesn't have to be off for calculating delay or updating timer
-//  (unless there is some minimum time involved).
-#if defined(__TIVA__)
-  *oeport  = 0xFF;  // Disable LED output during row/plane switchover
 
 // End of display timing  
 #if defined(BENCHMARK_OE)
@@ -1942,6 +1938,18 @@ void RGBmatrixPanel::updateDisplay(void) {
 //    oeon += oeon_time;
     }
 #endif
+
+// TODO: Comment below about latching when latch rises may be wrong? - 
+// Octoscroller said latch happens on falling edge of latch (i.e. this is get ready to latch)
+// Below in address prep it says "about to latch now" so think it is when latch goes low
+// Moved the comment to where latch is lowered (think that is correct place for it).
+
+// TODO: Could move this closer to where latch is turned on again.
+//  oe Has to be off when change address and when latch
+//  but probably doesn't have to be off for calculating delay or updating timer
+//  (unless there is some minimum time involved).
+#if defined(__TIVA__)
+  *oeport  = 0xFF;  // Disable LED output during row/plane switchover
   *latport = 0xFF;
 #else
   *oeport  |= oepin;  // Disable LED output during row/plane switchover
@@ -1973,12 +1981,17 @@ void RGBmatrixPanel::updateDisplay(void) {
 #endif
     if(++row >= nRows) {        // advance row counter.  Maxed out?
       row     = 0;              // Yes, reset row counter, then...
-      if(newrowtime) {          // Update refresh frequency if new one specified
-        // TODO: May be simpler to not bother with the test, 
+
+      // Update refresh frequency if new one specified
+#if defined(SET_REFRESH)
+      if(newrowtime) {
+        // TODO: May be simpler (& possibly faster?) to not bother with the test, 
         // but just always copy newrowtime into rowtime
         rowtime = newrowtime;   
         newrowtime = 0;
         };
+#endif
+
 #if !defined(SWAP_AT_END_ROW)
       if(swapflag) {    // Swap front/back buffers if requested
         backindex = 1 - backindex;
@@ -1987,6 +2000,7 @@ void RGBmatrixPanel::updateDisplay(void) {
       }
       else 
 #endif
+
 #if defined(FADE)
       if(FadeLen) {
         if (++FadeCnt >= FadeLen){  // Fade done, swap the buffers
@@ -2035,14 +2049,15 @@ void RGBmatrixPanel::updateDisplay(void) {
           }
         }
       }
-#endif // FADE
       else
+#endif // FADE
         buffptr = matrixbuff[1-backindex]; // Reset into front buffer
     }
   } else if(plane == 1) {
 
     // Plane 0 was loaded on prior interrupt invocation and is about to
     // latch now, so update the row address lines before we do that:
+
 #if defined(__TIVA__)
 // TODO: could compare to using bitbanding (then just write a 1 or a 0)
 
@@ -2066,15 +2081,6 @@ void RGBmatrixPanel::updateDisplay(void) {
 #endif
   }
 
-// FIXME: Check other drivers - should latch be lowered while output is still disabled?
-//  In raspi version, latch is lowered while output enable is high
-//   (latch set and immediately cleared, suggesting no minimum high time)
-//  I changed it so latch set to 0 before re-enable output 
-// TODO: Test, see if it helps any with ghosts (e.g. at end of line).
-
-#if defined(__TIVA__)
-  *latport = 0;  // Latch data loaded during *prior* interrupt
-  
 #if defined(BENCHMARK_OE)
 // Beginning of display timing
   if (!oeflag){
@@ -2085,6 +2091,14 @@ void RGBmatrixPanel::updateDisplay(void) {
     }
 #endif
 
+// FIXME: Check other drivers - should latch be lowered while output is still disabled?
+//  In raspi version, latch is lowered while output enable is high
+//   (latch set and immediately cleared, suggesting no minimum high time)
+//  I changed it so latch set to 0 before re-enable output 
+// TODO: Test, see if it helps any with ghosts (e.g. at end of line).
+
+#if defined(__TIVA__)
+  *latport = 0;  // Latch data loaded during *prior* interrupt
   *oeport  = 0;  // Re-enable output
 #else
   *latport &= ~latpin;   // Latch data loaded during *prior* interrupt
@@ -2474,4 +2488,5 @@ strb	r3, [r5, #0]    ; tock
 #endif
   }
 }
+
 
