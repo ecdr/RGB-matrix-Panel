@@ -32,7 +32,7 @@ Written by Limor Fried/Ladyada & Phil Burgess/PaintYourDragon for
 Adafruit Industries.
 BSD license, all text above must be included in any redistribution.
 
-Version v1.x.x-x.x.x, 17 Aug 2014
+Version v1.x.x-x.x.x, 27 Aug 2014
 
 Revisions:
     getPixel, by RobF42 - Rob Fugina
@@ -624,7 +624,7 @@ RGBmatrixPanel::~RGBmatrixPanel(void) {
 }
 
 
-void RGBmatrixPanel::stop(void) {
+void RGBmatrixPanel::end(void) {
 
 #if defined(__TIVA__)
 // Stop timer

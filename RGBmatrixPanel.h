@@ -105,9 +105,9 @@ class RGBmatrixPanel : public Adafruit_GFX {
 
   void
     begin(void),
-    stop(void),               // TODO: Maybe should be end (to match begin)?
+    end(void),
     drawPixel(int16_t x, int16_t y, crgb16_t c),
-    fillScreen(crgb16_t c),   // fill current drawing buffer with color c
+    fillScreen(crgb16_t c),     // fill current drawing buffer with color c
     swapBuffers(boolean copy = false),  // Display next buffer
     drawPixelI(int16_t x, int16_t y, crgb16i_t c), // Testing: same as drawpixel but interleaved color
 
