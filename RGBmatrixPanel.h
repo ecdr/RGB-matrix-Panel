@@ -192,6 +192,11 @@ class RGBmatrixPanel : public Adafruit_GFX {
 #endif
 
 
+#if defined(TESTING_RGBMAT)
+  bool isRunning(void) const;
+#endif
+
+
 // Display refresh function - need to be able to call from ISR, but not part of public interface
 
 #if defined(__TIVA__)

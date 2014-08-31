@@ -97,13 +97,12 @@ static const uint8_t BYTES_PER_ROW = 32;
 // -------------------- Utility macros --------------------
 
 
-#if defined(__TIVA__)
-
-
 // TODO: See how much extra time needed, 
 //   compare loop unrolled with extra operations to looping version without SLOW_CLOCK
 // TODO: Clean up (or remove) code for UNROLL_LOOP not defined
 
+
+#if defined(__TIVA__)
 
 // Energia does not define portOutputRegister(port) for Tiva, so make up replacement. 
 // portMaskedOutputRegister(port, mask)
@@ -188,15 +187,15 @@ Given name of a timer, assemble names of the various associated constants.
 */
 
 #if (TIMER_CHANEL == A)
-#define TIMER_AB  TIMER_A
-#define TIMER_TIMEOUT TIMER_TIMA_TIMEOUT
+#define TIMER_AB        TIMER_A
+#define TIMER_TIMEOUT   TIMER_TIMA_TIMEOUT
 
 #define _INT1(t)   (INT_##t##A)
 
 #elif (TIMER_CHANEL == B)
 
-#define TIMER_AB  TIMER_B
-#define TIMER_TIMEOUT TIMER_TIMB_TIMEOUT
+#define TIMER_AB        TIMER_B
+#define TIMER_TIMEOUT   TIMER_TIMB_TIMEOUT
 
 #define _INT1(t)   (INT_##t##B)
 
@@ -207,11 +206,6 @@ Given name of a timer, assemble names of the various associated constants.
 #endif
 
 #define _INTAB(t)    _INT1(t)
-
-#define TIMER_INT   _INTAB(TIMER)
-
-
-// TODO: Finish filling in using these macros for timer control (to use chanel A or B)
 
 
 // Auxiliary macros (to get substitution to happen correctly)
@@ -224,6 +218,7 @@ Given name of a timer, assemble names of the various associated constants.
 
 // Actually assemble the timer macro names
 
+#define TIMER_INT    _INTAB(TIMER)
 #define TIMER_BASE   _BASE(TIMER)
 #define TIMER_SYSCTL _SYSCTL(TIMER)
 
@@ -587,7 +582,7 @@ if(nRows > 8) {
   MAP_IntMasterEnable();
 
   MAP_IntEnable( TIMER_INT );
-  MAP_TimerIntEnable( TIMER_BASE, TIMER_TIMA_TIMEOUT );
+  MAP_TimerIntEnable( TIMER_BASE, TIMER_TIMEOUT );
 
   MAP_TimerLoadSet( TIMER_BASE, TIMER_A, rowtime );  // Dummy initial interrupt period
 
@@ -622,9 +617,9 @@ void RGBmatrixPanel::end(void) {
 #if defined(__TIVA__)
 // Stop timer
   
-  MAP_TimerIntDisable(TIMER_BASE, TIMER_TIMA_TIMEOUT);
-  MAP_TimerIntClear(TIMER_BASE, TIMER_TIMA_TIMEOUT);
-  MAP_TimerDisable(TIMER_BASE, TIMER_A);
+  MAP_TimerIntDisable(TIMER_BASE, TIMER_TIMEOUT);
+  MAP_TimerIntClear(TIMER_BASE, TIMER_TIMEOUT);
+  MAP_TimerDisable(TIMER_BASE, TIMER_AB);
   IntUnregister(TIMER_INT);
 #else
 
@@ -1751,6 +1746,24 @@ uint32_t RGBmatrixPanel::getDim(void) const {
 
 #endif // DIMMER
 
+// -------------------- Testing --------------------
+// For testing, not necessarily part of the regular interface
+#if defined(TESTING_RGBMAT)
+#define NUM_TRIES 20
+
+// Return true if the display refresh is still running
+bool RGBmatrixPanel::isRunning(void) const {
+  uint8_t oldplane = plane;
+  delay(1);
+  for (uint8_t i = 0; i <= NUM_TRIES; i++) {
+    if (oldplane != plane)
+      return true;
+      else delay(1);
+  };
+  return false;
+};
+
+#endif
 
 // -------------------- Interrupt handler stuff --------------------
 
@@ -1769,7 +1782,7 @@ void TmrHandler(void)
   activePanel->updateDisplay();
 
 // MAP_ version of library call takes longer
-//  TimerIntClear( TIMER_BASE, TIMER_TIMA_TIMEOUT );
+//  TimerIntClear( TIMER_BASE, TIMER_TIMEOUT );
   HWREG(TIMER_BASE + TIMER_O_ICR) = TIMER_TIMEOUT;    // Inlining timer library code - just in ISR, where speed helpful
 
 #if defined( BENCHMARK_RGBMAT )
