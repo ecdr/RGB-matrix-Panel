@@ -304,10 +304,7 @@ Configuration - compile time settings.
 
 static const uint16_t defaultRefreshFreq = 100; // Cycles per second 
 
-//const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
-
 #endif
-
 
 
 // Control whether to include fade support (not much point on AVR - too slow for PWM fade)
@@ -315,8 +312,10 @@ static const uint16_t defaultRefreshFreq = 100; // Cycles per second
 #define FADE
 #endif
 
+
+// TODO: Test dimmer
 //#define DIMMER
-//const uint16_t dimmScale = 1024;
+
 
 const uint8_t nBuf = 2;
 

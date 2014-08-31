@@ -18,11 +18,13 @@ RGBmatrixPanel library for 16x32 and 32x32 RGB LED matrix panels.
 //
 #include <Adafruit_GFX.h>
 
+
 #if defined(__arm__)
 #define SET_REFRESH
 #endif
 
 #include "RGBmatrixPanelConfig.h"
+
 
 // Type for timer arguments
 #if defined(__AVR__)
@@ -44,6 +46,8 @@ typedef struct crgb16 crgb16_t;
 */
 
 typedef uint16_t crgb16_t;
+
+// Internal (or interleaved) version of 5/6/5 color
 typedef uint16_t crgb16i_t;
 
 
@@ -55,6 +59,17 @@ typedef uint16_t crgb16i_t;
 #define COLOR_INTERN(c) \
   ((__builtin_constant_p((c))) ? _COLORI_CONST((c)) : ColorIntern1((c)))
 
+// Alternative version of interface - allows argument/type checking
+//   since always inline, it should disappear at compile time when appropriate
+// 
+/*crgb16i_t ColorIntern(crgb16_t c) INLINE
+{
+  if (__builtin_constant_p(c))
+    return _COLORI_CONST(c);
+  else
+    return ColorIntern1(c);
+};*/
+
 
 // Protected
 
@@ -63,6 +78,7 @@ extern crgb16i_t ColorIntern1(crgb16_t c);
 #define BIT_TST_SET(fromvar, frombit, tobit) (((fromvar) & (1<<(frombit))) ? (1<<(tobit)))
 
 // Convert c to internal color at compile time
+// FIXME: Needs update to handle 5 bit color
 #define _COLORI_CONST(c) ((crgb16i_t)\
   BIT_TST_SET(c, 12, 1)|  /* R0 */ \
   BIT_TST_SET(c, 13, 4)|  /* R1 */ \
@@ -77,15 +93,6 @@ extern crgb16i_t ColorIntern1(crgb16_t c);
   BIT_TST_SET(c,  3, 9)|  /* B2 */ \
   BIT_TST_SET(c,  4, 12))
 
-// FIXME: Needs update to handle 5 bit color
-
-/*crgb16i_t ColorI2(crgb16_t c)  INLINE
-{
-  if (__builtin_constant_p(c))
-    return _COLORI_CONST(c);
-  else
-    return ColorIntern(c);
-};*/
 
 
 class RGBmatrixPanel : public Adafruit_GFX {
@@ -106,12 +113,6 @@ class RGBmatrixPanel : public Adafruit_GFX {
   RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
     uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf, uint8_t pwidth);
 
-// Compiler couldn't distinguish this one.
-// TODO: Find whatever trick need to make the compiler count the arguments
-//   There is only 1 prototype with 7 uin8_t followed by 1 boolean
-//
-//  RGBmatrixPanel(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
-//    uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf);
 
   ~RGBmatrixPanel(void);
 
@@ -138,8 +139,6 @@ class RGBmatrixPanel : public Adafruit_GFX {
 // The ColorI, drawPixelI and I versions of line functions are used internally,
 // it is not necesarry to call them in order to speed up drawing, 
 // but they are left accessible to the user if desired.
-// Use ColorI to convert AdafruitGFX color to interleaved color, 
-// then pass that as color argument of I functions.
     drawLineI(int16_t x0, int16_t y0, int16_t x1, int16_t y1, crgb16i_t color),
     drawFastVLineI(int16_t x, int16_t y, int16_t h, crgb16i_t color),
     drawFastHLineI(int16_t x, int16_t y, int16_t w, crgb16i_t color);
@@ -163,6 +162,8 @@ class RGBmatrixPanel : public Adafruit_GFX {
     Color888(uint8_t r, uint8_t g, uint8_t b, boolean gflag) const,
     ColorHSV(long hue, uint8_t sat, uint8_t val, boolean gflag) const;
 
+// Use ColorI to convert AdafruitGFX color to interleaved color, 
+// then pass that as color argument of I functions.
   crgb16i_t ColorIntern(crgb16_t c) const; // Convert AdafruitGFX color to interleaved color
 
 // TODO: Might be easier to have number of planes available as a constant (for macro color selection)?
@@ -170,9 +171,11 @@ class RGBmatrixPanel : public Adafruit_GFX {
     bitsPerColor(void) const;
 
 // Refresh frequency
+#if defined(SET_REFRESH)
   uint16_t
     setRefresh(uint16_t freq),   // Set number of display updates per second
     getRefresh(void) const;      // Return refresh frequency
+#endif
 
 #if defined(FADE)
 // Fade - transition one buffer to another
@@ -248,7 +251,7 @@ class RGBmatrixPanel : public Adafruit_GFX {
 #endif
 
 #if defined(SET_REFRESH)
-// Refresh frequency
+// Display refresh frequency
   uint16_t         refreshFreq;
   volatile deltat_t rowtime, newrowtime;
 #endif

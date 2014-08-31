@@ -161,6 +161,7 @@ but none of them work in Energia
 #endif
 
 
+// Timer tick frequency
 #ifdef __TM4C1294NCPDT__
 // TM4C1294 - can only get clock speed from clock set call
 #define TIMER_CLK F_CPU
@@ -190,14 +191,14 @@ Given name of a timer, assemble names of the various associated constants.
 #define TIMER_AB  TIMER_A
 #define TIMER_TIMEOUT TIMER_TIMA_TIMEOUT
 
-#define INT1(t)   (INT_##t##A)
+#define _INT1(t)   (INT_##t##A)
 
 #elif (TIMER_CHANEL == B)
 
 #define TIMER_AB  TIMER_B
 #define TIMER_TIMEOUT TIMER_TIMB_TIMEOUT
 
-#define INT1(t)   (INT_##t##B)
+#define _INT1(t)   (INT_##t##B)
 
 #else
 
@@ -205,29 +206,26 @@ Given name of a timer, assemble names of the various associated constants.
 
 #endif
 
-#define INTAB(t)    INT1(t)
+#define _INTAB(t)    _INT1(t)
 
-#define TIMER_INT   INTAB(TIMER)
+#define TIMER_INT   _INTAB(TIMER)
 
 
 // TODO: Finish filling in using these macros for timer control (to use chanel A or B)
 
 
 // Auxiliary macros (to get substitution to happen correctly)
-#define BASE1(t)   (t##_BASE)
-#define SYSCTL1(t) (SYSCTL_PERIPH_##t)
-//#define INTA1(t)   (INT_##t##A)
+#define _BASE1(t)   (t##_BASE)
+#define _SYSCTL1(t) (SYSCTL_PERIPH_##t)
 
-#define BASE(t)    BASE1(t)
-#define SYSCTL(t)  SYSCTL1(t)
-//#define INTA(t)    INTA1(t)
+#define _BASE(t)    _BASE1(t)
+#define _SYSCTL(t)  _SYSCTL1(t)
 
 
 // Actually assemble the timer macro names
 
-#define TIMER_BASE   BASE(TIMER)
-#define TIMER_SYSCTL SYSCTL(TIMER)
-//#define TIMER_INT    INTA(TIMER)
+#define TIMER_BASE   _BASE(TIMER)
+#define TIMER_SYSCTL _SYSCTL(TIMER)
 
 
 // TODO: If miss an interrupt, the display driver dies
@@ -249,8 +247,6 @@ Given name of a timer, assemble names of the various associated constants.
 #else
 #define TIMER_CFG   TIMER_CFG_ONE_SHOT
 #endif
-
-
 
 
 
@@ -446,26 +442,6 @@ RGBmatrixPanel::RGBmatrixPanel(
 #endif
 }
 
-/* Compiler complained about this one
-// Constructor for 32x32 panel: - only 1 panel
-RGBmatrixPanel::RGBmatrixPanel(
-  uint8_t a, uint8_t b, uint8_t c, uint8_t d,
-  uint8_t sclk, uint8_t latch, uint8_t oe, boolean dbuf) :
-  Adafruit_GFX(BYTES_PER_ROW*pwidth, 32) {
-
-  init(16, a, b, c, sclk, latch, oe, dbuf, 1);
-
-  // Init a few extra 32x32-specific elements:
-  _d        = d;
-  addrdpin  = digitalPinToBitMask(d);
-  
-#if defined(__TIVA__)
-  addrdport = portMaskedOutputRegister(digitalPinToPort(d), addrdpin);
-#else
-  addrdport = portOutputRegister(digitalPinToPort(d));
-#endif  
-}
-*/
 
 
 void RGBmatrixPanel::begin(void) {
@@ -575,6 +551,8 @@ if(nRows > 8) {
 #endif  
 
 
+// Refresh time setup
+
 #if defined(BENCHMARK_RGBMAT)
   EnableTiming();
 #endif
@@ -582,8 +560,9 @@ if(nRows > 8) {
 
 #if defined(SET_REFRESH)
   setRefresh(defaultRefreshFreq);
+  // make rowtime valid before start display interrupt
   if (newrowtime)
-    rowtime = newrowtime;         // Be sure rowtime is valid
+    rowtime = newrowtime;
 
 #if defined(DEBUG_RGBMAT)
   
@@ -591,7 +570,7 @@ if(nRows > 8) {
   Serial.println(rowtime);
 
 #endif
-#endif
+#endif // SET_REFRESH
 
 
 // Timer setup
@@ -632,6 +611,8 @@ if(nRows > 8) {
 
 // Destructor - free allocated memory
 RGBmatrixPanel::~RGBmatrixPanel(void) {
+  if (activePanel == this)
+    end();  // Stop the timers, etc.
   free(matrixbuff[0]);
 }
 
@@ -731,15 +712,16 @@ crgb16i_t ColorIntern1(crgb16_t c) {
 // cnew1 = (space_bit[(r >> 4) & 0xF] << 12 | space_bit[r & 0xF]) << RED_SHIFT;
 
 /*
-  Other ways of doing conversion - can do all at compile time, but take longer
+  Other ways of doing conversion - can do all at compile time, but take longer if do at runtime
 
   But since don't use this that often, may not matter much (unless convert basic point plot to use this).
 
-// Slightly slower - 44 clocks (including call, loop, and benchmark code) - 27 instructions
+// Following version is slightly slower - 
+//   44 clocks (including call, loop, and benchmark code) - 27 instructions
 //   just a tad (4 clocks) slower than table lookup version on 80 MHz Tiva 
 //  (Could compare on Connected LP - faster clock, more cache)
 // 
-//  If extend to more bits the table version would stay same speed (possibly take longer if go to 32 bit table?)
+//  If extend to more bits, the table version would stay same speed (possibly take longer if go to 32 bit table?)
 //  While this takes longer for more bits
 
 // Set the tobit'th bit of tovar if the frombit'th bit of fromvar is set
@@ -1375,17 +1357,18 @@ void RGBmatrixPanel::drawFastHLineI(int16_t x, int16_t y,
 // -------------------- Buffers --------------------
 
 // Size of a buffer (in bytes) -- so can use a buffer without assuming as much about encoding
-inline uint16_t RGBmatrixPanel::bufferSize() const {
+inline uint16_t RGBmatrixPanel::bufferSize(void) const {
   return WIDTH * nRows * nPackedPlanes;
 }
 
 // Return address of front buffer -- can then read display directly
-uint8_t *RGBmatrixPanel::frontBuffer() {
+// TODO: Maybe should return void *
+uint8_t *RGBmatrixPanel::frontBuffer(void) {
   return matrixbuff[1-backindex];
 }
 
 // Return address of back buffer -- can then load/store data directly
-uint8_t *RGBmatrixPanel::backBuffer() {
+uint8_t *RGBmatrixPanel::backBuffer(void) {
   return matrixbuff[backindex];
 }
 
@@ -1405,7 +1388,7 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
     // To avoid 'tearing' display, actual swap takes place in the interrupt
     // handler, at the end of a complete screen refresh cycle.
     swapflag = true;                  // Set flag here, then...
-// TODO: Try allow swap at end of line rather than waiting for end of frame
+// TODO: Try allow swap at end of line, rather than waiting for end of frame
 // What kind of tearing are they concerned with?  Suspect a holdover from old code?
 // 
 // Since screen redraw goes one line at a time, as long as you finish this line
@@ -1466,8 +1449,8 @@ uint8_t RGBmatrixPanel::swapFade(uint16_t tfade, boolean copy) {
   }
 }
 
-// Or could make this return uint - fade time remaining
-boolean RGBmatrixPanel::fading() const {
+// TODO: Could make this return uint - fade time remaining
+boolean RGBmatrixPanel::fading(void) const {
   return (FadeLen != 0);
 }
 
@@ -1587,6 +1570,8 @@ int8_t RGBmatrixPanel::loadBuffer(const uint8_t *img, uint16_t imgsize) {
 // TODO: take off the safety check and see how high can push refresh before it fails
 //  (compare real min time to what calculated here)
 
+// TODO: Test with more panels (how many panels can it do?)
+
 #if defined(__TM4C1294NCPDT__)
 // Connected Launchpad (120 MHz clock)
 
@@ -1683,6 +1668,7 @@ const uint32_t minRefreshFreq = (uint32_t) (TIMER_CLK /
 uint16_t RGBmatrixPanel::setRefresh(uint16_t freq){
   uint32_t rowtimetemp;
   
+//const uint32_t ticksPerSecond = 1000000; // Number of timer ticks in 1 second
 //  uint16_t refreshTime = 1 * ticksPerSecond / refreshFreq;   // Time for 1 display refresh
 //  rowtime = refreshTime / (nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
 //  rowtime = ticksPerSecond / (refreshFreq * nRows * ((1<<nPlanes) - 1));  // Time to display LSB of one row
@@ -1914,6 +1900,7 @@ void RGBmatrixPanel::updateDisplay(void) {
   duration = (rowtime << plane) - TIMER_SET_OFFSET;
 
 // Draft dimmer - use timer to turn off OE early - would retain refresh rate
+//const uint16_t dimmScale = 1024;
 //  oetime = ((duration + TIMER_SET_OFFSET - OE_OFF_OFFSET) * dimFactor) / dimmScale;
 #else
   // CALLOVERHEAD is subtracted from the result because that time is 
@@ -1986,7 +1973,7 @@ void RGBmatrixPanel::updateDisplay(void) {
       if(newrowtime) {
         // TODO: May be simpler (& possibly faster?) to not bother with the test, 
         // but just always copy newrowtime into rowtime
-        rowtime = newrowtime;   
+        rowtime = newrowtime;
         newrowtime = 0;
         };
 #endif
