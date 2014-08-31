@@ -49,6 +49,11 @@ Revisions:
 
 */
 
+// TODO: Test with more display panels (works with 2)
+//   Stellaris LP, 4 bit color: fails when set to 8 panels - based on benchmark (without actual panels)
+//   when set to 7 panels -> 20% processor use at 70 Hz refresh (fastest refresh is 200Hz, 99% usage)
+
+
 #include "RGBmatrixPanel.h"
 #include "RGBmatrixPanelConfig.h"
 
@@ -614,33 +619,35 @@ RGBmatrixPanel::~RGBmatrixPanel(void) {
 
 void RGBmatrixPanel::end(void) {
 
+  if (activePanel == this){
 #if defined(__TIVA__)
 // Stop timer
   
-  MAP_TimerIntDisable(TIMER_BASE, TIMER_TIMEOUT);
-  MAP_TimerIntClear(TIMER_BASE, TIMER_TIMEOUT);
-  MAP_TimerDisable(TIMER_BASE, TIMER_AB);
-  IntUnregister(TIMER_INT);
+    MAP_TimerIntDisable(TIMER_BASE, TIMER_TIMEOUT);
+    MAP_TimerIntClear(TIMER_BASE, TIMER_TIMEOUT);
+    MAP_TimerDisable(TIMER_BASE, TIMER_AB);
+    IntUnregister(TIMER_INT);
 #else
 
 // AVR
-	TCCR1B = _BV(WGM13);    // From TimerOne, stop clock(?) TODO: Test
-	TIMSK1 = 0;             // From TimerOne, detachInterrupt TODO: test
+    TCCR1B = _BV(WGM13);    // From TimerOne, stop clock(?) TODO: Test
+    TIMSK1 = 0;             // From TimerOne, detachInterrupt TODO: test
 
 #endif  // __TIVA__
 
 // TODO: Should probably send all 0's to the panel
 
-  *oeport    |= oepin;     // High (disable output)
+    *oeport    |= oepin;     // High (disable output)
 #if defined(BENCHMARK_OE)
-  c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
-  if (oeflag){
-    oeflag = false;
-    oeon += c_tmr_oeoff - c_tmr_oeon;
-    }
+    c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
+    if (oeflag){
+      oeflag = false;
+      oeon += c_tmr_oeoff - c_tmr_oeon;
+      }
 #endif
 
-  activePanel = NULL;
+    activePanel = NULL;
+  }
 }
 
 
@@ -1565,7 +1572,6 @@ int8_t RGBmatrixPanel::loadBuffer(const uint8_t *img, uint16_t imgsize) {
 // TODO: take off the safety check and see how high can push refresh before it fails
 //  (compare real min time to what calculated here)
 
-// TODO: Test with more panels (how many panels can it do?)
 
 #if defined(__TM4C1294NCPDT__)
 // Connected Launchpad (120 MHz clock)
