@@ -107,6 +107,11 @@ static const uint8_t BYTES_PER_ROW = 32;
 // TODO: Clean up (or remove) code for UNROLL_LOOP not defined
 
 
+// FIXME: Should be if GCC
+// Note - need to declare inline AND attribute always_inline
+#define INLINE __attribute__( ( always_inline ) ) inline
+
+
 #if defined(__TIVA__)
 
 // Energia does not define portOutputRegister(port) for Tiva, so make up replacement. 
@@ -579,7 +584,7 @@ if(nRows > 8) {
 
   MAP_SysCtlPeripheralEnable( TIMER_SYSCTL );
 
-//  MAP_TimerDisable( TIMER_BASE, TIMER_A );
+//  MAP_TimerDisable( TIMER_BASE, TIMER_AB );
 
   MAP_TimerConfigure( TIMER_BASE, TIMER_CFG );
 
@@ -589,9 +594,9 @@ if(nRows > 8) {
   MAP_IntEnable( TIMER_INT );
   MAP_TimerIntEnable( TIMER_BASE, TIMER_TIMEOUT );
 
-  MAP_TimerLoadSet( TIMER_BASE, TIMER_A, rowtime );  // Dummy initial interrupt period
+  MAP_TimerLoadSet( TIMER_BASE, TIMER_AB, rowtime );  // Dummy initial interrupt period
 
-  MAP_TimerEnable( TIMER_BASE, TIMER_A );
+  MAP_TimerEnable( TIMER_BASE, TIMER_AB );
 
 #if defined(DEBUG_RGBMAT)
   Serial.println("Timer setup");
@@ -1771,6 +1776,57 @@ bool RGBmatrixPanel::isRunning(void) const {
 
 #endif
 
+// -------------------- Auxiliary functions --------------------
+
+
+#if defined(__TIVA__)
+#define __ASM asm
+
+// No operation - make a very short delay
+INLINE static void __NOP(void)
+{
+  __ASM volatile ("nop");
+}
+#endif
+
+
+// Set timer to duration ticks
+INLINE static void setTimer(deltat_t duration)
+{
+#if defined(__TIVA__)
+//  TimerDisable( TIMER_BASE, TIMER_AB ); // Not needed
+
+// BENCHMARK results
+//   together the two timer library calls (LoadSet and Enable) took about 60 cycles (Stellaris) (MAP_ version)
+//   Non-MAP_ versions take 8 cycles less than MAP_ versions on Stellaris LP
+//   Inline with just the HWREG cuts off another 30+ cycles
+
+#if (A == TIMER_CHANEL)
+//  TimerLoadSet( TIMER_BASE, TIMER_A, duration );
+    HWREG(TIMER_BASE + TIMER_O_TAILR) = duration;
+//  TimerEnable( TIMER_BASE, TIMER_A );
+    HWREG(TIMER_BASE + TIMER_O_CTL) |= TIMER_A & (TIMER_CTL_TAEN |
+                                                  TIMER_CTL_TBEN);
+
+#elif (B == TIMER_CHANEL)
+//  TimerLoadSet( TIMER_BASE, TIMER_B, duration );
+    HWREG(TIMER_BASE + TIMER_O_TBILR) = duration;
+//  TimerEnable( TIMER_BASE, TIMER_B );
+    HWREG(TIMER_BASE + TIMER_O_CTL) |= TIMER_B & (TIMER_CTL_TAEN |
+                                                  TIMER_CTL_TBEN);
+#else
+
+#error Unrecognized timer chanel
+
+#endif
+
+#else
+// AVR
+  ICR1      = duration; // Set interval for next interrupt
+  TCNT1     = 0;        // Restart interrupt timer
+#endif
+}
+
 // -------------------- Interrupt handler stuff --------------------
 
 
@@ -1857,16 +1913,6 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // while the *current* plane/row is being shown.  As a result, the
 // counter variables change between past/present/future tense in mid-
 // function...hopefully tenses are sufficiently commented.
-
-
-#if defined(__TIVA__)
-#define __ASM asm
-
-__attribute__( ( always_inline ) ) static inline void __NOP(void)
-{
-  __ASM volatile ("nop");
-}
-#endif
 
 
 void RGBmatrixPanel::updateDisplay(void) {
@@ -2116,45 +2162,13 @@ void RGBmatrixPanel::updateDisplay(void) {
   ptr = (uint8_t *)buffptr;
 
 
-// Set timer for next interrupt
-#if defined(__TIVA__)
-
 #if defined(BENCHMARK_RGBMAT)
 // record when timer set (to figure how long after the handler started)
   c_tmr_handler_tset = HWREG(DWT_BASE + DWT_O_CYCCNT);
 #endif
 
-//  TimerDisable( timerBase, timerAB ); // Not needed
-
-// BENCHMARK results
-//   together the two timer library calls (LoadSet and Enable) took about 60 cycles (Stellaris) (MAP_ version)
-//   Non-MAP_ versions take 8 cycles less than MAP_ versions on Stellaris LP
-//   Inline with just the HWREG cuts off another 30+ cycles
-
-#if (A == TIMER_CHANEL)
-//  TimerLoadSet( TIMER_BASE, TIMER_A, duration );
-    HWREG(TIMER_BASE + TIMER_O_TAILR) = duration;
-//  TimerEnable( TIMER_BASE, TIMER_A );
-    HWREG(TIMER_BASE + TIMER_O_CTL) |= TIMER_A & (TIMER_CTL_TAEN |
-                                                  TIMER_CTL_TBEN);
-
-#elif (B == TIMER_CHANEL)
-//  TimerLoadSet( TIMER_BASE, TIMER_B, duration );
-    HWREG(TIMER_BASE + TIMER_O_TBILR) = duration;
-//  TimerEnable( TIMER_BASE, TIMER_B );
-    HWREG(TIMER_BASE + TIMER_O_CTL) |= TIMER_B & (TIMER_CTL_TAEN |
-                                                  TIMER_CTL_TBEN);
-#else
-
-#error Unrecognized timer chanel
-
-#endif
-
-#else
-  ICR1      = duration; // Set interval for next interrupt
-  TCNT1     = 0;        // Restart interrupt timer
-#endif
-
+// Set timer for next interrupt
+  setTimer(duration);
 
 #if !defined(__TIVA__)
   // Record current state of SCLKPORT register, as well as a second
