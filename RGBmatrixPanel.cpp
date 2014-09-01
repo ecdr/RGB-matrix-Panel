@@ -644,11 +644,7 @@ void RGBmatrixPanel::end(void) {
 
     *oeport    |= oepin;     // High (disable output)
 #if defined(BENCHMARK_OE)
-    c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
-    if (oeflag){
-      oeflag = false;
-      oeon += c_tmr_oeoff - c_tmr_oeon;
-      }
+    benchOEDisable();
 #endif
 
     activePanel = NULL;
@@ -1364,7 +1360,7 @@ void RGBmatrixPanel::drawFastHLineI(int16_t x, int16_t y,
 // -------------------- Buffers --------------------
 
 // Size of a buffer (in bytes) -- so can use a buffer without assuming as much about encoding
-inline uint16_t RGBmatrixPanel::bufferSize(void) const {
+INLINE uint16_t RGBmatrixPanel::bufferSize(void) const {
   return WIDTH * nRows * nPackedPlanes;
 }
 
@@ -1778,11 +1774,37 @@ bool RGBmatrixPanel::isRunning(void) const {
 
 // -------------------- Auxiliary functions --------------------
 
+#if defined(BENCHMARK_OE)
+
+INLINE static void benchOEEnable(void){
+  if (!oeflag){
+    c_tmr_oeon = HWREG(DWT_BASE + DWT_O_CYCCNT);
+    oeflag = true;
+    oeoff_time = c_tmr_oeon - c_tmr_oeoff;
+//    oeoff += oeoff_time;
+  }
+}
+
+INLINE static void benchOEDisable(void) {
+  // record when OE disabled
+  c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
+
+  // Only update oe time if output was actually enabled
+  if (oeflag){
+    oeflag = false;
+    oeon_time = c_tmr_oeoff - c_tmr_oeon;
+//    oeon += oeon_time;
+  }
+}
+
+#endif
+
 
 #if defined(__TIVA__)
 #define __ASM asm
 
 // No operation - make a very short delay
+// Not guaranteed to be a delay, but works as one on current Tiva devices
 INLINE static void __NOP(void)
 {
   __ASM volatile ("nop");
@@ -1936,15 +1958,7 @@ void RGBmatrixPanel::updateDisplay(void) {
       *oeport  = 0xFF;   // Disable LED output during delay
 
 #if defined(BENCHMARK_OE)
-  // record when OE disabled
-  c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
-
-  // Log time OE was enabled
-  if (oeflag){
-    oeflag = false;
-    oeon_time = c_tmr_oeoff - c_tmr_oeon;
-//    oeon += oeon_time;
-    }
+      benchOEDisable();
 #endif
 
 // TODO: should the latch be done now, or should that wait until really going to change addr
@@ -1978,16 +1992,9 @@ void RGBmatrixPanel::updateDisplay(void) {
 #endif
 
 
-// End of display timing  
 #if defined(BENCHMARK_OE)
-  // record when OE disabled
-  c_tmr_oeoff = HWREG(DWT_BASE + DWT_O_CYCCNT);
-
-  if (oeflag){
-    oeflag = false;
-    oeon_time = c_tmr_oeoff - c_tmr_oeon;
-//    oeon += oeon_time;
-    }
+// End of display timing
+  benchOEDisable();
 #endif
 
 // TODO: Comment below about latching when latch rises may be wrong? - 
@@ -2033,7 +2040,7 @@ void RGBmatrixPanel::updateDisplay(void) {
     if(++row >= nRows) {        // advance row counter.  Maxed out?
       row     = 0;              // Yes, reset row counter, then...
 
-      // Update refresh frequency if new one specified
+      // Update refresh frequency if needed - between frames
 #if defined(SET_REFRESH)
       if(newrowtime) {
         // TODO: May be simpler (& possibly faster?) to not bother with the test, 
@@ -2134,12 +2141,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 
 #if defined(BENCHMARK_OE)
 // Beginning of display timing
-  if (!oeflag){
-    c_tmr_oeon = HWREG(DWT_BASE + DWT_O_CYCCNT);
-    oeflag = true;
-    oeoff_time = c_tmr_oeon - c_tmr_oeoff;
-//    oeoff += oeoff_time;
-    }
+  benchOEEnable();
 #endif
 
 // FIXME: Check other drivers - should latch be lowered while output is still disabled?
@@ -2186,7 +2188,7 @@ void RGBmatrixPanel::updateDisplay(void) {
   // Tiva uses masking, so do not worry about changing other pins.
   static const uint8_t tick = 0xFF;
   static const uint8_t tock = 0;
-  uint8_t temp;
+  uint8_t temp;     // Used to help rearrange instructions
 #endif
 
 #if defined(BENCHMARK_RGBMAT)
@@ -2293,7 +2295,7 @@ void RGBmatrixPanel::updateDisplay(void) {
 #ifdef SLOW_NOP1
 
 #define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; __NOP(); * sclkp = tock;
-/* 4 instructions plus one pad (pad keep clock high for extra 8 ns)
+/* 4 instructions plus one pad (pad keep clock high for extra 8 ns on TM4C1294)
 
 ldrb	r0, [r6, #1]  ; Load value
 strb	r0, [r7, #0]  ; Output value
@@ -2378,7 +2380,7 @@ strb	r3, [r5, #0]    ; tock
 #endif
 
 
-// Possible speedup might be to read a word,
+// Another possible speedup might be to read a word,
 // then shift it to output 4 successive bytes.
 // (Reduce memory fetch overhead).
 // TODO: Try this, see if it improves performance
@@ -2387,13 +2389,16 @@ strb	r3, [r5, #0]    ; tock
 // uint32_t * ptr;
 // t = *ptr++; *dataport = t; *dataport = t>>8; * dataport = t>>16; ...
 //
-// ldrb.w r7, [r5, #0]
-// strb	r7, [r2, #0]
-// ... toggle sclkp
+// ldrb.w r7, [r5, #0] ; Load first word
+// strb	r7, [r2, #0]   ; Store first byte of word
+//  tick
 // lsrs	r7, r7, #8
-// strb	r7, [r2, #0]
-// ...
-// ldrb.w r7, [r5, #4]
+//  tock
+
+// strb	r7, [r2, #0]   ; Store second byte
+//  tick ... ; handle third and 4th similarly
+
+// ldrb.w r7, [r5, #4] ;Load next word
 //
 
 
@@ -2461,27 +2466,29 @@ strb	r3, [r5, #0]    ; tock
     // output for plane 0 is handled while plane 3 is being displayed...
     // because binary coded modulation is used (not PWM), that plane
     // has the longest display interval, so the extra work fits.
+// TODO: Would there be any benefit to using pointer loop, rather than i
+//   (Would still have to add WIDTH, 2*WIDTH)
     for(i=0; i<WIDTH; i++) {
 #if defined(__AVR__)
       DATAPORT =
-        ( ptr[i]    << 6)                   |
-        ((ptr[i+WIDTH] << 4) & 0x30) |
+        ( ptr[i]           << 6)         |
+        ((ptr[i+WIDTH]     << 4) & 0x30) |
         ((ptr[i+(WIDTH*2)] << 2) & 0x0C);
       SCLKPORT = tick;
       SCLKPORT = tock;
 #else
 #ifdef SLOW_CLOCK
       DATAPORT =
-        LEFT_SHIFT((( ptr[i]    << 6)                   |
-        ((ptr[i+WIDTH] << 4) & 0x30) |
+        LEFT_SHIFT((( ptr[i]    << 6)    |
+        ((ptr[i+WIDTH]     << 4) & 0x30) |
         ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
       SCLKPORT = tick;
       SCLKPORT = tock;
 #else      
 #ifdef SLOW_NOP1
       * dataport =
-        LEFT_SHIFT((( ptr[i]    << 6)                   |
-        ((ptr[i+WIDTH] << 4) & 0x30) |
+        LEFT_SHIFT((( ptr[i]    << 6)    |
+        ((ptr[i+WIDTH]     << 4) & 0x30) |
         ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
       * sclkp = tick;
       __NOP();
@@ -2490,8 +2497,8 @@ strb	r3, [r5, #0]    ; tock
 //  TODO: Test
 //   Re-rolled the loop to put useful operation to replace the NOP
       temp =
-        LEFT_SHIFT((( ptr[i]    << 6)                   |
-        ((ptr[i+WIDTH] << 4) & 0x30) |
+        LEFT_SHIFT((( ptr[i]    << 6)    |
+        ((ptr[i+WIDTH]     << 4) & 0x30) |
         ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
       * sclkp = tock;
       * dataport = temp;
