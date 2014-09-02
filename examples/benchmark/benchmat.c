@@ -7,9 +7,12 @@
 #include "inc/hw_timer.h"
 #include "driverlib/timer.h"
 
-// FIXME: These should be based on matrix panel config
-#define TIMER_BASE WTIMER4_BASE
-#define TIMER_AB  TIMER_A
+
+#if defined(__arm__)
+#define PANEL_MAX  12
+#else
+#define PANEL_MAX  2
+#endif
 
 
 #if defined(__AVR__)
@@ -130,8 +133,6 @@ unsigned long runbench(void) {
   return time;
 }
 
-#define PANEL_MAX  8
-
 void setup() {
   unsigned i;
 //  EnableTiming();
@@ -176,7 +177,7 @@ void setup() {
       Serial.print("Difference: ");
       Serial.print(t_disp - t_nodisp);
       Serial.print(" % ");
-      Serial.println((float)(t_disp - t_nodisp)/t_nodisp);
+      Serial.println((float)(t_disp - t_nodisp)/t_disp);
       delay(100);      // Short delay to avoid startup timing on RGBmatrix
       Serial.print("Slow refresh: ");
       Serial.println(LEDmatrix.setRefresh(70));
@@ -186,7 +187,7 @@ void setup() {
       Serial.print("Difference: ");
       Serial.print(t_disp - t_nodisp);
       Serial.print(" % ");
-      Serial.println(((float)t_disp - t_nodisp)/t_nodisp);
+      Serial.println(((float)t_disp - t_nodisp)/t_disp);
       Serial.println();
     
       Serial.print("Faster refresh: ");
@@ -197,7 +198,7 @@ void setup() {
       Serial.print("Difference: ");
       Serial.print(t_disp - t_nodisp);
       Serial.print(" % ");
-      Serial.println(((float)t_disp - t_nodisp)/t_nodisp);
+      Serial.println(((float)t_disp - t_nodisp)/t_disp);
       Serial.println();
       
       Serial.print("Fastest refresh: ");
@@ -214,7 +215,7 @@ void setup() {
       Serial.print("Difference: ");
       Serial.print(t_disp - t_nodisp);
       Serial.print(" % ");
-      Serial.println(((float)t_disp - t_nodisp)/t_nodisp);
+      Serial.println(((float)t_disp - t_nodisp)/t_disp);
       Serial.println();
       LEDmatrix.end();
   }
