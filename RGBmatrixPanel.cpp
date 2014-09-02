@@ -1467,7 +1467,7 @@ boolean RGBmatrixPanel::fading(void) const {
 // back into the display using a pgm_read_byte() loop.
 void RGBmatrixPanel::dumpMatrix(void) const {
 
-  int i, buffsize = bufferSize();
+  unsigned int i, buffsize = bufferSize();
   uint row = 0, plane = 0;
 
   Serial.print("// RGBmatrixPanel image, ");
@@ -1493,7 +1493,7 @@ void RGBmatrixPanel::dumpMatrix(void) const {
     if(i < (buffsize - 1)) {
 //      if((i & ((nRows * WIDTH)-1)) == ((nRows * WIDTH)-1)) Serial.print(",\n\\ Plane\n  ");
 //      else 
-      if((i & (WIDTH-1)) == (WIDTH-1)) {
+      if((i & (unsigned)(WIDTH-1)) == (unsigned)(WIDTH-1)) {
         if (++plane >= nPackedPlanes){
           row++;
           plane = 0;
@@ -1617,13 +1617,22 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 
 // Time between beginning of ISR and timer set instruction (approx)
 // Fails if 120 (measure says 130, so must not be allowing enough for the loop after)
-#define TIMER_SET_OFFSET 100
+//#define TIMER_SET_OFFSET 100
+
+// Measure says 56 (longer ones take 64)
+#define TIMER_SET_OFFSET 50
 
 #if defined(UNROLL_LOOP)
 
 // Based on version without NOP
 const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
-const uint16_t minRowTimeConst = 150;            // Overhead ticks
+const uint16_t minRowTimeConst = 122;            // Overhead ticks
+// (Looks like limit should be 207 per panel/122 const) with benchmark?
+// With benchmark measure says 80 to 88 for const (occasionally 128)
+
+// Was working with following values - before INLINE updateDisplay
+//const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
+//const uint16_t minRowTimeConst = 150;            // Overhead ticks
 // const - 150 to 195 (with bench code)
 //  limit const 144, per panel 205, with bench code
 //  limit const 130, per panel 205, without bench
@@ -1937,8 +1946,9 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK) { // ISR_BLOCK important -- see notes later
 // function...hopefully tenses are sufficiently commented.
 
 
-void RGBmatrixPanel::updateDisplay(void) {
-  uint8_t  i, *ptr;
+INLINE void RGBmatrixPanel::updateDisplay(void) {
+  uint8_t  *ptr;
+  uint16_t i;
   deltat_t duration;
 
 #if defined(__TIVA__)
@@ -2508,8 +2518,8 @@ strb	r3, [r5, #0]    ; tock
 #endif
     }
 #if defined(REROLL) || defined(REROLL_B)
-// TODO: Probably do not need the NOP (because of loop overhead)
-    __NOP();
+// Do not need the NOP (because of loop overhead)
+//    __NOP();
     * sclkp = tock;
 #endif
   }
