@@ -217,7 +217,7 @@ Configuration - compile time settings.
 
 
 // Largest timer count (TODO: Find definition in standard headers)
-#define TIMER_MAX 0xFFFFUL
+#define TIMER_MAX 0xFFFFFFFFUL
 
 
 #define TIMER_CHANEL  A
