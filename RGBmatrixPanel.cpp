@@ -50,8 +50,11 @@ Revisions:
 */
 
 // TODO: Test with more display panels (works with 2)
-//   Stellaris LP, 4 bit color: fails when set to 8 panels - based on benchmark (without actual panels)
-//   when set to 7 panels -> 20% processor use at 70 Hz refresh (fastest refresh is 200Hz, 99% usage)
+//   Stellaris LP, 4 bit color: could do 9 panels in benchmark (without actual panels)  (did not try more)
+//   when set to 9 panels -> 22% processor use at 70 Hz refresh (fastest refresh is 165Hz, 51% usage)
+
+//   In theory calculate might be able to handle 16 panels on 80 MHz Stellaris 
+//     (Does not take into account extra time required for fancy storage of plane0)
 
 
 #include "RGBmatrixPanel.h"
@@ -1579,9 +1582,10 @@ int8_t RGBmatrixPanel::loadBuffer(const uint8_t *img, uint16_t imgsize) {
 
 // Time between beginning of ISR and timer set instruction (approx)
 // TODO: Need to estimate values for offset
-//  Estimate limit about 230 (with bench code), works at 170 (1 x32 panel) not at 200 (1x32)
-#define TIMER_SET_OFFSET 170
-
+// [OLD data] Estimate limit about 230 (with bench code), works at 170 (1 x32 panel) not at 200 (1x32)
+//#define TIMER_SET_OFFSET 170
+// Updated with Inline: measure says 101 (with bench code)
+#define TIMER_SET_OFFSET 90
 
 #if defined(UNROLL_LOOP)
 
@@ -1600,8 +1604,11 @@ const uint16_t minRowTimeConst = 290;            // Overhead ticks
 //const uint16_t minRowTimePerPanel = 160;         // Ticks per panel for a row
 //const uint16_t minRowTimeConst = 270;            // Overhead ticks
 // Was working with numbers below for 2 x32 panels
-const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
-const uint16_t minRowTimeConst = 265;            // Overhead ticks
+//const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
+//const uint16_t minRowTimeConst = 265;            // Overhead ticks
+// Updated for inlined displayUpdate
+const uint16_t minRowTimePerPanel = 150;         // Ticks per panel for a row
+const uint16_t minRowTimeConst = 230;            // Overhead ticks
 
 #endif
 
@@ -1616,10 +1623,10 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 // For Stellaris Launchpad (80 MHz clock)
 
 // Time between beginning of ISR and timer set instruction (approx)
-// Fails if 120 (measure says 130, so must not be allowing enough for the loop after)
+// [OLD, did more optimization] Failed if 120 (measure says 130, so must not be allowing enough for the loop after)
 //#define TIMER_SET_OFFSET 100
 
-// Measure says 56 (longer ones take 64)
+// Measure says 56 (longer ones take 64) (with bench code)
 #define TIMER_SET_OFFSET 50
 
 #if defined(UNROLL_LOOP)
@@ -1627,8 +1634,8 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 // Based on version without NOP
 const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
 const uint16_t minRowTimeConst = 122;            // Overhead ticks
-// (Looks like limit should be 207 per panel/122 const) with benchmark?
-// With benchmark measure says 80 to 88 for const (occasionally 128)
+// With benchmark code looks like limit should be about 207 per panel/122 const
+// With benchmark measure says 80 to 88 for const (occasionally 128) (not including interrupt call time)
 
 // Was working with following values - before INLINE updateDisplay
 //const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
