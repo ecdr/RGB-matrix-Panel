@@ -2285,31 +2285,38 @@ INLINE void RGBmatrixPanel::updateDisplay(void) {
 //
 
 
-#ifdef SLOW_CLOCK
-
-#define pew DATAPORT = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); SCLKPORT = tick; SCLKPORT = tock;
-// This version takes 7 instructions per item
-// Works for Connected LP and 2 panels
-/* 
-    ldrb	r7, [r5, #1]
-    strb.w	r7, [r6, #1008]
-    ldr	r6, [r4, #88]       ; tick
-    strb	r2, [r6, #0]      ;  "
-    ldr	r7, [r4, #88]       ; tock
-    strb	r3, [r7, #0]      ;  "
-    ldr	r6, [r1, #4]
-*/
-
-#else
-
 // For sclkport, dataport - local variables easier for the compiler to access/optimize
 // TODO: Might be able to do it with the dataport variable in "this" instead?
 
+// Note: assembler listings based on DATAPORTSHIFT == 0
+
+//#ifdef SLOW_CLOCK
+#if (1 == SELECT_DATAOUT)
+
+// Basic fast version - 
+// Makes the inner "loop" 4 instructions, a load and 3 stores
+//   (+1 instruction if a shift is needed)
+
+// Does not work at 120 MHz (TM4C129x) - clock pulse not long enough; may be okay on TM4C123x
+
+#define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; * sclkp = tock;
+
+/* 
+ldrb	r0, [r6, #1]    ; Load value
+strb	r0, [r7, #0]    ; Output value
+strb	r2, [r5, #0]    ; tick
+strb	r3, [r5, #0]    ; tock
+...
+*/
+
+#elif (2 == SELECT_DATAOUT)
+
 // Need instruction between clock toggle instructions on the TM4C1294,
 // otherwise it is a little too fast for the panel.
+// Putting NOP in other positions does not help
 
 // Use a NOP
-#ifdef SLOW_NOP1
+//#ifdef SLOW_NOP1
 
 #define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; __NOP(); * sclkp = tock;
 /* 4 instructions plus one pad (pad keep clock high for extra 8 ns on TM4C1294)
@@ -2321,50 +2328,43 @@ nop
 strb	r3, [r5, #0]  ; tock
 */
 
-// Putting NOP in other positions does not help
 
-#elif defined(REROLL)
+#elif (3 == SELECT_DATAOUT)
+//#elif defined(REROLL)
 
-/* Rearrange instructions to eliminate NOP - fetch next value while clocking out last value.
-  This works.
+// Rearrange instructions to eliminate NOP - fetch next value while clocking out last value.
+//  This works.
 
+// *** CAUTION: This does one more *ptr++ than the base version
+// so it leaves ptr pointing beyond the end of the data area
+// At the moment this is not a problem, since ptr is not used after
+// However it also reads 1 beyond the end of data - 
+//  which could be a problem if memory protection was used.
+//  Workaround - could add an extra dummy entry at end of last buffer
+
+#define PREP temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT);
+
+#define pew *dataport = temp; * sclkp = tick; \
+  temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tock;
+/*
 ldrb	r0, [r6, #1]  ; Setup
-
 
 strb	r0, [r7, #0]  ; Output value
 strb	r2, [r5, #0]  ; tick
 ldrb	r0, [r6, #2]  ; Load value for next time around
 strb	r3, [r5, #0]  ; tock
 ...
-
-// *** CAUTION: This does one more *ptr++ than the base version
-// so it leaves ptr pointing beyond the end of the data area
-// At the moment this is not a problem, since ptr is not used after
-// However it reads 1 beyond the end of data - which could be a problem if memory protection was used.
-//  Workaround - could add an extra dummy entry at end of last buffer
 */
 
 
-#define PREP temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT);
+#elif (4 == SELECT_DATAOUT)
+//#elif defined(REROLL_B)
 
-#define pew *dataport = temp; * sclkp = tick; \
-  temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tock;
-
-#elif defined(REROLL_B)
-
-//  Different rearrangement - works
-// Read first, then tock, then output data, then tick
+// Rearrange instructions to eliminate NOP - Read next value, then tock, then output data, then tick
+//  Works
+// 
 //  So the first tock will be ignored (since clock should already be tocked)
 //  Means need to add extra tock at end to finish
-
-/*
-ldrb	r0, [r6, #2]  ; Load value
-strb	r3, [r5, #0]  ; tock
-strb	r0, [r7, #0]  ; Output value
-strb	r2, [r5, #0]  ; tick
-...
-*/
-
 
 #define pew \
   temp = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tock; \
@@ -2375,26 +2375,36 @@ strb	r2, [r5, #0]  ; tick
 // TODO: Probably do not need the NOP (because of loop overhead)
 #define FINISHUP   __NOP(); * sclkp = tock;
 
-#else
-
-// Basic fast version - 
-// Makes the inner "loop" 4 instructions, a load and 3 stores
-//   (+1 instruction if a shift is needed)
-
-// Clock pulse not long enough at 120 MHz (TM4C129x), may be okay on TM4C123x
-
-/* 
-ldrb	r0, [r6, #1]
-strb	r0, [r7, #0]
-strb	r2, [r5, #0]    ; tick
-strb	r3, [r5, #0]    ; tock
+/*
+ldrb	r0, [r6, #2]  ; Load value
+strb	r3, [r5, #0]  ; tock
+strb	r0, [r7, #0]  ; Output value
+strb	r2, [r5, #0]  ; tick
 ...
+strb	r3, [r5, #0]  ; tock (FINISHUP)
 */
 
-#define pew *dataport = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); * sclkp = tick; * sclkp = tock;
 
-#endif
-#endif
+#else
+
+// Basic version before speedup
+
+#define pew DATAPORT = LEFT_SHIFT((*ptr++), DATAPORTSHIFT); SCLKPORT = tick; SCLKPORT = tock;
+
+// Takes 7 instructions per item
+/* 
+    ldrb	r7, [r5, #1]
+    strb.w	r7, [r6, #1008]
+    ldr	r6, [r4, #88]       ; tick
+    strb	r2, [r6, #0]      ;  "
+    ldr	r7, [r4, #88]       ; tock
+    strb	r3, [r7, #0]      ;  "
+    ldr	r6, [r1, #4]
+*/
+
+
+#endif //SELECT_DATAOUT
+//#endif // SLOW_CLOCK
 
 
 // Another possible speedup might be to read a word,
@@ -2404,7 +2414,12 @@ strb	r3, [r5, #0]    ; tock
 // However, may not be much point since already pushing speed limit (at least on Connected Launchpad)
 //
 // uint32_t * ptr;
-// t = *ptr++; *dataport = t; *dataport = t>>8; * dataport = t>>16; ...
+// uint32_t t;
+// t = *ptr++; tock; *dataport = t; tick; tock; *dataport = t>>8; tick; tock; *dataport = t>>16; tick; tock; *dataport = t>>24; ...
+/*
+#define PEW4 t = *ptr++; tock; *dataport = t;     tick; tock; *dataport = t>>8;  tick; \
+                         tock; *dataport = t>>16; tick; tock; *dataport = t>>24; tick;
+*/
 //
 // ldrb.w r7, [r5, #0] ; Load first word
 // strb	r7, [r2, #0]   ; Store first byte of word
@@ -2417,6 +2432,7 @@ strb	r3, [r5, #0]    ; tock
 
 // ldrb.w r7, [r5, #4] ;Load next word
 //
+
 
 
 #endif
@@ -2456,16 +2472,16 @@ strb	r3, [r5, #0]    ; tock
     uint8_t *pFinal = ptr + WIDTH;  // Avoid recalculation in loop
     for(; ptr<pFinal; ptr++)
     {
-#ifdef SLOW_CLOCK
-      DATAPORT = LEFT_SHIFT((*ptr), DATAPORTSHIFT);
-      SCLKPORT = tick;
-      SCLKPORT = tock;
-#else
+#ifdef SELECT_DATAOUT
       * dataport = LEFT_SHIFT((*ptr), DATAPORTSHIFT);
       * sclkp = tick;
 // FIXME: This might need an extra instruction on Connected LP
 //   (either NOP, or do code rearrangement as in REROLL)
       * sclkp = tock;
+#else
+      DATAPORT = LEFT_SHIFT((*ptr), DATAPORTSHIFT);
+      SCLKPORT = tick;
+      SCLKPORT = tock;
 #endif
     }
 #endif // UNROLL_LOOP
@@ -2494,15 +2510,16 @@ strb	r3, [r5, #0]    ; tock
       SCLKPORT = tick;
       SCLKPORT = tock;
 #else
-#ifdef SLOW_CLOCK
+#ifndef SELECT_DATAOUT
+//#ifdef SLOW_CLOCK
       DATAPORT =
         LEFT_SHIFT((( ptr[i]    << 6)    |
         ((ptr[i+WIDTH]     << 4) & 0x30) |
         ((ptr[i+(WIDTH*2)] << 2) & 0x0C)), DATAPORTSHIFT);
       SCLKPORT = tick;
       SCLKPORT = tock;
-#else      
-#ifdef SLOW_NOP1
+#elif (2 == SELECT_DATAOUT)
+//#ifdef SLOW_NOP1
       * dataport =
         LEFT_SHIFT((( ptr[i]    << 6)    |
         ((ptr[i+WIDTH]     << 4) & 0x30) |
@@ -2510,7 +2527,8 @@ strb	r3, [r5, #0]    ; tock
       * sclkp = tick;
       __NOP();
       * sclkp = tock;
-#elif defined(REROLL) || defined(REROLL_B)
+#else
+//#elif defined(REROLL) || defined(REROLL_B)
 //  TODO: Test
 //   Re-rolled the loop to put useful operation to replace the NOP
       temp =
@@ -2520,13 +2538,11 @@ strb	r3, [r5, #0]    ; tock
       * sclkp = tock;
       * dataport = temp;
       * sclkp = tick;
-#endif // SLOW_NOP1
-#endif // SLOW_CLOCK
-#endif
+#endif // SELECT_DATAOUT
+#endif // __AVR__
     }
-#if defined(REROLL) || defined(REROLL_B)
-// Do not need the NOP (because of loop overhead)
-//    __NOP();
+#if defined(SELECT_DATAOUT) && (2 != SELECT_DATAOUT)
+//#if defined(REROLL) || defined(REROLL_B)
     * sclkp = tock;
 #endif
   }

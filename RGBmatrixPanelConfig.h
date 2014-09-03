@@ -13,7 +13,7 @@ Configuration - compile time settings.
 // FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
 // __arm__ - GCC any ARM processor, but that probably applies to any ARM (e.g. Tiva, CC3200, SAM)
 // __AVR__ - GCC Atmel AVR
-// ARDUINO_ARCH_AVR - Atmel AVR - Arduino IDE 1.5 - DRAFT
+// ARDUINO_ARCH_AVR - Atmel AVR     - Arduino IDE 1.5 - DRAFT
 // ARDUINO_ARCH_SAM - Atmel SAM ARM - Arduino IDE 1.5 - DRAFT
 //
 // __MSP430_CPU__ - TI MSP430
@@ -79,21 +79,22 @@ Configuration - compile time settings.
 // Define UNROLL_LOOP to speed up display refresh by linearizing the inner loop
 #define UNROLL_LOOP
 
+// Select which variant of data output code used in inner Loop
 // Processor can put out data too fast for the display - various ways of slowing it down
-// (Use only one of following)
-
-// Slow down the clock pulse (use much less efficient code)
-//#define SLOW_CLOCK
+//   not defined - initial code (slow) (SLOW_CLOCK)
+//   Variant 1 is too fast on TM4C1294 (may be okay on TM4C123x)
+//   Variant 2 is a little slower (adds 1 extra instruction per loop - NOP)  (SLOW_NOP1)
+// Rearranging instructions eliminates need for the NOP
+//   Variant 3 is as fast as variant 1, but has other limitations     (REROLL)
+//   Variant 4 is one to use on Tiva                                  (REROLL_B)
+#define SELECT_DATAOUT 4
 
 // Add extra NOP during clock pulse (slow down data output a little)
 // extra time needed in clock on TM4C1294, suspect may not need on TM4C123x
-// TODO: Test on TM4C123x - see if need the extra NOP
-// #define SLOW_NOP1
+// TODO: Test variant 1 on TM4C123x - see if need the NOP
 
-// Rearranging instructions eliminates need for the NOP
 // TODO: REROLL and REROLL_B both work - remove REROLL, just use REROLL_B
-//#define REROLL
-#define REROLL_B
+
 
 
 // Use interleaved color value to speed up drawing
@@ -109,6 +110,7 @@ Configuration - compile time settings.
 // Since for this screen we display all the contents of one row before moving to the next
 // it should suffice to swap buffers once completed displaying a row.
 // Leaving this undefined makes swaps happen at end of screen (slower).
+//  However swap at end of row would (marginally) slow down refresh.
 //#define SWAP_AT_END_ROW
 
 
@@ -120,7 +122,7 @@ Configuration - compile time settings.
 //   Compiling the port into the library does not help performance on ARM
 //   Would mean changing the interface compared to AVR version (or adding a separate configuration call)
 //   DATAPORTMASK could be configured at run time on Tiva, 
-//   but on might not work as well to make it configurable on other ARM processors.
+//   but might not work as well to make it configurable on other ARM processors.
 
 #if defined(__TM4C129XNCZAD__)
 
