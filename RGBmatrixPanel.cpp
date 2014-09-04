@@ -2039,7 +2039,37 @@ INLINE void RGBmatrixPanel::updateDisplay(void) {
   // vertical scanning artifacts, in practice with this panel it causes
   // a green 'ghosting' effect on black pixels, a much worse artifact.
 
-  if(++plane >= nPlanes) {      // Advance plane counter.  Maxed out?
+  if(++plane == 1) {  // Advance plane counter.
+
+    // Least time available to output plane 1 (while plane 0 is displayed)
+    // Testing for this case first saves a compare and conditional branch
+
+    // Plane 0 was loaded on prior interrupt invocation and is about to
+    // latch now, so update the row address lines before we do that:
+
+#if defined(__TIVA__)
+// TODO: could compare to using bitbanding (then just write a 1 or a 0)
+
+    *addraport = ((row & 0x1) ? 0xFF : 0);
+    *addrbport = ((row & 0x2) ? 0xFF : 0);
+    *addrcport = ((row & 0x4) ? 0xFF : 0);
+    if(nRows > 8)
+      *addrdport = ((row & 0x8) ? 0xFF : 0);
+#else
+//#elif defined(__AVR__)
+    if(row & 0x1)   *addraport |=  addrapin;
+    else            *addraport &= ~addrapin;
+    if(row & 0x2)   *addrbport |=  addrbpin;
+    else            *addrbport &= ~addrbpin;
+    if(row & 0x4)   *addrcport |=  addrcpin;
+    else            *addrcport &= ~addrcpin;
+    if(nRows > 8) {
+      if(row & 0x8) *addrdport |=  addrdpin;
+      else          *addrdport &= ~addrdpin;
+    }
+#endif
+  } else if (plane >= nPlanes) {      // Maxed out?
+  // Caution: Assumes that nPlanes is > 1, would need revision to handle 1 bit per color
     plane = 0;                  // Yes, reset to plane 0, and
 #if defined(SWAP_AT_END_ROW)
 // Do swap when finish drawing all the planes in a row, rather than waiting until end of screen.
@@ -2128,32 +2158,6 @@ INLINE void RGBmatrixPanel::updateDisplay(void) {
 #endif // FADE
         buffptr = matrixbuff[1-backindex]; // Reset into front buffer
     }
-  } else if(plane == 1) {
-
-    // Plane 0 was loaded on prior interrupt invocation and is about to
-    // latch now, so update the row address lines before we do that:
-
-#if defined(__TIVA__)
-// TODO: could compare to using bitbanding (then just write a 1 or a 0)
-
-    *addraport = ((row & 0x1) ? 0xFF : 0);
-    *addrbport = ((row & 0x2) ? 0xFF : 0);
-    *addrcport = ((row & 0x4) ? 0xFF : 0);
-    if(nRows > 8)
-      *addrdport = ((row & 0x8) ? 0xFF : 0);
-#else
-//#elif defined(__AVR__)
-    if(row & 0x1)   *addraport |=  addrapin;
-    else            *addraport &= ~addrapin;
-    if(row & 0x2)   *addrbport |=  addrbpin;
-    else            *addrbport &= ~addrbpin;
-    if(row & 0x4)   *addrcport |=  addrcpin;
-    else            *addrcport &= ~addrcpin;
-    if(nRows > 8) {
-      if(row & 0x8) *addrdport |=  addrdpin;
-      else          *addrdport &= ~addrdpin;
-    }
-#endif
   }
 
 #if defined(BENCHMARK_OE)
