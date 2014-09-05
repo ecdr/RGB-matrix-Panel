@@ -1597,7 +1597,13 @@ int8_t RGBmatrixPanel::loadBuffer(const uint8_t *img, uint16_t imgsize) {
 // [OLD data] Estimate limit about 230 (with bench code), works at 170 (1 x32 panel) not at 200 (1x32)
 //#define TIMER_SET_OFFSET 170
 // Updated with Inline: measure says 101 (with bench code)
-#define TIMER_SET_OFFSET 90
+//#define TIMER_SET_OFFSET 90
+
+// With moved timer set
+// Benchmark says 33 (not including interrupt overhead)
+// With offset 70, time is still too long by about 70
+// Offset 70 works with various numbers of panels, OFFSET 80 fails (1 panel)
+#define TIMER_SET_OFFSET 70
 
 #if defined(UNROLL_LOOP)
 
@@ -1608,20 +1614,23 @@ int8_t RGBmatrixPanel::loadBuffer(const uint8_t *img, uint16_t imgsize) {
 //const uint16_t minRowTimeConst = 350;            // Overhead ticks
 
 // For version with 1 NOP, x32 panels
+// Not updated for inline
 const uint16_t minRowTimePerPanel = 180;         // Ticks per panel for a row
 const uint16_t minRowTimeConst = 290;            // Overhead ticks
 
 //#elif defined( REROLL ) || defined ( REROLL_B )
 #else
 
-//const uint16_t minRowTimePerPanel = 160;         // Ticks per panel for a row
-//const uint16_t minRowTimeConst = 270;            // Overhead ticks
-// Was working with numbers below for 2 x32 panels
-//const uint16_t minRowTimePerPanel = 170;         // Ticks per panel for a row
-//const uint16_t minRowTimeConst = 265;            // Overhead ticks
-// Updated for inlined displayUpdate
-const uint16_t minRowTimePerPanel = 150;         // Ticks per panel for a row
-const uint16_t minRowTimeConst = 230;            // Overhead ticks
+// Updated for inlined displayUpdate - was working
+//const uint16_t minRowTimePerPanel = 150;         // Ticks per panel for a row
+//const uint16_t minRowTimeConst = 230;            // Overhead ticks
+
+// Updated for rearrange conditional, moved timer set
+// Benchmarked with 1, 2 panels
+// Limit: 164 per panel, 211 const
+const uint16_t minRowTimePerPanel = 165;         // Ticks per panel for a row
+const uint16_t minRowTimeConst = 212;            // Overhead ticks
+
 
 #endif
 
@@ -1642,12 +1651,15 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 
 // Measure says 62, 76 (longer ones take 112) (with bench code)
 // Does not work with 100, 70 worked for 1 or 4 panels
-// TODO: Timing still needs work (measured timing longer than theory says should be)
 //#define TIMER_SET_OFFSET 70
 
 // With timer set in new position:
 #define TIMER_SET_OFFSET 40
+// benchmark says 21 (not counting interrupt overhead); 
+// With offset 40, measured timing (benchmark) still longer than ideal by about 40 ticks.
 // worked at 40, failed at 50 (for 2 panels)
+
+// TODO: Timing still needs work (measured timing longer than theory says should be)
 
 #if defined(UNROLL_LOOP)
 
@@ -1664,13 +1676,6 @@ const uint16_t minRowTimeConst = 128;            // Overhead ticks
 // Was working with INLINE update display
 //const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
 //const uint16_t minRowTimeConst = 122;            // Overhead ticks
-
-// Was working with following values - before INLINE updateDisplay
-//const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
-//const uint16_t minRowTimeConst = 150;            // Overhead ticks
-// const - 150 to 195 (with bench code)
-//  limit const 144, per panel 205, with bench code
-//  limit const 130, per panel 205, without bench
 
 #else
 
