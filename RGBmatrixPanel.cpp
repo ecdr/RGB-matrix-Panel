@@ -1626,6 +1626,7 @@ const uint16_t minRowTimeConst = 230;            // Overhead ticks
 
 #else
 
+// Following numbers should work, but are way out of date
 const uint16_t minRowTimePerPanel = 1610;        // Ticks per panel for a row
 const uint16_t minRowTimeConst = 270;            // Overhead ticks
 
@@ -1638,18 +1639,30 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 // [OLD, did more optimization] Failed if 120 (measure says 130, so must not be allowing enough for the loop after)
 //#define TIMER_SET_OFFSET 100
 
-// Measure says 62 (longer ones take 112) (with bench code)
-#define TIMER_SET_OFFSET 60
+// Measure says 62, 76 (longer ones take 112) (with bench code)
+// Does not work with 100, 70 worked for 1 or 4 panels
+// TODO: Timing still needs work (measured timing longer than theory says should be)
+//#define TIMER_SET_OFFSET 70
+
+// With timer set in new position:
+#define TIMER_SET_OFFSET 40
+// worked at 40, failed at 50 (for 2 panels)
 
 #if defined(UNROLL_LOOP)
 
 // Based on version without NOP
-//const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
-//const uint16_t minRowTimeConst = 122;            // Overhead ticks
-const uint16_t minRowTimePerPanel = 206;         // Ticks per panel for a row
-const uint16_t minRowTimeConst = 120;            // Overhead ticks
+const uint16_t minRowTimePerPanel = 213;         // Ticks per panel for a row
+const uint16_t minRowTimeConst = 128;            // Overhead ticks
+
+// Was working before moved timer, with timer set offset 70
 // With benchmark code looks like limit should be about 204 per panel/117 const
 // With benchmark measure says 78 for const (longer versions 128, 156) (not including interrupt call time)
+//const uint16_t minRowTimePerPanel = 208;         // Ticks per panel for a row
+//const uint16_t minRowTimeConst = 120;            // Overhead ticks
+
+// Was working with INLINE update display
+//const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
+//const uint16_t minRowTimeConst = 122;            // Overhead ticks
 
 // Was working with following values - before INLINE updateDisplay
 //const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
@@ -1659,6 +1672,8 @@ const uint16_t minRowTimeConst = 120;            // Overhead ticks
 //  limit const 130, per panel 205, without bench
 
 #else
+
+// Following numbers should work, but are way out of date
 const uint16_t minRowTimePerPanel = 1150;        // Ticks per panel for a row
 const uint16_t minRowTimeConst = 180;            // Overhead ticks
 // minRowTime = 1148 * nPanels + 176 = 1324
@@ -2023,6 +2038,19 @@ INLINE void RGBmatrixPanel::updateDisplay(void) {
 #endif
 
 
+#if defined(BENCHMARK_RGBMAT)
+// record when timer set (to figure how long after the handler started)
+  c_tmr_handler_tset = HWREG(DWT_BASE + DWT_O_CYCCNT);
+#endif
+
+#if !defined(__AVR__)
+// Leave setTimer where it was for the AVR (because of cycle counts)
+// Moved here to get consistent time before timer setting
+
+// Set timer for next interrupt
+  setTimer(duration);
+#endif
+
 #if defined(BENCHMARK_OE)
 // End of display timing
   benchOEDisable();
@@ -2234,14 +2262,10 @@ INLINE void RGBmatrixPanel::updateDisplay(void) {
   // A local register copy can speed some things up:
   ptr = (uint8_t *)buffptr;
 
-
-#if defined(BENCHMARK_RGBMAT)
-// record when timer set (to figure how long after the handler started)
-  c_tmr_handler_tset = HWREG(DWT_BASE + DWT_O_CYCCNT);
-#endif
-
+#if defined(__AVR__)
 // Set timer for next interrupt
   setTimer(duration);
+#endif
 
 #if !defined(__TIVA__)
   // Record current state of SCLKPORT register, as well as a second
