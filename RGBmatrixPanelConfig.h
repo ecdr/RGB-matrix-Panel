@@ -73,6 +73,7 @@ Configuration - compile time settings.
 //#define BENCHMARK_OE
 #endif
 
+#define ROW_SPEEDUP
 
 // Display refresh loop optimization controls
 

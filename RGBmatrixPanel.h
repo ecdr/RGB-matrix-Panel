@@ -267,6 +267,10 @@ class RGBmatrixPanel : public Adafruit_GFX {
   boolean dimwait;
 #endif
 
+#if defined(ROW_SPEEDUP)
+  uint8_t rowflaga, rowflagb, rowflagc, rowflagd;
+#endif
+
   // Counters/pointers for updateDisplay interrupt handler:
   volatile uint8_t row, plane;
   volatile uint8_t *buffptr;

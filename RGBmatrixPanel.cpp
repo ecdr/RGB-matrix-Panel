@@ -263,6 +263,18 @@ void TmrHandler(void);
 #endif
 
 
+#if defined(ROW_SPEEDUP)
+
+// Offsets of various port fields in rowflag
+/*
+#define ASHIFT  0
+#define BSHIFT  8
+#define CSHIFT 16
+#define DSHIFT 24
+*/
+#endif
+
+
 #if !defined( DATAPORTSHIFT )
 #define DATAPORTSHIFT 0
 #endif
@@ -1626,16 +1638,18 @@ const uint16_t minRowTimeConst = 270;            // Overhead ticks
 // [OLD, did more optimization] Failed if 120 (measure says 130, so must not be allowing enough for the loop after)
 //#define TIMER_SET_OFFSET 100
 
-// Measure says 56 (longer ones take 64) (with bench code)
-#define TIMER_SET_OFFSET 50
+// Measure says 62 (longer ones take 112) (with bench code)
+#define TIMER_SET_OFFSET 60
 
 #if defined(UNROLL_LOOP)
 
 // Based on version without NOP
-const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
-const uint16_t minRowTimeConst = 122;            // Overhead ticks
-// With benchmark code looks like limit should be about 207 per panel/122 const
-// With benchmark measure says 80 to 88 for const (occasionally 128) (not including interrupt call time)
+//const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
+//const uint16_t minRowTimeConst = 122;            // Overhead ticks
+const uint16_t minRowTimePerPanel = 206;         // Ticks per panel for a row
+const uint16_t minRowTimeConst = 120;            // Overhead ticks
+// With benchmark code looks like limit should be about 204 per panel/117 const
+// With benchmark measure says 78 for const (longer versions 128, 156) (not including interrupt call time)
 
 // Was working with following values - before INLINE updateDisplay
 //const uint16_t minRowTimePerPanel = 210;         // Ticks per panel for a row
@@ -2048,6 +2062,28 @@ INLINE void RGBmatrixPanel::updateDisplay(void) {
     // latch now, so update the row address lines before we do that:
 
 #if defined(__TIVA__)
+
+#if defined(ROW_SPEEDUP)
+// Use precomputed values to update row address bits - saves ~4 or 5 instructions per item
+
+// Of course if the addresses were all on one port, then could do the whole mess by outputing one variable to one address
+
+    *addraport = rowflaga;
+    *addrbport = rowflagb;
+    *addrcport = rowflagc;
+    if(nRows > 8)
+      *addrdport = rowflagd;
+// TODO: May take less time to just set up a dummy port for addrportd (i.e. all bits masked), 
+// and output to the port regardless of nRows
+
+/*
+// Initially tried this (thought loading rowflag as a word might be quicker) - but it gave same code as above
+    *addraport = rowflag >> ASHIFT;
+    *addrbport = rowflag >> BSHIFT;
+    *addrcport = rowflag >> CSHIFT;
+    if(nRows > 8)
+      *addrdport = rowflag >> DSHIFT; */
+#else
 // TODO: could compare to using bitbanding (then just write a 1 or a 0)
 
     *addraport = ((row & 0x1) ? 0xFF : 0);
@@ -2055,6 +2091,8 @@ INLINE void RGBmatrixPanel::updateDisplay(void) {
     *addrcport = ((row & 0x4) ? 0xFF : 0);
     if(nRows > 8)
       *addrdport = ((row & 0x8) ? 0xFF : 0);
+#endif
+
 #else
 //#elif defined(__AVR__)
     if(row & 0x1)   *addraport |=  addrapin;
@@ -2158,6 +2196,18 @@ INLINE void RGBmatrixPanel::updateDisplay(void) {
 #endif // FADE
         buffptr = matrixbuff[1-backindex]; // Reset into front buffer
     }
+
+#if defined(ROW_SPEEDUP)
+// Precompute values to output to row address pins
+// store in a single word so can fetch quickly
+
+  rowflaga = ((row & 0x1) ? (0xFF): 0);
+  rowflagb = ((row & 0x1) ? (0xFF): 0);
+  rowflagc = ((row & 0x1) ? (0xFF): 0);
+  if(nRows > 8)  
+    rowflagd = ((row & 0x1) ? (0xFF): 0);
+#endif
+
   }
 
 #if defined(BENCHMARK_OE)
