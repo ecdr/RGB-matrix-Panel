@@ -1601,7 +1601,8 @@ int8_t RGBmatrixPanel::loadBuffer(const uint8_t *img, uint16_t imgsize) {
 
 #if defined(UNROLL_LOOP)
 
-#if defined( SLOW_NOP1 )
+#if (2 == SELECT_DATAOUT)
+//#if defined( SLOW_NOP1 )
 // For version with 1 NOP, x16 panels
 //const uint16_t minRowTimePerPanel = 156;         // Ticks per panel for a row
 //const uint16_t minRowTimeConst = 350;            // Overhead ticks
