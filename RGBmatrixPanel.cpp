@@ -1058,7 +1058,7 @@ void RGBmatrixPanel::drawPixel(int16_t x, int16_t y, uint16_t c) {
 //  Regular drawPixel code takes about 400 (397) cycles
 //  Interleaved color takes about 300 (291) cycles
 //  Interleaved code saves about 100 (107) cycles per call 
-//   So, if code is correct, could cut about 25% off pixel time
+//   So could cut about 25% off pixel time
 
 void RGBmatrixPanel::drawPixelI(int16_t x, int16_t y, uint16_t c) {
   uint8_t bit, limit, *ptr;
@@ -1432,13 +1432,14 @@ void RGBmatrixPanel::swapBuffers(boolean copy) {
 // If copy is true, then at end copy next to front at end of fade
 // Todo: change tfade unit from refresh cycles to time
 
-// Fade is done by PWM between front and next buffers
+// Fade is done by switching between front and next buffers
 uint8_t RGBmatrixPanel::swapFade(uint16_t tfade, boolean copy) {
 
 #if defined(DEBUG_RGBMAT)
   Serial.print("swapFade");
 #endif
 
+  // Changing a fade in progress
   if (0 != FadeLen) {
     if (0 == tfade){  // Setting tfade = 0 cancels fade in progress
 // FIXME: Consider whether this may cause glitches (e.g. if need to wait until end of frame)
@@ -1455,7 +1456,7 @@ uint8_t RGBmatrixPanel::swapFade(uint16_t tfade, boolean copy) {
   else {
     FadeCnt = 0;        // How many cycles have occured in this fade
 //    FadeNNext = 0;    // How many times has the next frame been shown
-    FadeNAccum = 0;     // Sum of 2*FadeNNext over course of fade
+    FadeNAccum = 0;     // Sum of 2*FadeNNext over course of fade (use this in lieu of FadeNNext)
     copyflag = copy;    // reminder to do copy at end
     // Start the fade
 
@@ -1568,8 +1569,11 @@ int8_t RGBmatrixPanel::loadBuffer(const uint8_t *img, uint16_t imgsize) {
 //     e.g. if use fancy coding for plane 0, 
 //     then handling that must take less than minRowTime << 3 (assuming nPanels is 4)
 //
+
+// FIXME: Update instructions - do a benchmark example program
+
 // Can measure by setting BENCHMARK_RGBMAT, and checking serial output
-//   BENCHMARK result does not include interrupt overhead to call timer handler
+//   benchmark result does not include interrupt overhead to call timer handler
 //   Includes a couple of assignments, to record start/stop times
 //
 // TimePerPanel = time for 2 panel - time for 1 panel
@@ -1706,8 +1710,7 @@ const uint16_t minRowTimeConst = xxx;            // Overhead ticks
 // FIXME: Revise to actually change refresh rate at end of a frame. - Fix added.
 // TODO: *** Test the fix.  (Adjust refresh rate during display, see if changes)
 
-// Optimized version can do about 800 refreshes/second 
-//   (for 4 bit color on 2 32 row panels with 120MHz clock)
+// Can do about 800 refreshes/second (for 4 bit color on 2 32 row panels with 120MHz clock)
 
 // Minimum refresh frequency (cycles/second)
 // Calculate based on maximum timer interrupt period (timer size and clock)
@@ -1805,7 +1808,7 @@ uint32_t RGBmatrixPanel::getDim(void) const {
 #endif // DIMMER
 
 // -------------------- Testing --------------------
-// For testing, not necessarily part of the regular interface
+// For testing, not part of the regular interface
 #if defined(TESTING_RGBMAT)
 #define NUM_TRIES 20
 
@@ -1827,6 +1830,7 @@ bool RGBmatrixPanel::isRunning(void) const {
 
 #if defined(BENCHMARK_OE)
 
+// Record when OE enabled
 INLINE static void benchOEEnable(void){
   if (!oeflag){
     c_tmr_oeon = HWREG(DWT_BASE + DWT_O_CYCCNT);
@@ -2100,7 +2104,7 @@ INLINE void RGBmatrixPanel::updateDisplay(void) {
 #if defined(ROW_SPEEDUP)
 // Use precomputed values to update row address bits - saves ~4 or 5 instructions per item
 
-// Of course if the addresses were all on one port, then could do the whole mess by outputing one variable to one address
+// If the addresses were all on one port, then could do the whole mess by outputing one variable to one address
 
     *addraport = rowflaga;
     *addrbport = rowflagb;
@@ -2143,6 +2147,7 @@ INLINE void RGBmatrixPanel::updateDisplay(void) {
   } else if (plane >= nPlanes) {      // Maxed out?
   // Caution: Assumes that nPlanes is > 1, would need revision to handle 1 bit per color
     plane = 0;                  // Yes, reset to plane 0, and
+
 #if defined(SWAP_AT_END_ROW)
 // Do swap when finish drawing all the planes in a row, rather than waiting until end of screen.
 // Means not guaranteed to fully display a screen if do two swaps in succession
@@ -2156,6 +2161,7 @@ INLINE void RGBmatrixPanel::updateDisplay(void) {
 // Should be the same as buffptr = matrixbuff[1-backindex] + row * WIDTH;
     }
 #endif
+
     if(++row >= nRows) {        // advance row counter.  Maxed out?
       row     = 0;              // Yes, reset row counter, then...
 
@@ -2233,13 +2239,12 @@ INLINE void RGBmatrixPanel::updateDisplay(void) {
 
 #if defined(ROW_SPEEDUP)
 // Precompute values to output to row address pins
-// store in a single word so can fetch quickly
 
   rowflaga = ((row & 0x1) ? (0xFF): 0);
-  rowflagb = ((row & 0x1) ? (0xFF): 0);
-  rowflagc = ((row & 0x1) ? (0xFF): 0);
+  rowflagb = ((row & 0x2) ? (0xFF): 0);
+  rowflagc = ((row & 0x4) ? (0xFF): 0);
   if(nRows > 8)  
-    rowflagd = ((row & 0x1) ? (0xFF): 0);
+    rowflagd = ((row & 0x8) ? (0xFF): 0);
 #endif
 
   }

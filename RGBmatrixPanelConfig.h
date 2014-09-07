@@ -9,7 +9,6 @@ Configuration - compile time settings.
 #define RGBmatrixPanelConfig_h
 
 
-
 // FIXME: What is the Macro that indicates Stellaris/Tiva LP in Energia?
 // __arm__ - GCC any ARM processor, but that probably applies to any ARM (e.g. Tiva, CC3200, SAM)
 // __AVR__ - GCC Atmel AVR
@@ -19,8 +18,8 @@ Configuration - compile time settings.
 // __MSP430_CPU__ - TI MSP430
 //
 // Is there a macro for the TI CC3200?
+// may be: __CC3200R1M1RGC__ 
 //   (Since it is ARM, might be able to run the panel, but uses different libraries so might not be easy conversion)
-// Is there a macro for TI C2000 launchpad?
 //
 // __TIVA__ - used by this library to indicate Stellaris/Tiva
 // Just a temporary patch - until find the proper macro (if there is one)
